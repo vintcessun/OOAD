@@ -68,9 +68,22 @@ CREATE TABLE sys_user (
     real_name        VARCHAR(64)  NULL,
     department_id    BIGINT       NULL                 COMMENT '所属部门。数据范围判定的依据',
     position         VARCHAR(32)  NULL                 COMMENT '岗位；仅用于导入时派生初始角色，不参与鉴权',
-    phone            VARCHAR(20)  NULL,
+    -- 手机号属敏感数据（安全需求 S-10）：密文存列，另存脱敏副本供列表展示。
+    -- 列表查询一律返回 phone_masked；明文需 sys:security:data:view 权限且单独记审计。
+    phone_enc        VARBINARY(64) NULL                COMMENT 'AES-256 加密后的手机号',
+    phone_masked     VARCHAR(20)  NULL                 COMMENT '脱敏副本，如 138****5678',
     email            VARCHAR(128) NULL                 COMMENT '员工表未提供，留空',
-    status           TINYINT      NOT NULL DEFAULT 1   COMMENT '1=启用 0=禁用',
+    -- 三态而非两态（需求 A-25）。冻结与禁用的判定结果都是拒绝，但语义与可逆性不同：
+    -- 冻结预期会被解除（保留全部配置，可一键恢复），禁用是终态（离职/注销）。
+    -- 合并成两态会使「临时停权」与「离职」在审计日志中无法区分。
+    status           TINYINT      NOT NULL DEFAULT 1   COMMENT '1=ACTIVE 正常 | 2=FROZEN 冻结 | 0=DISABLED 禁用',
+    freeze_reason    VARCHAR(255) NULL                 COMMENT '冻结原因',
+    unfreeze_at      DATETIME     NULL                 COMMENT '自动解冻时间；NULL = 需手工解冻',
+    -- 临时人员（需求 A-26）：无工号、无电话、可无部门，授权带失效时间，
+    -- 且不得持有系统管理权限（S-16，由应用层校验）。
+    user_type        VARCHAR(16)  NOT NULL DEFAULT 'EMPLOYEE'
+                                                      COMMENT 'EMPLOYEE 正式员工 | TEMPORARY 临时人员 | SYSTEM 系统集成账号',
+    expires_at       DATETIME     NULL                 COMMENT '账号失效时间；TEMPORARY 必填',
     login_fail_count INT          NOT NULL DEFAULT 0   COMMENT '连续登录失败次数；满 5 次锁定 15 分钟',
     locked_until     DATETIME     NULL                 COMMENT '锁定截止时间；NULL = 未锁定',
     must_change_pwd  TINYINT      NOT NULL DEFAULT 0   COMMENT '首次登录强制改密',
@@ -81,6 +94,8 @@ CREATE TABLE sys_user (
     UNIQUE KEY uk_username (username),
     KEY idx_status     (status),
     KEY idx_department (department_id),
+    KEY idx_user_type  (user_type),
+    KEY idx_expires    (expires_at),
     KEY idx_deleted    (deleted_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户';
 
@@ -226,6 +241,11 @@ CREATE TABLE sys_audit_log (
     detail      JSON         NULL                  COMMENT '变更明细，如新增/移除的角色',
     client_ip   VARCHAR(45)  NULL                  COMMENT '兼容 IPv6',
     trace_id    VARCHAR(32)  NULL                  COMMENT '与 API 响应的 traceId 对应',
+    -- 防篡改哈希链（安全需求 S-11）：
+    --   row_hash = SHA256(prev_hash || actor_id || action || target_id || result || occurred_at)
+    -- 任何对历史行的修改都会使其后全部行的校验失败。提供链完整性校验接口。
+    prev_hash   CHAR(64)     NULL                  COMMENT '前一行的 row_hash',
+    row_hash    CHAR(64)     NULL                  COMMENT '本行哈希，构成不可篡改链',
     occurred_at DATETIME(3)  NOT NULL              COMMENT '毫秒精度',
     PRIMARY KEY (id, occurred_at),
     KEY idx_actor_time  (actor_id, occurred_at),
@@ -289,6 +309,29 @@ CREATE TABLE biz_hr_attendance (
     KEY        idx_dept_date (dept_id, attend_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='考勤记录（业务桩二）';
 
+-- 通用测试记录表。
+-- 老师要求「至少两个系统，每个系统 3-4 个功能」用于测试，共 8 个功能点。
+-- 为这 8 个功能点各建一张业务表是没有意义的——它们是**测试夹具而非产品**。
+-- 因此除两个需要具体演示的功能点（公文、考勤）保留专用表外，
+-- 其余 6 个功能点的接口统一落在本表上，用 system_code/module_code/resource_code 区分。
+CREATE TABLE biz_test_record (
+    id            BIGINT       NOT NULL AUTO_INCREMENT,
+    system_code   VARCHAR(32)  NOT NULL            COMMENT 'oa / hr',
+    module_code   VARCHAR(32)  NOT NULL            COMMENT 'doc / attendance',
+    resource_code VARCHAR(64)  NOT NULL            COMMENT 'receive / issue / urge / secrecy / leave / overtime',
+    title         VARCHAR(255) NOT NULL,
+    owner_user_id BIGINT       NOT NULL            COMMENT 'SELF 数据范围的判定依据',
+    owner_dept_id BIGINT       NOT NULL            COMMENT 'DEPT / DEPT_AND_SUB 数据范围的判定依据',
+    status        VARCHAR(16)  NOT NULL DEFAULT 'DRAFT',
+    payload       JSON         NULL                COMMENT '各功能点的差异字段，不为夹具建强 schema',
+    created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    KEY idx_resource   (system_code, module_code, resource_code),
+    KEY idx_owner_user (owner_user_id),
+    KEY idx_owner_dept (owner_dept_id, status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='通用测试记录（6 个功能点共用的夹具表）';
+
 -- =============================================================================
 -- 固定词汇表与内置数据
 -- 说明：下列数据是系统的固定词汇，不是导入数据，因此写在迁移脚本里。
@@ -337,8 +380,13 @@ INSERT INTO sys_department (id, dept_name, parent_id, level, path, sort_order) V
 
 -- 运维账号。SYS_ADMIN 不派生给任何真实员工——系统管理员是运维角色而非业务岗位。
 -- 初始口令为 'Admin@123' 的 BCrypt 哈希，must_change_pwd=1 强制首次登录修改。
-INSERT INTO sys_user (username, password_hash, real_name, status, must_change_pwd) VALUES
-    ('admin', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '系统管理员', 1, 1);
+INSERT INTO sys_user (username, password_hash, real_name, user_type, status, must_change_pwd) VALUES
+    ('admin', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '系统管理员', 'EMPLOYEE', 1, 1);
+
+-- HR 系统集成账号。user_type=SYSTEM，仅用于调用 /sync/users 同步人员数据。
+-- 口令为随机强口令，实际部署时由运维重置；该账号不得登录管理台。
+INSERT INTO sys_user (username, password_hash, real_name, user_type, status, must_change_pwd) VALUES
+    ('svc_hr_sync', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'HR系统集成账号', 'SYSTEM', 1, 0);
 
 INSERT INTO sys_user_role (user_id, role_id)
 SELECT u.id, r.id FROM sys_user u, sys_role r

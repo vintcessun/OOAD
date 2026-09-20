@@ -56,7 +56,9 @@ tags:
   - name: audit
     description: 审计日志
   - name: biz
-    description: 受保护业务桩
+    description: 受保护业务桩（测试系统：OA 公文管理 5 个功能点 + HR 考勤与休假 3 个）
+  - name: security
+    description: 安全管理（密码策略、敏感数据、审计防篡改）
 
 security:
   - bearerAuth: []
@@ -117,6 +119,16 @@ x-error-codes:
   27004: DEPT_CYCLE_DETECTED
   27005: MANAGER_NOT_IN_DEPT
   27006: IMPORT_VALIDATION_FAILED
+  # 28xxx 安全与分级管理
+  28001: GRANT_EXCEEDS_OWN_PERMISSION
+  28002: GRANT_EXCEEDS_OWN_SCOPE
+  28003: TARGET_OUT_OF_ADMIN_SCOPE
+  28004: USER_FROZEN
+  28005: IMPERSONATION_READONLY
+  28006: IMPERSONATION_TARGET_HIGHER
+  28007: TEMPORARY_USER_CANNOT_ADMIN
+  28008: AUDIT_CHAIN_BROKEN
+  28009: PASSWORD_POLICY_VIOLATION
 
 paths:
 
@@ -482,6 +494,9 @@ paths:
 
         **幂等**：重复分配同一角色不视为错误。批量分配采用「全部成功或全部回滚」语义。
         提交后触发缓存失效（**事务提交后**发布事件，见 docs/02-architecture.md §4.2）。
+
+        **分级管理**：目标用户须在调用者 sys:* 权限的 data_scope 内，否则 28003。
+        **授权上界**：只能授予调用者自己拥有、且范围不超过自己的角色，否则 28001 / 28002。
       operationId: assignRolesToUser
       x-iteration: 1
       x-required-permission: system:role:assign
@@ -557,6 +572,208 @@ paths:
                   - type: object
                     properties:
                       data: { $ref: '#/components/schemas/EffectivePermissions' }
+
+  /users/{id}/freeze:
+    parameters: [{ $ref: '#/components/parameters/IdPath' }]
+    post:
+      tags: [user]
+      summary: 冻结账号
+      description: |
+        账号有**三种状态**：正常 / 冻结 / 禁用。
+
+        冻结 = 暂停但可恢复：**保留全部授权关系**，但立即失效会话与权限缓存，判定一律拒绝。
+        与禁用的区别不在技术效果（都拒绝），而在语义与可逆性——合并成两态会使
+        「临时停权」与「离职」在审计日志中无法区分。
+
+        管理范围：目标用户须在调用者 sys:* 权限的 data_scope 内，否则 28003。
+        不得冻结最后一个持有 SYS_ADMIN 的运维账号。
+      x-iteration: 1
+      x-required-permission: sys:account:user:edit
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason:     { type: string }
+                unfreezeAt: { type: string, format: date-time, description: 自动解冻时间；留空则需手工解冻 }
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /users/{id}/unfreeze:
+    parameters: [{ $ref: '#/components/parameters/IdPath' }]
+    post:
+      tags: [user]
+      summary: 解冻账号
+      description: 恢复为正常状态。因授权关系在冻结期间完整保留，解冻后权限立即恢复原状。
+      x-iteration: 1
+      x-required-permission: sys:account:user:edit
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+
+  /users/{id}/impersonate:
+    parameters: [{ $ref: '#/components/parameters/IdPath' }]
+    post:
+      tags: [user]
+      summary: 以该用户身份预览
+      description: |
+        本平台是**面向管理员的控制台**，普通员工不在此登录。管理员验证「某用户到底能看到
+        什么」的手段是身份预览，而不是拿对方账号登录。
+
+        返回**短时效（15 分钟）只读**令牌：
+        - 预览期间的全部判定按目标用户的权限执行
+        - 任何写操作一律拒绝（28005）——否则审计无法区分「管理员做的」与「用户做的」
+        - 令牌不可续期、不可调用管理接口
+        - 目标须在管理范围内（28003）；目标权限高于调用者时拒绝（28006）
+        - 全程审计 IMPERSONATE_START / IMPERSONATE_END，同时记录操作人与目标
+      x-iteration: 2
+      x-required-permission: sys:account:user:impersonate
+      responses:
+        '200':
+          description: 预览令牌
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          previewToken: { type: string }
+                          expiresIn:    { type: integer, example: 900 }
+                          target:       { $ref: '#/components/schemas/User' }
+                          readOnly:     { type: boolean, example: true }
+
+  # ---------------------------------------------------------------------------
+  # HR 系统集成
+  # ---------------------------------------------------------------------------
+  /sync/users:
+    post:
+      tags: [org]
+      summary: HR 系统同步用户
+      description: |
+        对应权限清单「系统管理后台 > 组织架构同步 > 人员同步管理」。
+        外部 HR 系统创建、更新、停用用户。本系统只提供接口，不实现 HR 侧逻辑。
+
+        语义：
+        - 按 username upsert；幂等，同一批数据重复提交结果一致
+        - 更新时部门与岗位以 HR 为准，覆盖本地修改
+        - 手工赋予的额外角色保留——否则每次同步都会抹掉管理员的调整
+        - 停用置 DISABLED 并清理会话，但保留角色指派以备复职
+        - 单条失败不影响其余条目，失败明细随响应返回
+      operationId: syncUsersFromHr
+      x-iteration: 1
+      x-required-permission: sys:org:sync:manage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [users]
+              properties:
+                users:
+                  type: array
+                  items: { $ref: '#/components/schemas/HrUserSyncItem' }
+      responses:
+        '200':
+          description: 同步结果
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/SyncResult' }
+
+  # ---------------------------------------------------------------------------
+  # 安全管理
+  # ---------------------------------------------------------------------------
+  /security/password-policy:
+    get:
+      tags: [security]
+      summary: 查询密码策略
+      x-iteration: 2
+      x-required-permission: sys:security:password:view
+      responses:
+        '200':
+          description: 当前策略
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/PasswordPolicy' }
+    put:
+      tags: [security]
+      summary: 配置密码策略
+      description: 对应清单「安全管理 > 密码策略管理」：复杂度、有效期、历史密码、失败锁定。
+      x-iteration: 2
+      x-required-permission: sys:security:password:edit
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PasswordPolicy' }
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+
+  /security/audit-chain/verify:
+    post:
+      tags: [security]
+      summary: 校验审计日志哈希链完整性
+      description: |
+        审计日志每行存 prev_hash 与 row_hash 构成哈希链（安全需求 S-11）。
+        本接口重算全链，任何对历史行的篡改都会使其后全部行校验失败，返回首个断裂位置。
+      x-iteration: 2
+      x-required-permission: audit:log:list
+      parameters:
+        - { name: from, in: query, schema: { type: string, format: date-time } }
+        - { name: to,   in: query, schema: { type: string, format: date-time } }
+      responses:
+        '200':
+          description: 校验结果
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/AuditChainVerifyResult' }
+
+  /users/{id}/phone:
+    parameters: [{ $ref: '#/components/parameters/IdPath' }]
+    get:
+      tags: [security]
+      summary: 查看手机号明文
+      description: |
+        手机号加密存储、脱敏展示（S-10）。列表接口一律返回 138****5678；
+        明文需本接口 + 独立权限，且每次访问单独记审计。
+      x-iteration: 1
+      x-required-permission: sys:security:data:view
+      responses:
+        '200':
+          description: 明文手机号
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          phone: { type: string }
 
   # ---------------------------------------------------------------------------
   # 角色
@@ -694,6 +911,10 @@ paths:
       description: |
         幂等；批量操作全成功或全回滚；触发该角色下**全部用户**（含经继承持有者）的缓存失效。
         `dataScope` 指定数据范围——迭代一可配置并存储，迭代二起在判定中生效。
+
+        **授权上界**（S-13）：调用者只能授予自己拥有的权限，且 `dataScope` 不得超过
+        自己在该权限上的范围（偏序 SELF ⊂ DEPT ⊂ DEPT_AND_SUB ⊂ ALL），否则 28001 / 28002。
+        否则分公司管理员可给下属授予全公司范围的权限，再通过下属反向获得越权能力。
       x-iteration: 1
       x-required-permission: system:perm:grant
       requestBody:
@@ -1569,7 +1790,7 @@ components:
         reason:
           type: string
           description: 拒绝原因；允许时为空
-          enum: [MISSING_PERMISSION, SUBJECT_DISABLED, SUBJECT_INVALID, OUT_OF_DATA_SCOPE, DSD_VIOLATION, SYSTEM_UNAVAILABLE]
+          enum: [MISSING_PERMISSION, SUBJECT_DISABLED, SUBJECT_FROZEN, SUBJECT_EXPIRED, SUBJECT_INVALID, OUT_OF_DATA_SCOPE, DSD_VIOLATION, SYSTEM_UNAVAILABLE]
         requiredPermission: { type: string, example: 'oa:doc:draft:approve' }
         grantedScope:       { $ref: '#/components/schemas/DataScope' }
         subjectDeptId:      { type: integer, format: int64 }
@@ -1645,9 +1866,20 @@ components:
         departmentName: { type: string, example: 综合办公室 }
         departmentPath: { type: string, example: 总公司 / 综合办公室 }
         position:       { type: string, example: 干事, description: 岗位；仅导入时派生初始角色，不参与鉴权 }
-        phone:          { type: string }
+        phoneMasked:    { type: string, example: 138****5678, description: '脱敏手机号；明文需单独调 /users/-id-/phone' }
         email:          { type: string }
-        status:         { type: integer, enum: [0, 1] }
+        status:
+          type: integer
+          enum: [0, 1, 2]
+          description: '1=ACTIVE 正常 | 2=FROZEN 冻结（暂停但可恢复，保留全部授权） | 0=DISABLED 禁用（终态）'
+        freezeReason:   { type: string }
+        unfreezeAt:     { type: string, format: date-time }
+        userType:
+          type: string
+          enum: [EMPLOYEE, TEMPORARY, SYSTEM]
+          default: EMPLOYEE
+          description: 'TEMPORARY = 临时人员（无工号/电话/可无部门，须设失效时间，不得持系统管理权限）'
+        expiresAt:      { type: string, format: date-time, description: TEMPORARY 必填 }
         mustChangePwd:  { type: boolean }
         roles:          { type: array, items: { $ref: '#/components/schemas/Role' } }
         createdAt:      { type: string, format: date-time }
@@ -1962,6 +2194,74 @@ components:
             level:  { type: string, enum: [LOW, MEDIUM, HIGH] }
 
     # ---- 其它 ----
+    HrUserSyncItem:
+      type: object
+      required: [username, operation]
+      properties:
+        username:   { type: string, example: SG010001 }
+        operation:  { type: string, enum: [UPSERT, DISABLE] }
+        realName:   { type: string }
+        deptName:   { type: string, description: 按部门名匹配；以 HR 为准覆盖本地 }
+        position:   { type: string, description: 以 HR 为准覆盖本地 }
+        phone:      { type: string, description: 明文传入，服务端加密存储并生成脱敏副本 }
+        email:      { type: string, format: email }
+
+    SyncResult:
+      type: object
+      properties:
+        created: { type: integer }
+        updated: { type: integer }
+        disabled: { type: integer }
+        failed:
+          type: array
+          items:
+            type: object
+            properties:
+              username: { type: string }
+              reason:   { type: string }
+        warnings:
+          type: array
+          items: { type: string }
+          example: ['SG000011 被停用，但其担任「综合办公室」部门经理，该岗位现空缺']
+
+    PasswordPolicy:
+      type: object
+      description: 对应权限清单「安全管理 > 密码策略管理」
+      properties:
+        minLength:          { type: integer, default: 8 }
+        requireUppercase:   { type: boolean, default: true }
+        requireLowercase:   { type: boolean, default: true }
+        requireDigit:       { type: boolean, default: true }
+        requireSpecial:     { type: boolean, default: true }
+        expireDays:         { type: integer, default: 90, description: 0 = 永不过期 }
+        historyCount:       { type: integer, default: 5, description: 不得与最近 N 次口令相同 }
+        maxFailBeforeLock:  { type: integer, default: 5 }
+        lockMinutes:        { type: integer, default: 15 }
+
+    AuditChainVerifyResult:
+      type: object
+      properties:
+        valid:        { type: boolean }
+        checkedRows:  { type: integer, format: int64 }
+        firstBrokenId:
+          type: integer
+          format: int64
+          description: 首个哈希不匹配的行 ID；valid=true 时为空
+        firstBrokenAt: { type: string, format: date-time }
+
+    GrantBoundViolation:
+      type: object
+      description: |
+        授权上界违规（安全需求 S-13）。管理员只能授予自己拥有、且范围不超过自己的权限。
+        范围偏序：SELF ⊂ DEPT ⊂ DEPT_AND_SUB ⊂ ALL。
+      properties:
+        reason:
+          type: string
+          enum: [GRANT_EXCEEDS_OWN_PERMISSION, GRANT_EXCEEDS_OWN_SCOPE]
+        offendingPermissions: { type: array, items: { type: string } }
+        callerScope:          { $ref: '#/components/schemas/DataScope' }
+        requestedScope:       { $ref: '#/components/schemas/DataScope' }
+
     Menu:
       type: object
       properties:

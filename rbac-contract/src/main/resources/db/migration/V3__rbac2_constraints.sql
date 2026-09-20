@@ -117,6 +117,13 @@ FROM sys_role WHERE role_code = 'SYS_ADMIN';
 INSERT INTO sys_constraint (constraint_name, constraint_type, threshold, target_role_id, description) VALUES
     ('单用户角色数上限', 'CARD_USER_ROLE_MAX', 5, NULL, '一个用户最多拥有 5 个角色（全局规则）');
 
+-- ⚠️ 预置但**默认停用**：会议纪要写「用户不存在多个角色，但可能后续拓展」。
+--    数据模型按多对多建（不改 schema 即可支持两种口径），单角色只需启用本条约束。
+--    待老师确认后 UPDATE enabled=1 即可，无需改动任何代码。见 SRS 附录 A-4、C.3 Q14。
+INSERT INTO sys_constraint (constraint_name, constraint_type, threshold, target_role_id, enabled, description) VALUES
+    ('单角色模式', 'CARD_USER_ROLE_MAX', 1, NULL, 0,
+     '【默认停用】一个用户只能拥有 1 个角色。老师确认单角色口径后启用本条并停用「单用户角色数上限」');
+
 INSERT INTO sys_constraint (constraint_name, constraint_type, threshold, target_role_id, description)
 SELECT '普通员工权限上限', 'CARD_ROLE_PERM_MAX', 120, id,
        '普通员工角色最多关联 120 条权限（清单展开后实际约 96 条）'

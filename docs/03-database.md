@@ -128,9 +128,14 @@ erDiagram
 | real_name | VARCHAR(64) | | 真实姓名 |
 | department_id | BIGINT | NULL | 所属部门。**数据范围判定的依据** |
 | position | VARCHAR(32) | | 岗位（董事长/部长/主任/主管/专员/干事…）。**仅用于导入时派生初始角色，不参与鉴权** |
-| phone | VARCHAR(20) | | 员工表的电话号码列 |
+| phone_enc | VARBINARY(64) | NULL | 手机号 **AES-256 密文**（安全需求 S-10） |
+| phone_masked | VARCHAR(20) | NULL | 脱敏副本 `138****5678`，列表一律返回此值 |
 | email | VARCHAR(128) | | 员工表未提供，留空 |
-| status | TINYINT | NOT NULL DEFAULT 1 | 1=启用 0=禁用 |
+| **status** | TINYINT | NOT NULL DEFAULT 1 | **三态**：`1=ACTIVE 正常` / `2=FROZEN 冻结` / `0=DISABLED 禁用` |
+| freeze_reason | VARCHAR(255) | NULL | 冻结原因 |
+| unfreeze_at | DATETIME | NULL | 自动解冻时间；NULL = 需手工解冻 |
+| **user_type** | VARCHAR(16) | NOT NULL DEFAULT 'EMPLOYEE' | `EMPLOYEE` 正式员工 / `TEMPORARY` 临时人员 / `SYSTEM` 系统集成账号 |
+| expires_at | DATETIME | NULL | 账号失效时间；`TEMPORARY` 必填 |
 | login_fail_count | INT | NOT NULL DEFAULT 0 | 连续登录失败次数 |
 | locked_until | DATETIME | NULL | 锁定截止时间，NULL 表示未锁定 |
 | must_change_pwd | TINYINT | NOT NULL DEFAULT 0 | 首次登录强制改密 |
@@ -138,7 +143,25 @@ erDiagram
 | updated_at | DATETIME | NOT NULL | |
 | deleted_at | DATETIME | NULL | 逻辑删除标记 |
 
-索引：`uk_username(username)`、`idx_status(status)`、`idx_deleted(deleted_at)`
+索引：`uk_username`、`idx_status`、`idx_department`、`idx_user_type`、`idx_expires`、`idx_deleted`
+
+**关于三态（需求 A-25）**
+
+| 状态 | 值 | 授权关系 | 会话 | 判定 | 语义 |
+|---|---|---|---|---|---|
+| 正常 ACTIVE | 1 | 保留 | 有效 | 按权限 | — |
+| **冻结 FROZEN** | 2 | **完整保留** | 立即失效 | 一律拒绝 | 暂停但**可恢复**：休假、调查期间、临时停权 |
+| 禁用 DISABLED | 0 | 保留备查 | 立即失效 | 一律拒绝 | 终态：离职、账号作废 |
+
+> 冻结与禁用的技术效果相同（都拒绝），区别在**语义与可逆性**。把两者合并成 `status=0` 会让「临时停权」和「离职」在审计日志里无法区分——而审计恰恰最需要这个区分。
+>
+> 权限本身也可冻结：`sys_role_permission.frozen` 与 `sys_user_role.frozen`（V2 脚本）。冻结 ≠ 撤销——撤销删除授予记录（配置丢失，恢复需重配），冻结保留记录但判定时视为未授予，可一键恢复。
+
+**关于临时人员（需求 A-26）**
+
+会议明确「需要准备非员工特例，即临时人员（例如技术人员）」。这类账号：无工号（`username` 另行编码）、无电话、**可无所属部门**（`department_id` 本就可空）、必须设 `expires_at`、**不得持有系统管理权限**（S-16，应用层校验）。
+
+`SYSTEM` 类型用于 HR 系统的集成账号 `svc_hr_sync`，只能调同步接口，不能登录管理台。
 
 #### sys_role 角色表
 
@@ -288,11 +311,16 @@ erDiagram
 | reason | VARCHAR(255) | 失败或拒绝的原因码 |
 | detail | JSON | 变更明细，如新增/移除的角色 |
 | client_ip | VARCHAR(45) | 兼容 IPv6 |
+| trace_id | VARCHAR(32) | 与 API 响应的 `traceId` 对应 |
+| **prev_hash** | CHAR(64) | 前一行的 `row_hash` |
+| **row_hash** | CHAR(64) | `SHA256(prev_hash ‖ actor_id ‖ action ‖ target_id ‖ result ‖ occurred_at)` |
 | occurred_at | DATETIME(3) NOT NULL | 毫秒精度 |
 
 索引：`idx_actor_time(actor_id, occurred_at)`、`idx_action_time(action, occurred_at)`、`idx_target(target_type, target_id)`、`idx_time(occurred_at)`
 
 > 按 `occurred_at` 做 RANGE 分区（按月），便于归档与清理。审计日志预期每日千万级，不分区会在三个月内拖垮查询。
+>
+> **哈希链防篡改（安全需求 S-11）**：每行的 `row_hash` 由前一行的 `prev_hash` 与本行关键字段共同算出，构成链式结构。修改任何一行历史记录，都会使其后**全部行**的校验失败——篡改者必须重算整条链，而链的末端可定期外部存证。这把「审计表不可修改」从一条**制度约定**变成了一个**可验证的技术事实**，接口 `POST /security/audit-chain/verify` 返回首个断裂位置。
 
 #### biz_oa_document 发文稿件表（受保护业务桩一）
 

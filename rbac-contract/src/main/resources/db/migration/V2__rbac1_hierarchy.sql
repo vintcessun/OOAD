@@ -39,6 +39,25 @@ CREATE TABLE sys_role_inheritance (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='角色继承（DAG，非树）';
 
 -- -----------------------------------------------------------------------------
+-- 1.1 权限冻结（会议：「存在冻结权限」）
+-- -----------------------------------------------------------------------------
+
+-- 在角色-权限授予关系上增加冻结标记。
+-- 冻结 ≠ 撤销：撤销会删除授予记录（配置丢失，恢复需重配），
+-- 冻结保留记录但判定时视为不存在，可一键恢复。与账号冻结是同一思路的两处应用。
+ALTER TABLE sys_role_permission
+    ADD COLUMN frozen        TINYINT      NOT NULL DEFAULT 0 COMMENT '1 = 冻结，判定时视为未授予但保留配置',
+    ADD COLUMN frozen_reason VARCHAR(255) NULL,
+    ADD COLUMN frozen_at     DATETIME     NULL,
+    ADD KEY idx_frozen (role_id, frozen);
+
+-- 同理，用户-角色指派也可冻结（保留指派关系但暂停生效）
+ALTER TABLE sys_user_role
+    ADD COLUMN frozen    TINYINT  NOT NULL DEFAULT 0 COMMENT '1 = 冻结该角色指派',
+    ADD COLUMN frozen_at DATETIME NULL,
+    ADD KEY idx_user_frozen (user_id, frozen);
+
+-- -----------------------------------------------------------------------------
 -- 2. 菜单
 -- -----------------------------------------------------------------------------
 
