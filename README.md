@@ -54,7 +54,7 @@
 2. 采用**何种设计方法，采用的理由**是什么
 3. 展示**实现效果**
 
-> **本仓库所有设计章节都按这个结构撰写**，见 [`docs/11-defense.md`](docs/11-defense.md) 的分工与讲稿模板。
+> **本仓库所有设计章节都按这个结构撰写**，见 [`docs/11-defense.md`](docs/11-defense.md) 的讲稿模板。
 > 成绩 = 个人表现 50% + 小组整体表现 50%。
 
 ---
@@ -63,7 +63,7 @@
 
 | 文档 | 内容 | 主要用于 |
 |---|---|---|
-| [`00-charter.md`](docs/00-charter.md) | 项目章程、分工、里程碑、完成定义(DoD)、协作规范 | 全程 |
+| [`00-charter.md`](docs/00-charter.md) | 项目章程、工作分解、里程碑、完成定义(DoD)、协作规范 | 全程 |
 | [`01-srs.md`](docs/01-srs.md) | **需求规格说明书**（领域模型、用例总图、用例表、性能需求、**数据疑点附录 C**） | 检查一 ★ |
 | [`02-architecture.md`](docs/02-architecture.md) | **概要设计**：分层架构、三范式模块划分、授权内核、缓存与失效 | 检查一 ★ |
 | [`03-database.md`](docs/03-database.md) | **数据库设计**：ER 图、表结构、索引、**三份 xlsx 的导入设计** | 检查一 ★ |
@@ -74,8 +74,9 @@
 | [`08-detail-functional.md`](docs/08-detail-functional.md) | 详细设计 · 函数式 | 检查三 |
 | [`09-test-plan.md`](docs/09-test-plan.md) | 测试计划、Jacoco 覆盖率门槛、压测方案 | 全程 ★ |
 | [`10-paradigm-comparison.md`](docs/10-paradigm-comparison.md) | **三种范式对比分析**（本项目的差异化亮点） | 检查三 ★ |
-| [`11-defense.md`](docs/11-defense.md) | 答辩设计点分配与个人讲稿模板 | 每次检查前 ★ |
+| [`11-defense.md`](docs/11-defense.md) | 六个设计点与个人陈述讲稿模板 | 每次检查前 ★ |
 | [`diagrams/`](diagrams/) | StarUML 模型源文件 (.mdj) 与导出图 | 全程 |
+| [`rbac-contract/`](rbac-contract/) | **已落地的契约产物**：Flyway 建表脚本、OpenAPI 规范 | 全程 ★ |
 | [`data/raw/`](data/raw/) | 课程提供的三份原始 xlsx（**含真实人员信息，不入库**，需自行下载） | 全程 |
 
 ---
@@ -94,6 +95,19 @@
 | 测试 | JUnit 5 + Mockito + **Jacoco** | 覆盖率门槛见测试计划 |
 | 压测 | JMeter / wrk | 验证 §性能需求 的 QPS 与 P99 指标 |
 | 建模 | **StarUML** | 课程指定，源文件存 `diagrams/` |
+
+### 已落地的契约产物
+
+文档不是空谈——下列两份文件已存在，是数据库与接口的**单一事实来源**，与文档不一致时以文件为准：
+
+| 文件 | 内容 |
+|---|---|
+| [`rbac-contract/.../db/migration/V1__rbac0_baseline.sql`](rbac-contract/src/main/resources/db/migration/V1__rbac0_baseline.sql) | 迭代一 14 张表 + 操作词汇表 + 7 个内置角色 + 岗位→角色配置表及其 5 条规则 |
+| [`V2__rbac1_hierarchy.sql`](rbac-contract/src/main/resources/db/migration/V2__rbac1_hierarchy.sql) | 迭代二：角色继承、菜单、导入任务与异常明细 |
+| [`V3__rbac2_constraints.sql`](rbac-contract/src/main/resources/db/migration/V3__rbac2_constraints.sql) | 迭代三：约束体系、会话；含 6 条演示约束（覆盖三类基数约束） |
+| [`openapi/rbac-api.yaml`](rbac-contract/src/main/resources/openapi/rbac-api.yaml) | 59 个操作、40 个 schema、43 个错误码。两种范式实现必须满足同一份契约 |
+
+三个 SQL 脚本按迭代编号，本身就清晰展示了数据模型随 RBAC0 → RBAC1 → RBAC2/3 的演进，可直接作为答辩材料。
 
 ### 「分别用结构化和面向对象实现」的工程结构
 
@@ -122,9 +136,13 @@ cd OOAD
 
 ### 组员请先做三件事
 
-1. **通读 [`docs/11-defense.md`](docs/11-defense.md)** —— 检查是无领导小组面试，每人要讲**文档中的一个设计**，并讲清「需求是什么 / 存在什么问题 / 为什么这么设计 / 效果如何」。先认领自己的设计点。
+1. **通读 [`docs/11-defense.md`](docs/11-defense.md)** —— 检查是无领导小组面试，每人要讲**文档中的一个设计**，并讲清「需求是什么 / 存在什么问题 / 为什么这么设计 / 效果如何」。先了解这六个设计点各自在讲什么。
 2. **看 [`docs/01-srs.md`](docs/01-srs.md) 附录 C** —— 老师给的三份数据里我们发现了 12 处疑点（中英文混用、空单元格、同名经理、岗位没有对应角色等），以及 12 个架构级待确认问题。**答疑课要问的就是这些。**
 3. **把三份 xlsx 放进 `data/raw/`** —— 它们不入库（含一万条真实姓名和手机号），需要自己从课程网站下载。
+
+### 岗位→角色映射先用配置表
+
+员工表只有「岗位」没有「角色」，两者的映射是我们推断的。已做成配置表 `sys_position_role_mapping`（见 `V1__rbac0_baseline.sql`），5 条规则按优先级匹配。**老师若给出不同答案，只需 UPDATE 这张表后重跑派生，不改一行代码。**
 
 ### 有异议的地方
 

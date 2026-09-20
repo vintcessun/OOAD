@@ -4,7 +4,9 @@
 
 > 本文档是**唯一的接口契约**。`rbac-structured` 与 `rbac-oo` 两个模块必须实现完全相同的契约——这是它们可以共用一套前端、一套集成测试的前提（见 `02-architecture.md` §3.2）。
 >
-> 机器可读版本：`rbac-contract/src/main/resources/openapi/rbac-api.yaml`（OpenAPI 3.0）。本文档与该文件不一致时，**以 OpenAPI 文件为准**。
+> 📄 机器可读版本已落地：[`rbac-contract/src/main/resources/openapi/rbac-api.yaml`](../rbac-contract/src/main/resources/openapi/rbac-api.yaml)（OpenAPI 3.0.3，59 个操作 / 40 个 schema / 43 个错误码）。
+>
+> **本文档与该文件不一致时，以 OpenAPI 文件为准。** 该文件中每个操作都带 `x-iteration` 标注所属迭代、`x-required-permission` 标注所需权限，可直接用于生成客户端与契约测试。
 
 ---
 

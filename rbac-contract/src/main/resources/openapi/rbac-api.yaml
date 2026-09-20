@@ -1,0 +1,2023 @@
+openapi: 3.0.3
+
+# =============================================================================
+# 权限管理系统 API 契约
+#
+# 本文件是接口的**唯一事实来源**。docs/04-api.md 与本文件不一致时以本文件为准。
+#
+# rbac-structured（:8081）与 rbac-oo（:8082）必须实现完全相同的契约——
+# 这是它们可以共用一套前端、一套契约测试的前提，也是三范式对比实验
+# 「行为等价」这一前置条件的技术保证。
+# =============================================================================
+
+info:
+  title: 权限管理系统 API
+  description: |
+    市政工程公司统一授权中心。服务该公司 18 个业务系统的权限判定与配置。
+
+    ## 迭代范围
+    接口以 `x-iteration` 标注所属迭代：
+    - `1` RBAC0（10/27 检查）—— 用户/角色/权限配置、组织架构、单次判定
+    - `2` RBAC1（11/24 检查）—— 角色继承、数据范围生效、批量判定、权限解释、缓存
+    - `3` RBAC2/3（12/22 检查）—— 约束体系、会话角色激活
+
+    ## 两个易错的约定
+    1. **判定为「拒绝」时 `code` 仍是 0**。调用方问「他能不能做」、系统答「不能」，
+       这是一次成功的调用。HTTP 403 只用于「调用方自己无权调用本接口」。
+    2. **401 与 403 严格区分**。401 = 不知道你是谁；403 = 知道你是谁但你不能做这件事。
+  version: 0.1.0
+  contact:
+    name: OOAD 课程设计
+    url: https://github.com/vintcessun/OOAD
+
+servers:
+  - url: http://localhost:8081/api/v1
+    description: 结构化（面向功能）实现
+  - url: http://localhost:8082/api/v1
+    description: 面向对象实现
+
+tags:
+  - name: authz
+    description: 授权服务（系统核心；调用量可达其余接口总和的万倍）
+  - name: auth
+    description: 认证
+  - name: user
+    description: 用户管理
+  - name: role
+    description: 角色管理
+  - name: permission
+    description: 权限与资源管理
+  - name: org
+    description: 组织架构
+  - name: hierarchy
+    description: 角色继承（迭代二）
+  - name: constraint
+    description: 约束管理（迭代三）
+  - name: audit
+    description: 审计日志
+  - name: biz
+    description: 受保护业务桩
+
+security:
+  - bearerAuth: []
+
+# =============================================================================
+# 错误码（机器可读，单一来源）
+# =============================================================================
+x-error-codes:
+  0:     SUCCESS
+  # 10xxx 通用
+  10001: PARAM_INVALID
+  10002: UNAUTHORIZED
+  10003: FORBIDDEN
+  10004: NOT_FOUND
+  10005: RATE_LIMITED
+  10006: SYSTEM_UNAVAILABLE
+  # 20xxx 身份
+  20001: USER_NOT_FOUND
+  20002: CREDENTIAL_INVALID
+  20003: USER_DISABLED
+  20004: USER_LOCKED
+  20005: USERNAME_DUPLICATED
+  # 21xxx 角色
+  21001: ROLE_NOT_FOUND
+  21002: ROLE_CODE_DUPLICATED
+  21003: ROLE_IN_USE
+  21004: ROLE_DISABLED
+  21005: ROLE_BUILTIN_IMMUTABLE
+  # 22xxx 权限
+  22001: PERMISSION_NOT_FOUND
+  22002: PERMISSION_CODE_DUPLICATED
+  22003: PERMISSION_IN_USE
+  # 23xxx 继承
+  23001: HIERARCHY_CYCLE_DETECTED
+  23002: HIERARCHY_SELF_LOOP
+  23003: HIERARCHY_DEPTH_EXCEEDED
+  23004: HIERARCHY_DUPLICATED
+  # 24xxx 约束
+  24001: SSD_VIOLATION
+  24002: CARDINALITY_VIOLATION
+  24003: PREREQUISITE_VIOLATION
+  24004: DSD_VIOLATION
+  24005: CONSTRAINT_INEFFECTIVE
+  # 25xxx 授权
+  25001: MISSING_PERMISSION
+  25002: SUBJECT_DISABLED
+  25003: BATCH_SIZE_EXCEEDED
+  25004: OUT_OF_DATA_SCOPE
+  # 26xxx 业务桩
+  26001: DOC_NOT_FOUND
+  26002: DOC_STATE_INVALID
+  26003: SELF_APPROVAL_FORBIDDEN
+  26004: ATTENDANCE_NOT_FOUND
+  # 27xxx 组织
+  27001: DEPT_NOT_FOUND
+  27002: DEPT_HAS_CHILDREN
+  27003: DEPT_HAS_USERS
+  27004: DEPT_CYCLE_DETECTED
+  27005: MANAGER_NOT_IN_DEPT
+  27006: IMPORT_VALIDATION_FAILED
+
+paths:
+
+  # ---------------------------------------------------------------------------
+  # 授权服务
+  # ---------------------------------------------------------------------------
+  /authz/check:
+    post:
+      tags: [authz]
+      summary: 单次权限校验
+      description: |
+        **系统的核心接口。** 其余所有接口的调用量总和，可能不及本接口的万分之一。
+
+        性能目标：P95 < 20ms，P99 < 50ms，缓存命中率 ≥ 95%。
+        数据库不可用时按「失败关闭」返回拒绝，绝不放行。
+      operationId: checkAuthorization
+      x-iteration: 1
+      x-required-permission: authz:check:invoke
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AuthzRequest' }
+      responses:
+        '200':
+          description: 判定完成（允许或拒绝都是成功的调用）
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/AuthzDecision' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+
+  /authz/batch-check:
+    post:
+      tags: [authz]
+      summary: 批量权限校验
+      description: |
+        对同一主体校验多个（资源, 操作）。价值不在省网络往返，而在**只加载一次权限集合**。
+        也是前端页面加载时的主力接口：一个页面十几个按钮各需一条权限，一次请求拿全。
+        单次上限 100 条，超出返回 25003。
+      operationId: batchCheckAuthorization
+      x-iteration: 2
+      x-required-permission: authz:check:invoke
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BatchAuthzRequest' }
+      responses:
+        '200':
+          description: 判定完成
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/BatchAuthzDecision' }
+
+  /authz/explain:
+    post:
+      tags: [authz]
+      summary: 权限解释
+      description: |
+        在判定结果之外返回完整推导轨迹，用于回答「为什么许禄不能审批公文」。
+
+        实现要点：与普通判定**共用同一条管道**，只是开启轨迹记录——避免「解释结果
+        与实际判定不一致」这一常见缺陷。不走缓存快路径，开销约为普通判定的 20 倍，必须限流。
+        需要独立权限，且不得泄露请求方本身无权查看的角色与权限名。
+      operationId: explainAuthorization
+      x-iteration: 2
+      x-required-permission: authz:explain:invoke
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AuthzRequest' }
+      responses:
+        '200':
+          description: 判定与解释
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/ExplainResult' }
+
+  /authz/cache/invalidate:
+    post:
+      tags: [authz]
+      summary: 手动失效权限缓存
+      x-iteration: 2
+      x-required-permission: system:perm:grant
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [scope]
+              properties:
+                scope:    { type: string, enum: [USER, ROLE, ALL] }
+                targetId: { type: integer, format: int64 }
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+
+  /authz/cache/stats:
+    get:
+      tags: [authz]
+      summary: 缓存统计
+      x-iteration: 2
+      responses:
+        '200':
+          description: 命中率、条目数、平均重建耗时
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/CacheStats' }
+
+  # ---------------------------------------------------------------------------
+  # 认证
+  # ---------------------------------------------------------------------------
+  /auth/login:
+    post:
+      tags: [auth]
+      summary: 登录
+      description: |
+        失败一律返回 20002 CREDENTIAL_INVALID，**不区分用户不存在与口令错误**（防用户名枚举）。
+        连续失败 5 次锁定 15 分钟。响应时间需与成功时相近，防止时序侧信道。
+      operationId: login
+      x-iteration: 1
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username: { type: string, example: SG000013 }
+                password: { type: string, format: password }
+      responses:
+        '200':
+          description: 登录成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/LoginResult' }
+
+  /auth/logout:
+    post:
+      tags: [auth]
+      summary: 登出
+      x-iteration: 1
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+
+  /auth/me:
+    get:
+      tags: [auth]
+      summary: 当前用户信息与有效权限
+      x-iteration: 1
+      responses:
+        '200':
+          description: 当前用户
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/LoginResult' }
+
+  /auth/change-password:
+    post:
+      tags: [auth]
+      summary: 修改本人口令
+      x-iteration: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [oldPassword, newPassword]
+              properties:
+                oldPassword: { type: string, format: password }
+                newPassword: { type: string, format: password }
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+
+  # ---------------------------------------------------------------------------
+  # 用户
+  # ---------------------------------------------------------------------------
+  /users:
+    get:
+      tags: [user]
+      summary: 用户列表
+      x-iteration: 1
+      x-required-permission: system:user:list
+      parameters:
+        - { name: keyword,        in: query, schema: { type: string },  description: 用户名或姓名模糊匹配 }
+        - { name: departmentId,   in: query, schema: { type: integer, format: int64 } }
+        - { name: includeSubDept, in: query, schema: { type: boolean, default: false }, description: 是否含下属部门 }
+        - { name: position,       in: query, schema: { type: string } }
+        - { name: roleId,         in: query, schema: { type: integer, format: int64 } }
+        - { name: status,         in: query, schema: { type: integer, enum: [0, 1] } }
+        - { $ref: '#/components/parameters/PageNum' }
+        - { $ref: '#/components/parameters/PageSize' }
+      responses:
+        '200':
+          description: 分页用户列表
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        allOf:
+                          - $ref: '#/components/schemas/PageData'
+                          - type: object
+                            properties:
+                              list:
+                                type: array
+                                items: { $ref: '#/components/schemas/User' }
+    post:
+      tags: [user]
+      summary: 新增用户
+      x-iteration: 1
+      x-required-permission: system:user:create
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UserCreateRequest' }
+      responses:
+        '200':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/User' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /users/{id}:
+    parameters: [{ $ref: '#/components/parameters/IdPath' }]
+    get:
+      tags: [user]
+      summary: 用户详情
+      x-iteration: 1
+      x-required-permission: system:user:list
+      responses:
+        '200':
+          description: 用户详情
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/User' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [user]
+      summary: 修改用户信息
+      description: 不允许通过本接口修改口令与状态——各有专用接口，便于审计区分。
+      x-iteration: 1
+      x-required-permission: system:user:update
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                realName:     { type: string }
+                departmentId: { type: integer, format: int64 }
+                position:     { type: string }
+                phone:        { type: string }
+                email:        { type: string, format: email }
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+    delete:
+      tags: [user]
+      summary: 删除用户（逻辑删除）
+      x-iteration: 1
+      x-required-permission: system:user:delete
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /users/{id}/status:
+    parameters: [{ $ref: '#/components/parameters/IdPath' }]
+    patch:
+      tags: [user]
+      summary: 启用/禁用用户
+      description: 禁用后立即失效其全部会话与权限缓存；不得禁用最后一个持有 SYS_ADMIN 的运维账号。
+      x-iteration: 1
+      x-required-permission: system:user:update
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { type: integer, enum: [0, 1] }
+                reason: { type: string }
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+
+  /users/{id}/roles:
+    parameters: [{ $ref: '#/components/parameters/IdPath' }]
+    get:
+      tags: [role]
+      summary: 用户的角色列表
+      x-iteration: 1
+      x-required-permission: system:user:list
+      responses:
+        '200':
+          description: 角色列表
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/Role' }
+    post:
+      tags: [role]
+      summary: 为用户分配角色
+      description: |
+        RBAC 模型的核心写操作，也是所有约束规则的主要拦截点。
+
+        **幂等**：重复分配同一角色不视为错误。批量分配采用「全部成功或全部回滚」语义。
+        提交后触发缓存失效（**事务提交后**发布事件，见 docs/02-architecture.md §4.2）。
+      operationId: assignRolesToUser
+      x-iteration: 1
+      x-required-permission: system:role:assign
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [roleIds]
+              properties:
+                roleIds: { type: array, items: { type: integer, format: int64 } }
+                reason:  { type: string, description: 变更原因，写入审计 }
+      responses:
+        '200':
+          description: 分配成功，返回权限变更 diff
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/AssignResult' }
+        '409':
+          description: 违反约束（迭代三起）。携带结构化冲突详情，使前端可提供修复操作。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/ConstraintViolation' }
+
+  /users/{userId}/roles/{roleId}:
+    parameters:
+      - { name: userId, in: path, required: true, schema: { type: integer, format: int64 } }
+      - { name: roleId, in: path, required: true, schema: { type: integer, format: int64 } }
+    delete:
+      tags: [role]
+      summary: 撤销用户角色
+      description: 幂等。迭代三需反查先决条件约束——撤销可能使用户失去其它角色的前置条件。
+      x-iteration: 1
+      x-required-permission: system:role:revoke
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+
+  /users/{id}/permissions:
+    parameters: [{ $ref: '#/components/parameters/IdPath' }]
+    get:
+      tags: [user]
+      summary: 用户的有效权限及来源
+      description: |
+        普通系统只回答「他有哪些权限」，本接口回答「他**为什么**有这些权限」。
+
+        角色继承引入后，管理员面对一个拥有数百条权限的用户时，唯一能理解这些权限
+        来源的途径就是这张溯源表。`managedDepartments` 来自部门表的反查，是 DEPT
+        数据范围的实际作用域——没有它，「部门经理的数据范围」就是一句无法验证的话。
+      x-iteration: 1
+      x-required-permission: system:user:list
+      parameters:
+        - { name: source, in: query, schema: { type: string, enum: [ALL, DIRECT, INHERITED], default: ALL } }
+        - { name: systemCode, in: query, schema: { type: string }, description: 按软件系统筛选（权限可达数百条，必须可筛选） }
+      responses:
+        '200':
+          description: 有效权限与来源
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/EffectivePermissions' }
+
+  # ---------------------------------------------------------------------------
+  # 角色
+  # ---------------------------------------------------------------------------
+  /roles:
+    get:
+      tags: [role]
+      summary: 角色列表
+      description: 列表须含用户数、权限数、父角色数、状态。
+      x-iteration: 1
+      x-required-permission: system:role:list
+      parameters:
+        - { name: keyword, in: query, schema: { type: string } }
+        - { name: status,  in: query, schema: { type: integer, enum: [0, 1] } }
+      responses:
+        '200':
+          description: 角色列表
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/Role' }
+    post:
+      tags: [role]
+      summary: 创建角色
+      description: roleCode 全局唯一且创建后不可修改；roleName 可修改。
+      x-iteration: 1
+      x-required-permission: system:role:create
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [roleCode, roleName]
+              properties:
+                roleCode:    { type: string, example: DOC_REVIEWER }
+                roleName:    { type: string, example: 公文复核员 }
+                description: { type: string }
+      responses:
+        '200':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/Role' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /roles/{id}:
+    parameters: [{ $ref: '#/components/parameters/IdPath' }]
+    get:
+      tags: [role]
+      summary: 角色详情
+      x-iteration: 1
+      x-required-permission: system:role:list
+      responses:
+        '200':
+          description: 角色详情
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/Role' }
+    put:
+      tags: [role]
+      summary: 修改角色
+      x-iteration: 1
+      x-required-permission: system:role:update
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                roleName:    { type: string }
+                description: { type: string }
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+    delete:
+      tags: [role]
+      summary: 删除角色
+      description: |
+        **已被用户持有、被其他角色继承、或被约束引用的角色不得删除**，须先解除引用。
+        静默级联删除会造成不可预期的权限丢失；强制显式解除使影响面可见。
+        被引用时返回 409 并附各类引用的数量与整改提示。
+      x-iteration: 1
+      x-required-permission: system:role:delete
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '409':
+          description: 角色正在被使用
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/RoleInUseDetail' }
+
+  /roles/{id}/permissions:
+    parameters: [{ $ref: '#/components/parameters/IdPath' }]
+    get:
+      tags: [permission]
+      summary: 角色的权限（区分直接/继承）
+      x-iteration: 1
+      x-required-permission: system:role:list
+      responses:
+        '200':
+          description: 权限列表
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/RolePermissions' }
+    post:
+      tags: [permission]
+      summary: 为角色授予权限
+      description: |
+        幂等；批量操作全成功或全回滚；触发该角色下**全部用户**（含经继承持有者）的缓存失效。
+        `dataScope` 指定数据范围——迭代一可配置并存储，迭代二起在判定中生效。
+      x-iteration: 1
+      x-required-permission: system:perm:grant
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [permissionIds]
+              properties:
+                permissionIds: { type: array, items: { type: integer, format: int64 } }
+                dataScope:     { $ref: '#/components/schemas/DataScope' }
+      responses:
+        '200':
+          description: 授予成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/GrantResult' }
+
+  /roles/{roleId}/permissions/{permissionId}:
+    parameters:
+      - { name: roleId,       in: path, required: true, schema: { type: integer, format: int64 } }
+      - { name: permissionId, in: path, required: true, schema: { type: integer, format: int64 } }
+    delete:
+      tags: [permission]
+      summary: 撤销角色权限
+      description: 需提示受影响用户数。撤销走**强一致**：提交后必须立即失效全部节点缓存。
+      x-iteration: 1
+      x-required-permission: system:perm:revoke
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+
+  # ---------------------------------------------------------------------------
+  # 权限与资源
+  # ---------------------------------------------------------------------------
+  /permissions:
+    get:
+      tags: [permission]
+      summary: 权限列表
+      description: 支持按 系统-模块-功能点 树形展示。全量约 1795 条，必须分页或按系统筛选。
+      x-iteration: 1
+      x-required-permission: system:perm:list
+      parameters:
+        - { name: systemCode, in: query, schema: { type: string } }
+        - { name: moduleId,   in: query, schema: { type: integer, format: int64 } }
+        - { name: tree,       in: query, schema: { type: boolean, default: false } }
+        - { $ref: '#/components/parameters/PageNum' }
+        - { $ref: '#/components/parameters/PageSize' }
+      responses:
+        '200':
+          description: 权限列表
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/Permission' }
+
+  /resources:
+    get:
+      tags: [permission]
+      summary: 资源（功能点）列表
+      description: 359 个功能点，按 软件系统 → 功能模块 → 功能点 三级组织。
+      x-iteration: 1
+      x-required-permission: system:perm:list
+      parameters:
+        - { name: systemCode, in: query, schema: { type: string } }
+        - { name: tree,       in: query, schema: { type: boolean, default: true } }
+      responses:
+        '200':
+          description: 资源树
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/SoftwareSystem' }
+
+  /actions:
+    get:
+      tags: [permission]
+      summary: 操作词汇表
+      description: 固定 5 个原子操作，由权限清单的单元格取值归纳得出。
+      x-iteration: 1
+      responses:
+        '200':
+          description: 操作列表
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/Action' }
+
+  # ---------------------------------------------------------------------------
+  # 组织架构
+  # ---------------------------------------------------------------------------
+  /departments/tree:
+    get:
+      tags: [org]
+      summary: 部门树
+      description: 111 个部门，三层，单根「总公司」。
+      x-iteration: 1
+      x-required-permission: system:org:view
+      responses:
+        '200':
+          description: 部门树
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/DepartmentTree' }
+
+  /departments:
+    post:
+      tags: [org]
+      summary: 新增部门
+      x-iteration: 1
+      x-required-permission: system:org:manage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [deptName, parentId]
+              properties:
+                deptName: { type: string }
+                parentId: { type: integer, format: int64 }
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+
+  /departments/{id}:
+    parameters: [{ $ref: '#/components/parameters/IdPath' }]
+    get:
+      tags: [org]
+      summary: 部门详情
+      x-iteration: 1
+      x-required-permission: system:org:view
+      responses:
+        '200':
+          description: 部门详情
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/Department' }
+    put:
+      tags: [org]
+      summary: 修改部门（含调整上级）
+      description: |
+        移动部门会改变整棵子树的 path 与 level，因此：校验不成环（不能移到自己的子孙下）、
+        校验移动后层数不超过 3、同一事务内批量更新子树、**失效全部数据范围相关缓存**。
+
+        环检测复用角色继承的同一个算法，只是邻接关系换成部门父子关系。
+      x-iteration: 1
+      x-required-permission: system:org:manage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                deptName: { type: string }
+                parentId: { type: integer, format: int64 }
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '409': { $ref: '#/components/responses/Conflict' }
+    delete:
+      tags: [org]
+      summary: 删除部门
+      description: 须无下属部门且无在职员工，否则返回 27002 / 27003。
+      x-iteration: 1
+      x-required-permission: system:org:manage
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /departments/{id}/manager:
+    parameters: [{ $ref: '#/components/parameters/IdPath' }]
+    put:
+      tags: [org]
+      summary: 设置部门经理
+      description: 经理须为本部门员工。一人可管理多个部门（数据中「薛峰」即如此）。
+      x-iteration: 1
+      x-required-permission: system:org:manage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId]
+              properties:
+                userId: { type: integer, format: int64 }
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+
+  /departments/{id}/users:
+    parameters: [{ $ref: '#/components/parameters/IdPath' }]
+    get:
+      tags: [org]
+      summary: 部门下的员工
+      x-iteration: 1
+      x-required-permission: system:user:list
+      parameters:
+        - { name: includeSub, in: query, schema: { type: boolean, default: false } }
+        - { $ref: '#/components/parameters/PageNum' }
+        - { $ref: '#/components/parameters/PageSize' }
+      responses:
+        '200':
+          description: 员工列表
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/PageData' }
+
+  /departments/{id}/descendants:
+    parameters: [{ $ref: '#/components/parameters/IdPath' }]
+    get:
+      tags: [org]
+      summary: 全部下属部门 ID
+      description: 数据范围 DEPT_AND_SUB 的求值依据。走物化路径 path，一次 LIKE 查询。
+      x-iteration: 1
+      x-required-permission: system:org:view
+      responses:
+        '200':
+          description: 部门 ID 列表
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data: { type: array, items: { type: integer, format: int64 } }
+
+  /org/import:
+    post:
+      tags: [org]
+      summary: 从 xlsx 导入组织与员工
+      description: |
+        异步任务，返回 taskId。导入三份 xlsx：部门信息表、员工信息表、功能权限清单。
+
+        导入器会校验层级（单根三层无环）、交叉校验分公司列、同名经理消歧、
+        单元格取值归一化，并产出**导入异常报告**——每条 warning 对应 SRS 附录 C
+        的一个数据疑点。
+      x-iteration: 1
+      x-required-permission: system:org:manage
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                departments: { type: string, format: binary }
+                employees:   { type: string, format: binary }
+                permissions: { type: string, format: binary }
+      responses:
+        '200':
+          description: 任务已提交
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          taskId: { type: string }
+
+  /org/import/{taskId}/report:
+    parameters:
+      - { name: taskId, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [org]
+      summary: 导入异常报告
+      x-iteration: 1
+      x-required-permission: system:org:manage
+      responses:
+        '200':
+          description: 导入报告
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/ImportReport' }
+
+  # ---------------------------------------------------------------------------
+  # 角色继承（迭代二）
+  # ---------------------------------------------------------------------------
+  /hierarchy:
+    get:
+      tags: [hierarchy]
+      summary: 全量继承关系（DAG）
+      x-iteration: 2
+      x-required-permission: system:hier:view
+      responses:
+        '200':
+          description: 继承图
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/HierarchyGraph' }
+    post:
+      tags: [hierarchy]
+      summary: 建立继承关系
+      description: |
+        语义：`child` 继承 `parent`，child 获得 parent 的全部权限。
+        例：部门经理(child) 继承 普通员工(parent)。
+
+        成环时返回 23001 并附**完整环路径**——角色上百时管理员无法自行找出环在哪里，
+        返回路径使前端可以把构成环的边标红。这要求环检测算法保留遍历栈而非只返回布尔值，
+        是设计阶段就要决定、事后补很麻烦的细节。
+      x-iteration: 2
+      x-required-permission: system:hier:manage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [childRoleId, parentRoleId]
+              properties:
+                childRoleId:  { type: integer, format: int64 }
+                parentRoleId: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: 建立成功，返回影响面
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/HierarchyChangeResult' }
+        '409':
+          description: 成环 / 自环 / 深度超限 / 重复
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/CycleDetail' }
+    delete:
+      tags: [hierarchy]
+      summary: 解除继承关系
+      x-iteration: 2
+      x-required-permission: system:hier:manage
+      parameters:
+        - { name: childRoleId,  in: query, required: true, schema: { type: integer, format: int64 } }
+        - { name: parentRoleId, in: query, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+
+  /roles/{id}/ancestors:
+    parameters: [{ $ref: '#/components/parameters/IdPath' }]
+    get:
+      tags: [hierarchy]
+      summary: 祖先角色（权限来源）
+      x-iteration: 2
+      x-required-permission: system:hier:view
+      responses:
+        '200':
+          description: 祖先角色列表
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data: { type: array, items: { $ref: '#/components/schemas/Role' } }
+
+  /roles/{id}/descendants:
+    parameters: [{ $ref: '#/components/parameters/IdPath' }]
+    get:
+      tags: [hierarchy]
+      summary: 后代角色（缓存失效影响范围）
+      x-iteration: 2
+      x-required-permission: system:hier:view
+      responses:
+        '200':
+          description: 后代角色列表
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data: { type: array, items: { $ref: '#/components/schemas/Role' } }
+
+  # ---------------------------------------------------------------------------
+  # 约束（迭代三）
+  # ---------------------------------------------------------------------------
+  /constraints:
+    get:
+      tags: [constraint]
+      summary: 约束列表
+      x-iteration: 3
+      x-required-permission: system:constraint:manage
+      parameters:
+        - { name: type, in: query, schema: { $ref: '#/components/schemas/ConstraintType' } }
+      responses:
+        '200':
+          description: 约束列表
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data: { type: array, items: { $ref: '#/components/schemas/Constraint' } }
+    post:
+      tags: [constraint]
+      summary: 创建约束
+      description: |
+        创建时**强制做存量冲突扫描**：系统里往往已存在违反新约束的数据，直接创建会让
+        这些用户处于「不合规但系统不管」的静默状态。把存量检查做成创建流程的必经步骤，
+        管理员就必须对存量数据做出明确处置。
+
+        **互斥角色对不得存在继承关系**：若 A 继承 B 而规则声明 A⟂B，则任何持有 A 的
+        用户都会因继承获得 B 而违反该约束——该约束不可满足，返回 24005。
+      x-iteration: 3
+      x-required-permission: system:constraint:manage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ConstraintCreateRequest' }
+      responses:
+        '200':
+          description: 创建成功，附存量冲突报告
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/ConstraintCreateResult' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /constraints/{id}:
+    parameters: [{ $ref: '#/components/parameters/IdPath' }]
+    put:
+      tags: [constraint]
+      summary: 修改约束
+      x-iteration: 3
+      x-required-permission: system:constraint:manage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ConstraintCreateRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+    delete:
+      tags: [constraint]
+      summary: 删除约束
+      x-iteration: 3
+      x-required-permission: system:constraint:manage
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+
+  /constraints/scan:
+    post:
+      tags: [constraint]
+      summary: 存量冲突扫描
+      description: 对全量用户执行所有启用中的约束，输出违规清单与整改建议。
+      x-iteration: 3
+      x-required-permission: system:constraint:manage
+      responses:
+        '200':
+          description: 扫描结果
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/LegacyConflicts' }
+
+  /constraints/what-if:
+    post:
+      tags: [constraint]
+      summary: What-if 授权影响分析
+      description: |
+        在**不落库**的前提下模拟一次角色指派，返回新增/移除权限、触发的约束、风险变化。
+
+        本接口不写任何数据——它完整复用授权内核与约束求值器，只是在内存中构造一个
+        假想的用户快照。这正是「内核是无 I/O 纯逻辑」这一架构约束带来的直接收益：
+        若判定逻辑与数据库访问纠缠，What-if 就必须写库再回滚，既慢又危险。
+      x-iteration: 3
+      x-required-permission: system:role:assign
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId]
+              properties:
+                userId:        { type: integer, format: int64 }
+                addRoleIds:    { type: array, items: { type: integer, format: int64 } }
+                removeRoleIds: { type: array, items: { type: integer, format: int64 } }
+      responses:
+        '200':
+          description: 模拟结果
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/WhatIfResult' }
+
+  # ---------------------------------------------------------------------------
+  # 菜单 / 审计 / 监控
+  # ---------------------------------------------------------------------------
+  /menus/mine:
+    get:
+      tags: [permission]
+      summary: 当前用户可见菜单树
+      description: |
+        按有效权限过滤**后再下发**，无权限的菜单不出现在响应中，而非下发后由前端隐藏。
+        理由：响应体本身不应泄露系统有哪些功能模块。
+      x-iteration: 2
+      responses:
+        '200':
+          description: 菜单树
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data: { type: array, items: { $ref: '#/components/schemas/Menu' } }
+
+  /audit/logs:
+    get:
+      tags: [audit]
+      summary: 审计日志查询
+      description: |
+        审计日志**只有查询接口，没有任何写入、修改、删除接口**——可篡改的审计等于没有审计。
+      x-iteration: 2
+      x-required-permission: audit:log:list
+      parameters:
+        - { name: actorId,    in: query, schema: { type: integer, format: int64 } }
+        - { name: action,     in: query, schema: { type: string } }
+        - { name: targetType, in: query, schema: { type: string } }
+        - { name: result,     in: query, schema: { type: string, enum: [SUCCESS, DENIED, FAILED] } }
+        - { name: from,       in: query, schema: { type: string, format: date-time } }
+        - { name: to,         in: query, schema: { type: string, format: date-time } }
+        - { $ref: '#/components/parameters/PageNum' }
+        - { $ref: '#/components/parameters/PageSize' }
+      responses:
+        '200':
+          description: 审计日志
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/PageData' }
+
+  /observability/dashboard:
+    get:
+      tags: [audit]
+      summary: 概览指标
+      description: 首页不是「欢迎登录」，而是鉴权吞吐、延迟、缓存命中率的实时面板。
+      x-iteration: 2
+      x-required-permission: obsv:dashboard:view
+      responses:
+        '200':
+          description: 概览指标
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/DashboardMetrics' }
+
+  # ---------------------------------------------------------------------------
+  # 受保护业务桩
+  # ---------------------------------------------------------------------------
+  /oa/documents:
+    get:
+      tags: [biz]
+      summary: 发文稿件列表
+      description: 迭代二起按数据范围过滤——**过滤必须在 SQL 的 WHERE 子句中**，不能先查全部再内存筛。
+      x-iteration: 1
+      x-required-permission: oa:doc:draft:view
+      parameters:
+        - { name: status, in: query, schema: { type: string, enum: [DRAFT, SUBMITTED, APPROVED, REJECTED] } }
+        - { $ref: '#/components/parameters/PageNum' }
+        - { $ref: '#/components/parameters/PageSize' }
+      responses:
+        '200':
+          description: 稿件列表
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/PageData' }
+    post:
+      tags: [biz]
+      summary: 拟稿
+      x-iteration: 1
+      x-required-permission: oa:doc:draft:create
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title]
+              properties:
+                title:   { type: string }
+                content: { type: string }
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+
+  /oa/documents/{id}/approve:
+    parameters: [{ $ref: '#/components/parameters/IdPath' }]
+    post:
+      tags: [biz]
+      summary: 审批发文稿件
+      description: |
+        除功能权限校验外，还检查**拟稿人 ≠ 审批人**，违反返回 26003。
+
+        这是业务级职责分离，与 RBAC 的 SSD 互补：SSD 管的是「同一用户不能同时拥有
+        拟稿与审批两种角色」，而本检查管的是「同一份单据不能自拟自批」。两者不可混为一谈。
+      x-iteration: 1
+      x-required-permission: oa:doc:draft:approve
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [approved]
+              properties:
+                approved: { type: boolean }
+                note:     { type: string }
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /hr/attendance:
+    get:
+      tags: [biz]
+      summary: 考勤记录列表
+      description: |
+        **数据范围功能最直观的验收用例**：同一个 URL、同一份代码，四个人看到四种结果。
+
+        | 调用者 | data_scope | 返回 |
+        |---|---|---|
+        | 许禄（普通员工） | SELF | 仅本人 |
+        | 袁国智（部门经理） | DEPT | 综合办公室 18 人 |
+        | 曾禄（分公司负责人） | DEPT_AND_SUB | 该分公司及下属共 1120 人 |
+        | 薛峰（公司领导） | ALL | 全部 10000 人 |
+      x-iteration: 1
+      x-required-permission: hr:attendance:record:view
+      parameters:
+        - { name: month,  in: query, schema: { type: string, example: '2026-09' } }
+        - { name: userId, in: query, schema: { type: integer, format: int64 } }
+        - { $ref: '#/components/parameters/PageNum' }
+        - { $ref: '#/components/parameters/PageSize' }
+      responses:
+        '200':
+          description: 考勤记录
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/PageData' }
+
+  /hr/attendance/{id}:
+    parameters: [{ $ref: '#/components/parameters/IdPath' }]
+    put:
+      tags: [biz]
+      summary: 修改考勤记录
+      description: 普通员工的 data_scope 为 SELF —— 只能改本人记录，改他人返回 25004。
+      x-iteration: 2
+      x-required-permission: hr:attendance:record:edit
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                checkIn:  { type: string, format: date-time }
+                checkOut: { type: string, format: date-time }
+                remark:   { type: string }
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+# =============================================================================
+components:
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT 载荷**只含身份标识与所属部门，不含权限列表**。
+
+        JWT 一旦签发就无法撤销；若把权限写入其中，管理员撤销权限后用户在令牌有效期内
+        仍持有旧权限，与「权限变更立即生效」直接冲突。因此权限每次在服务端实时查询
+        （走缓存，约 0.1ms）——用极小的性能代价换取安全正确性。
+
+  parameters:
+    IdPath:
+      name: id
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+    PageNum:
+      name: pageNum
+      in: query
+      schema: { type: integer, minimum: 1, default: 1 }
+    PageSize:
+      name: pageSize
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 200, default: 20 }
+
+  responses:
+    Ok:
+      description: 操作成功
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiResponse' }
+    Forbidden:
+      description: 已认证但无权限（403）
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiResponse' }
+    NotFound:
+      description: 资源不存在（404）
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiResponse' }
+    Conflict:
+      description: 冲突：唯一键重复、约束违反、状态冲突（409）
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiResponse' }
+    ServiceUnavailable:
+      description: |
+        依赖不可用（503）。授权判定在此情况下按「**失败关闭**」返回拒绝，绝不放行。
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiResponse' }
+
+  schemas:
+
+    # ---- 通用 ----
+    ApiResponse:
+      type: object
+      required: [code, message]
+      properties:
+        code:      { type: integer, description: '0 = 成功；非 0 见 x-error-codes', example: 0 }
+        message:   { type: string, example: success }
+        data:      { description: 业务数据；无返回值时为 null }
+        traceId:   { type: string, example: 7f3a9c2e1b84, description: 与审计日志的 trace_id 对应 }
+        timestamp: { type: string, format: date-time }
+
+    PageData:
+      type: object
+      properties:
+        list:     { type: array, items: {} }
+        total:    { type: integer, format: int64 }
+        pageNum:  { type: integer }
+        pageSize: { type: integer }
+
+    DataScope:
+      type: string
+      description: |
+        数据范围。来源：权限清单中 6 个功能点对「普通员工」标注为「查看本人」，
+        证明仅有功能权限不足以描述需求。
+      enum: [ALL, DEPT_AND_SUB, DEPT, SELF]
+      default: ALL
+
+    # ---- 授权 ----
+    AuthzContext:
+      type: object
+      description: |
+        判定上下文。**迭代一忽略其内容**，但字段从迭代一起就存在于协议中。
+
+        若迭代一把接口定成 {subject, resource, action}，迭代二加 context 时所有已接入的
+        业务系统都要改调用方、所有测试用例要改、契约要升版本。现在留一个恒被忽略的
+        可选字段，成本为零——这是「提前把扩展点开在协议上」而非「提前实现功能」。
+      properties:
+        targetDeptId:     { type: integer, format: int64, description: 目标数据归属部门（迭代二 DEPT/DEPT_AND_SUB 用） }
+        targetUserId:     { type: integer, format: int64, description: 目标数据归属人（迭代二 SELF 用） }
+        targetResourceId: { type: string, description: 目标资源实例标识 }
+
+    AuthzRequest:
+      type: object
+      required: [subject, resource, action]
+      properties:
+        subject:  { type: string, example: SG000013, description: '主体标识（用户名或 user_ + id）' }
+        resource: { type: string, example: 'oa:doc:draft', description: '系统:模块:功能点' }
+        action:   { type: string, example: approve, enum: [view, create, edit, approve, export] }
+        context:  { $ref: '#/components/schemas/AuthzContext' }
+
+    AuthzDecision:
+      type: object
+      required: [allowed]
+      properties:
+        allowed: { type: boolean }
+        reason:
+          type: string
+          description: 拒绝原因；允许时为空
+          enum: [MISSING_PERMISSION, SUBJECT_DISABLED, SUBJECT_INVALID, OUT_OF_DATA_SCOPE, DSD_VIOLATION, SYSTEM_UNAVAILABLE]
+        requiredPermission: { type: string, example: 'oa:doc:draft:approve' }
+        grantedScope:       { $ref: '#/components/schemas/DataScope' }
+        subjectDeptId:      { type: integer, format: int64 }
+        targetDeptId:       { type: integer, format: int64 }
+        cached:             { type: boolean }
+        elapsedMicros:      { type: integer, format: int64 }
+
+    BatchAuthzRequest:
+      type: object
+      required: [subject, requests]
+      properties:
+        subject: { type: string }
+        context: { $ref: '#/components/schemas/AuthzContext' }
+        requests:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            required: [resource, action]
+            properties:
+              resource: { type: string }
+              action:   { type: string }
+
+    BatchAuthzDecision:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            allOf:
+              - type: object
+                properties:
+                  resource: { type: string }
+                  action:   { type: string }
+              - $ref: '#/components/schemas/AuthzDecision'
+        elapsedMicros: { type: integer, format: int64 }
+
+    ExplainResult:
+      allOf:
+        - $ref: '#/components/schemas/AuthzDecision'
+        - type: object
+          properties:
+            subject:        { type: string }
+            directRoles:    { type: array, items: { type: string } }
+            effectiveRoles: { type: array, items: { type: string } }
+            evaluationPath:
+              type: array
+              items: { type: string }
+              example:
+                - 'user:SG000013(许禄) -> role:EMPLOYEE (直接指派)'
+                - 'role:EMPLOYEE -> permission:oa:doc:draft:view'
+                - 'role:EMPLOYEE -> permission:oa:doc:draft:create'
+                - 'oa:doc:draft:approve 未在任何有效角色中找到'
+            suggestion: { type: string }
+
+    CacheStats:
+      type: object
+      properties:
+        hitRate:            { type: number, format: double }
+        l1Entries:          { type: integer }
+        l2Entries:          { type: integer }
+        avgRebuildMicros:   { type: integer, format: int64 }
+        invalidationsToday: { type: integer, format: int64 }
+
+    # ---- 身份与组织 ----
+    User:
+      type: object
+      properties:
+        id:             { type: integer, format: int64 }
+        username:       { type: string, example: SG000013 }
+        realName:       { type: string, example: 许禄 }
+        departmentId:   { type: integer, format: int64 }
+        departmentName: { type: string, example: 综合办公室 }
+        departmentPath: { type: string, example: 总公司 / 综合办公室 }
+        position:       { type: string, example: 干事, description: 岗位；仅导入时派生初始角色，不参与鉴权 }
+        phone:          { type: string }
+        email:          { type: string }
+        status:         { type: integer, enum: [0, 1] }
+        mustChangePwd:  { type: boolean }
+        roles:          { type: array, items: { $ref: '#/components/schemas/Role' } }
+        createdAt:      { type: string, format: date-time }
+
+    UserCreateRequest:
+      type: object
+      required: [username, realName]
+      properties:
+        username:     { type: string }
+        realName:     { type: string }
+        departmentId: { type: integer, format: int64 }
+        position:     { type: string }
+        phone:        { type: string }
+        email:        { type: string, format: email }
+        roleIds:      { type: array, items: { type: integer, format: int64 } }
+
+    LoginResult:
+      type: object
+      properties:
+        token:       { type: string }
+        expiresIn:   { type: integer, description: 秒；默认 7200 }
+        user:        { $ref: '#/components/schemas/User' }
+        roles:       { type: array, items: { $ref: '#/components/schemas/Role' } }
+        permissions: { type: array, items: { type: string }, description: 有效权限码集合 }
+        dataScopes:
+          type: object
+          additionalProperties: { $ref: '#/components/schemas/DataScope' }
+          description: |
+            只列出**非 ALL** 的条目。全部列出会让一万名普通员工每次登录都下发
+            几十条恒为 ALL 的冗余数据。
+        menus: { type: array, items: { $ref: '#/components/schemas/Menu' } }
+
+    Department:
+      type: object
+      properties:
+        id:              { type: integer, format: int64 }
+        deptName:        { type: string }
+        parentId:        { type: integer, format: int64 }
+        level:           { type: integer, minimum: 1, maximum: 3 }
+        path:            { type: string, example: /1/22/23/ }
+        manager:
+          type: object
+          properties:
+            userId:   { type: integer, format: int64 }
+            realName: { type: string }
+        userCount:       { type: integer, description: 含下属部门的累计人数 }
+        directUserCount: { type: integer, description: 直属人数；判断能否删除用 }
+        children:        { type: array, items: { $ref: '#/components/schemas/Department' } }
+
+    DepartmentTree:
+      type: object
+      properties:
+        root:             { $ref: '#/components/schemas/Department' }
+        totalDepartments: { type: integer, example: 111 }
+        maxLevel:         { type: integer, example: 3 }
+
+    # ---- 角色与权限 ----
+    Role:
+      type: object
+      properties:
+        id:              { type: integer, format: int64 }
+        roleCode:        { type: string, example: DEPT_MANAGER }
+        roleName:        { type: string, example: 部门经理 }
+        description:     { type: string }
+        status:          { type: integer, enum: [0, 1] }
+        builtin:         { type: boolean }
+        userCount:       { type: integer }
+        permissionCount: { type: integer }
+        parentRoleCount: { type: integer }
+
+    RoleInUseDetail:
+      type: object
+      properties:
+        userCount:       { type: integer }
+        childRoleCount:  { type: integer }
+        constraintCount: { type: integer }
+        hint:            { type: string }
+
+    SoftwareSystem:
+      type: object
+      properties:
+        id:         { type: integer, format: int64 }
+        systemCode: { type: string, example: oa }
+        systemName: { type: string, example: OA协同办公系统 }
+        modules:    { type: array, items: { $ref: '#/components/schemas/FunctionModule' } }
+
+    FunctionModule:
+      type: object
+      properties:
+        id:         { type: integer, format: int64 }
+        moduleCode: { type: string, example: doc }
+        moduleName: { type: string, example: 公文管理 }
+        resources:  { type: array, items: { $ref: '#/components/schemas/Resource' } }
+
+    Resource:
+      type: object
+      properties:
+        id:           { type: integer, format: int64 }
+        resourceCode: { type: string, example: draft }
+        resourceName: { type: string, example: 发文拟稿与审核 }
+        description:  { type: string, description: 权限清单的「功能说明」列 }
+
+    Action:
+      type: object
+      properties:
+        actionCode: { type: string, enum: [view, create, edit, approve, export] }
+        actionName: { type: string }
+        riskWeight: { type: integer, description: '风险权重：view=1 create=2 edit=3 export=5 approve=8' }
+
+    Permission:
+      type: object
+      properties:
+        id:             { type: integer, format: int64 }
+        permissionCode: { type: string, example: 'oa:doc:draft:approve', description: '系统:模块:功能点:操作' }
+        systemCode:     { type: string }
+        moduleName:     { type: string }
+        resourceName:   { type: string }
+        actionCode:     { type: string }
+        description:    { type: string }
+
+    EffectivePermissions:
+      type: object
+      properties:
+        user:           { $ref: '#/components/schemas/User' }
+        directRoles:    { type: array, items: { $ref: '#/components/schemas/Role' } }
+        inheritedRoles:
+          type: array
+          items:
+            allOf:
+              - $ref: '#/components/schemas/Role'
+              - type: object
+                properties:
+                  via: { type: array, items: { type: string }, description: 经由哪些角色继承而来 }
+        managedDepartments:
+          type: array
+          items: { $ref: '#/components/schemas/Department' }
+          description: |
+            该用户担任经理的部门。DEPT 数据范围的实际作用域——没有这个字段，
+            「部门经理的数据范围」就是一句无法验证的话。
+        permissions:
+          type: array
+          items:
+            type: object
+            properties:
+              code:      { type: string }
+              source:    { type: string, enum: [DIRECT, INHERITED] }
+              fromRole:  { type: string }
+              path:      { type: array, items: { type: string }, description: 继承路径 }
+              dataScope: { $ref: '#/components/schemas/DataScope' }
+        permissionCount: { type: integer }
+        riskScore:       { type: integer, minimum: 0, maximum: 100 }
+
+    RolePermissions:
+      type: object
+      properties:
+        directPermissions:    { type: array, items: { $ref: '#/components/schemas/Permission' } }
+        inheritedPermissions: { type: array, items: { $ref: '#/components/schemas/Permission' } }
+        effectivePermissions: { type: array, items: { $ref: '#/components/schemas/Permission' } }
+
+    AssignResult:
+      type: object
+      properties:
+        assigned: { type: array, items: { type: integer, format: int64 } }
+        skipped:  { type: array, items: { type: integer, format: int64 }, description: 已存在的指派（幂等，不视为错误） }
+        permissionDiff:
+          type: object
+          properties:
+            added:   { type: array, items: { type: string } }
+            removed: { type: array, items: { type: string } }
+        affectedCacheKeys: { type: integer }
+
+    GrantResult:
+      type: object
+      properties:
+        granted:        { type: array, items: { type: integer, format: int64 } }
+        skipped:        { type: array, items: { type: integer, format: int64 } }
+        affectedUsers:  { type: integer, description: 受影响用户数（含经继承持有者） }
+
+    # ---- 继承 ----
+    HierarchyGraph:
+      type: object
+      properties:
+        nodes:
+          type: array
+          items:
+            allOf:
+              - $ref: '#/components/schemas/Role'
+              - type: object
+                properties:
+                  directPermCount: { type: integer }
+        edges:
+          type: array
+          items:
+            type: object
+            properties:
+              childRoleId:  { type: integer, format: int64 }
+              parentRoleId: { type: integer, format: int64 }
+        maxDepth: { type: integer }
+        hasCycle: { type: boolean }
+
+    HierarchyChangeResult:
+      type: object
+      properties:
+        affectedRoles:  { type: integer }
+        affectedUsers:  { type: integer }
+        newPermissions: { type: array, items: { type: string } }
+        newDepth:       { type: integer }
+
+    CycleDetail:
+      type: object
+      properties:
+        cyclePath:
+          type: array
+          items: { $ref: '#/components/schemas/Role' }
+          description: |
+            构成环的完整角色路径。返回路径而非仅「存在环」——角色上百时管理员无法
+            自行找出环在哪里，前端需要据此把构成环的边标红。
+
+    # ---- 约束 ----
+    ConstraintType:
+      type: string
+      enum:
+        - SSD_MUTEX           # 静态互斥角色
+        - DSD_MUTEX           # 动态互斥（会话级）
+        - CARD_ROLE_USER_MAX  # 单角色可分配用户数上限
+        - CARD_USER_ROLE_MAX  # 单用户可拥有角色数上限
+        - CARD_ROLE_PERM_MAX  # 单角色可关联权限数上限
+        - PREREQUISITE        # 先决条件角色
+      description: 三类基数约束全部实现——课程课件明确列出这三项。
+
+    Constraint:
+      type: object
+      properties:
+        id:             { type: integer, format: int64 }
+        constraintName: { type: string }
+        constraintType: { $ref: '#/components/schemas/ConstraintType' }
+        threshold:      { type: integer }
+        targetRole:     { $ref: '#/components/schemas/Role' }
+        roles:          { type: array, items: { $ref: '#/components/schemas/Role' } }
+        enabled:        { type: boolean }
+        legacyExempt:   { type: boolean, description: 存量豁免，仅拦截新增 }
+        conflictCount:  { type: integer, description: 当前违反该约束的用户数 }
+
+    ConstraintCreateRequest:
+      type: object
+      required: [constraintName, constraintType]
+      properties:
+        constraintName: { type: string }
+        constraintType: { $ref: '#/components/schemas/ConstraintType' }
+        threshold:      { type: integer }
+        targetRoleId:   { type: integer, format: int64, description: 单角色类约束的目标；CARD_USER_ROLE_MAX 留空 }
+        roleIds:        { type: array, items: { type: integer, format: int64 } }
+        description:    { type: string }
+        legacyMode:     { type: string, enum: [LEGACY_EXEMPT, REJECT_IF_CONFLICT], default: LEGACY_EXEMPT }
+
+    ConstraintCreateResult:
+      type: object
+      properties:
+        constraintId:    { type: integer, format: int64 }
+        legacyConflicts: { $ref: '#/components/schemas/LegacyConflicts' }
+        appliedMode:     { type: string }
+
+    LegacyConflicts:
+      type: object
+      properties:
+        count: { type: integer }
+        samples:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            properties:
+              userId:           { type: integer, format: int64 }
+              username:         { type: string }
+              realName:         { type: string }
+              conflictingRoles: { type: array, items: { type: string } }
+        exportUrl: { type: string }
+
+    ConstraintViolation:
+      type: object
+      properties:
+        constraintName:   { type: string, example: 审计独立性 }
+        constraintType:   { $ref: '#/components/schemas/ConstraintType' }
+        conflictingRoles:
+          type: array
+          items:
+            type: object
+            properties:
+              id:       { type: integer, format: int64 }
+              roleCode: { type: string }
+              roleName: { type: string }
+              status:   { type: string, enum: [已拥有, 拟分配] }
+              via:      { type: string, description: 'DIRECT 或继承来源；继承也可能间接导致互斥' }
+        maxAllowed: { type: integer }
+        suggestion: { type: string }
+
+    WhatIfResult:
+      type: object
+      properties:
+        wouldSucceed: { type: boolean }
+        permissionDiff:
+          type: object
+          properties:
+            added:   { type: array, items: { type: string } }
+            removed: { type: array, items: { type: string } }
+        violations: { type: array, items: { $ref: '#/components/schemas/ConstraintViolation' } }
+        riskScoreChange:
+          type: object
+          properties:
+            before: { type: integer }
+            after:  { type: integer }
+            level:  { type: string, enum: [LOW, MEDIUM, HIGH] }
+
+    # ---- 其它 ----
+    Menu:
+      type: object
+      properties:
+        id:       { type: integer, format: int64 }
+        name:     { type: string }
+        path:     { type: string }
+        icon:     { type: string }
+        children: { type: array, items: { $ref: '#/components/schemas/Menu' } }
+
+    ImportReport:
+      type: object
+      properties:
+        status: { type: string, enum: [RUNNING, COMPLETED, COMPLETED_WITH_WARNINGS, FAILED] }
+        counts:
+          type: object
+          description: 各表最终行数，与 docs/03-database.md §5.3 的预期表对照
+          properties:
+            departments:     { type: integer, example: 111 }
+            users:           { type: integer, example: 10000 }
+            softwareSystems: { type: integer, example: 18 }
+            functionModules: { type: integer, example: 115 }
+            resources:       { type: integer, example: 359 }
+            permissions:     { type: integer, example: 1795 }
+            roles:           { type: integer, example: 7 }
+            rolePermissions: { type: integer, example: 1803 }
+            userRoles:       { type: integer, example: 10000 }
+        warnings: { type: array, items: { $ref: '#/components/schemas/ImportIssue' } }
+        errors:   { type: array, items: { $ref: '#/components/schemas/ImportIssue' } }
+
+    ImportIssue:
+      type: object
+      description: 每条对应 docs/01-srs.md 附录 C 的一个数据疑点
+      properties:
+        code:
+          type: string
+          enum: [CELL_VALUE_NORMALIZED, CELL_EMPTY, MANAGER_NAME_AMBIGUOUS, MANAGER_MULTI_DEPT, DEPT_NOT_MATCHED, BRANCH_MISMATCH, HIERARCHY_INVALID]
+        location: { type: string, example: 权限清单!行117 }
+        detail:   { type: string }
+
+    DashboardMetrics:
+      type: object
+      properties:
+        userCount:        { type: integer, example: 10000 }
+        departmentCount:  { type: integer, example: 111 }
+        roleCount:        { type: integer, example: 7 }
+        permissionCount:  { type: integer, example: 1795 }
+        todayAuthzCount:  { type: integer, format: int64 }
+        authzSuccessRate: { type: number, format: double }
+        qps:              { type: integer }
+        p95Millis:        { type: number, format: double }
+        p99Millis:        { type: number, format: double }
+        cacheHitRate:     { type: number, format: double }
+        topDenyReasons:
+          type: array
+          items:
+            type: object
+            properties:
+              reason: { type: string }
+              count:  { type: integer, format: int64 }

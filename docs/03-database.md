@@ -3,6 +3,13 @@
 **版本 0.1 · 2026 年 9 月 20 日** · 目标数据库：MySQL 8.0 / InnoDB / utf8mb4
 
 > 三种范式实现**共用这一份 schema**。这是它们行为可对比的前提之一（见 `02-architecture.md` §3.2）。
+>
+> 📄 **本文档描述的 schema 已落地为可执行的 Flyway 脚本**：
+> [`V1__rbac0_baseline.sql`](../rbac-contract/src/main/resources/db/migration/V1__rbac0_baseline.sql) ·
+> [`V2__rbac1_hierarchy.sql`](../rbac-contract/src/main/resources/db/migration/V2__rbac1_hierarchy.sql) ·
+> [`V3__rbac2_constraints.sql`](../rbac-contract/src/main/resources/db/migration/V3__rbac2_constraints.sql)
+>
+> **本文档与脚本不一致时，以脚本为准。**
 
 ---
 
@@ -359,6 +366,34 @@ erDiagram
 
 索引：`idx_parent(parent_id)`、`idx_permission(permission_id)`
 
+#### sys_import_task / sys_import_issue 导入任务与异常明细
+
+`RBAC-REQ-ORG-005` 的产出物。导入报告不是日志，而是**结构化存储的交付物**——它要在检查时展示，也要作为向老师提问的依据。
+
+| sys_import_task | 类型 | 说明 |
+|---|---|---|
+| id | BIGINT PK | |
+| task_no | VARCHAR(64) NOT NULL UNIQUE | 任务编号，API 返回给调用方 |
+| status | VARCHAR(32) NOT NULL | `RUNNING` / `COMPLETED` / `COMPLETED_WITH_WARNINGS` / `FAILED` |
+| counts | JSON | 各表最终行数，与 §5.3 的预期表对照 |
+| started_at / finished_at | DATETIME | |
+| operator_id | BIGINT | |
+
+| sys_import_issue | 类型 | 说明 |
+|---|---|---|
+| id | BIGINT PK | |
+| task_id | BIGINT NOT NULL | |
+| severity | VARCHAR(16) NOT NULL | `WARNING`（可继续）/ `ERROR`（中止导入） |
+| code | VARCHAR(64) NOT NULL | `CELL_VALUE_NORMALIZED` / `CELL_EMPTY` / `MANAGER_NAME_AMBIGUOUS` / `DEPT_NOT_MATCHED` / `BRANCH_MISMATCH` 等 |
+| location | VARCHAR(128) | 如「权限清单!行117」，可直接定位到 xlsx 的单元格 |
+| detail | VARCHAR(512) NOT NULL | |
+
+索引：`idx_task(task_id)`、`idx_severity(task_id, severity)`
+
+> **为什么把异常报告落库而不是打日志**：日志会滚动、会被清理，而这份报告要在一个月后的检查现场打开给老师看。每一条 `WARNING` 都对应 `01-srs.md` 附录 C 的一个数据疑点，是「我们逐条校验了老师给的数据」这一主张的证据。
+
+---
+
 ### 3.3 迭代三（RBAC2/3）新增
 
 #### sys_constraint 约束规则表
@@ -439,7 +474,7 @@ erDiagram
 
 ## 5. 初始化数据与导入设计
 
-> 本系统的初始数据**不是编造的**，而是从课程提供的三份 xlsx 导入。这是一项真实的工作量，独立列为需求 `RBAC-REQ-ORG-005`，由数据负责人（M6）承担。
+> 本系统的初始数据**不是编造的**，而是从课程提供的三份 xlsx 导入。这是一项真实的工作量，独立列为需求 `RBAC-REQ-ORG-005`，属设计点 DP-6。
 
 ### 5.1 导入总览
 
