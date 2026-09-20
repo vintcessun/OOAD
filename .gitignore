@@ -1,0 +1,53 @@
+# Java / Maven
+target/
+*.class
+*.jar
+*.war
+!.mvn/wrapper/maven-wrapper.jar
+.mvn/timing.properties
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.settings/
+.project
+.classpath
+
+# Node / 前端
+node_modules/
+dist/
+.pnpm-store/
+*.local
+
+# 日志与临时文件
+*.log
+logs/
+tmp/
+*.tmp
+
+# 测试与覆盖率报告（由 CI 生成，不入库）
+jacoco.exec
+**/site/jacoco/
+**/site/jacoco-aggregate/
+coverage/
+
+# 数据库与环境
+*.db
+.env
+.env.local
+application-local.yml
+
+# 原始数据（含真实人员信息，不入公开仓库）
+data/raw/*.xlsx
+data/raw/*.xls
+
+# 操作系统
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# StarUML 备份
+*.mdj.bak

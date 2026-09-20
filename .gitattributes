@@ -1,0 +1,6 @@
+* text=auto eol=lf
+*.mdj -text -diff
+*.xlsx binary
+*.png binary
+*.jpg binary
+*.pdf binary
