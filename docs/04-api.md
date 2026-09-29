@@ -7,6 +7,8 @@
 > 📄 机器可读版本已落地：[`rbac-contract/src/main/resources/openapi/rbac-api.yaml`](../rbac-contract/src/main/resources/openapi/rbac-api.yaml)（OpenAPI 3.0.3，59 个操作 / 40 个 schema / 43 个错误码）。
 >
 > **本文档与该文件不一致时，以 OpenAPI 文件为准。** 该文件中每个操作都带 `x-iteration` 标注所属迭代、`x-required-permission` 标注所需权限，可直接用于生成客户端与契约测试。
+>
+> **所有接口都受权限控制**（9/29 教师强调）：只有登录与健康检查免鉴权；本人自助接口标注为 `@self`；其余每个接口都有具体权限码。契约中查不到声明的路由运行时一律拒绝，CI 比对全部路由与契约，缺一条即构建失败。见 `02-architecture.md` §4.7。
 
 ---
 
@@ -260,7 +262,7 @@ GET    /api/v1/authz/cache/stats
 
 | 对应需求 | RBAC-REQ-AUTHZ-004 · 迭代二 |
 |---|---|
-| 所需权限 | `system:perm:grant`（缓存操作视为高危运维操作） |
+| 所需权限 | 失效：`system:perm:grant`（缓存操作视为高危运维操作）；统计：`obsv:dashboard:view` |
 
 ---
 
@@ -269,15 +271,15 @@ GET    /api/v1/authz/cache/stats
 | 方法 | 路径 | 说明 | 所需权限 | 需求 |
 |---|---|---|---|---|
 | POST | `/auth/login` | 登录，返回令牌 + 有效权限 + 菜单树 | 无 | IDM-001 |
-| POST | `/auth/logout` | 登出，销毁会话 | 已登录 | IDM-002 |
-| GET | `/auth/me` | 当前用户信息与有效权限 | 已登录 | IDM-001 |
-| POST | `/auth/change-password` | 修改本人口令 | 已登录 | — |
+| POST | `/auth/logout` | 登出，销毁会话 | `@self` 本人自助 | IDM-002 |
+| GET | `/auth/me` | 当前用户信息与有效权限 | `@self` 本人自助 | IDM-001 |
+| POST | `/auth/change-password` | 修改本人口令 | `@self` 本人自助 | — |
 | GET | `/users` | 用户列表（分页/过滤，支持 `departmentId`、`includeSubDept`、`position`、`roleId`、`keyword`） | `system:user:list` | IDM-007 |
 | POST | `/users` | 新增用户 | `system:user:create` | IDM-003 |
 | GET | `/users/{id}` | 用户详情 | `system:user:list` | IDM-007 |
 | PUT | `/users/{id}` | 修改用户信息 | `system:user:update` | IDM-004 |
-| PATCH | `/users/{id}/status` | 启用/禁用 | `system:user:update` | IDM-005 |
-| DELETE | `/users/{id}` | 逻辑删除 | `system:user:delete` | IDM-006 |
+| PATCH | `/users/{id}/status` | 启用/停用（三态中的前两态；删除走 DELETE） | `system:user:update` | IDM-010 |
+| DELETE | `/users/{id}` | 删除（逻辑删除，终态） | `system:user:delete` | IDM-006 |
 | GET | `/users/{id}/roles` | 用户的角色列表 | `system:user:list` | ROLE-005 |
 | GET | `/users/{id}/permissions` | **有效权限及来源** | `system:user:list` | IDM-008 |
 
@@ -360,6 +362,7 @@ GET /api/v1/users/{id}/permissions
 | DELETE | `/roles/{id}` | 删除角色 | `system:role:delete` | ROLE-003 |
 | POST | `/users/{userId}/roles` | **为用户分配角色** | `system:role:assign` | ROLE-005 |
 | DELETE | `/users/{userId}/roles/{roleId}` | 撤销用户角色 | `system:role:revoke` | ROLE-006 |
+| POST | `/role-assignments/batch` | **按分公司 / 部门 / 员工批量授权或撤销**；展开为逐人指派，全部成功或全部回滚 | `system:role:assign` | IDM-013 |
 | GET | `/roles/{id}/permissions` | 角色权限（区分直接/继承） | `system:role:list` | HIER-004 |
 | POST | `/roles/{id}/permissions` | **为角色授予权限** | `system:perm:grant` | PERM-003 |
 | DELETE | `/roles/{id}/permissions/{permId}` | 撤销角色权限 | `system:perm:revoke` | PERM-004 |

@@ -42,6 +42,8 @@ servers:
     description: 结构化（面向功能）实现
   - url: http://localhost:8082/api/v1
     description: 面向对象实现
+  - url: http://localhost:8090/api/v1
+    description: 外部模拟系统 rbac-mock-biz（仅 biz 标签下的 /oa/*、/hr/* 接口）
 
 tags:
   - name: authz
@@ -63,7 +65,7 @@ tags:
   - name: audit
     description: 审计日志
   - name: biz
-    description: 受保护业务桩（测试系统：OA 公文管理 5 个功能点 + HR 考勤与休假 3 个）
+    description: 受保护业务桩（测试系统：OA 公文管理 5 个功能点 + HR 考勤与休假 3 个）。**由独立部署的外部模拟系统 rbac-mock-biz 提供（:8090），不属于权限中心**；列在本契约中是为了统一描述，它们内部调用 /authz/check 鉴权
   - name: security
     description: 安全管理（密码策略、敏感数据、审计防篡改）
 
@@ -585,7 +587,7 @@ paths:
         - 每个目标仍逐一校验管理范围（28003）与授权上界（28001/28002），迭代三起逐一校验约束；
         - **不建立「部门→角色」的持续绑定**：之后入职该部门的员工不会自动获得角色（权限一律人工分配）。
 
-        目标超过 1,000 人时，缓存失效改为递增全局版本号（docs/02-architecture.md §4.2）。
+        目标超过 1,000 人时，缓存失效改为：批量删除这些用户的 Redis 缓存键，再递增全局版本号让各实例清空进程内缓存（docs/02-architecture.md §4.2）。
       operationId: batchAssignRoles
       x-iteration: 1
       x-required-permission: system:role:assign

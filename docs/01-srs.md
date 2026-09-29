@@ -806,7 +806,7 @@ A3 ..> A1 : <<extend>>
 | 8. 系统异步记录鉴权指标与鉴权日志：允许记 `AUTH_SUCCESS`、拒绝记 `AUTH_FAILED`，写入独立的鉴权日志表（见 §5.1） | 耗时、缓存命中与否、命中的权限 |
 | **扩展场景：** | **信息** |
 | 2a. 用户不存在、已停用或已删除 | |
-| &nbsp;&nbsp;1. 返回 allowed=false，reason=SUBJECT_DISABLED / SUBJECT_INVALID | |
+| &nbsp;&nbsp;1. 返回 allowed=false，reason 分别为 SUBJECT_INVALID / SUBJECT_DISABLED / SUBJECT_DELETED | |
 | 2b. 主体持有 `SUPER_ADMIN` | |
 | &nbsp;&nbsp;1. 跳过步骤 2–6，返回 allowed=true，reason=SUPER_ADMIN_BYPASS，并记 `AUTH_SUCCESS` | 见 §3.2.3 |
 | 5a. 权限码不在有效权限集合中 | |

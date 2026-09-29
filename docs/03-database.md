@@ -348,6 +348,8 @@ erDiagram
 
 `sys_authz_log_minute(user_id, permission_code, minute_at, success_count, fail_count)` 是按分钟的聚合计数，两个用途：① 写入积压时成功记录降级写这张表，拒绝记录仍逐条写明细（T-6）；② 权限使用热力图（OBSV-002）直接读这张表，不扫明细。
 
+> **以下 `biz_*` 表属于外部模拟系统 `rbac-mock-biz`**，不属于权限中心。放在同一套 Flyway 脚本、同一个数据库实例中，只是为了 `docker compose up` 一条命令拉起全部环境；权限中心的代码不读写这些表，模拟系统也不读写 `sys_*` 表，两边只通过 `/authz/check` 交互。
+
 #### biz_oa_document 发文稿件表（受保护业务桩一）
 
 对应权限清单 `OA协同办公系统 > 公文管理 > 发文拟稿与审核`。**仅实现权限验证所需的最小字段**，不是一个真正的公文系统。
