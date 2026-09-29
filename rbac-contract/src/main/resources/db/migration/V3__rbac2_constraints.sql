@@ -47,6 +47,12 @@ CREATE TABLE sys_constraint (
 --   CARD_ROLE_PERM_MAX  单角色权限数上限  threshold = 权限数上限，target_role_id 指定角色
 --   PREREQUISITE        先决条件角色      threshold 不使用
 --                                         target_role_id = 目标角色，关联表存前置角色
+--                                         ⚠️ 目标角色若在继承图上已继承前置角色，约束对有效角色恒成立，
+--                                            创建时返回 24005 CONSTRAINT_INEFFECTIVE（design-log #8）
+--
+-- 时间约束（9/29 需求清单列为 RBAC2 基线）不放在本表：
+--   指派的有效期在 sys_user_role.effective_from / expires_at（V1 已建）；
+--   角色的可用时段在 sys_role.active_window（见下）。两者都由判定管道 S3 过滤。
 --
 -- 三类基数约束**全部实现**——课程课件明确列出这三项。
 
@@ -88,6 +94,11 @@ CREATE TABLE sys_session_role (
     KEY idx_role (role_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='会话激活角色';
 
+-- 角色的可用时段（时间约束之二）。格式：星期范围 + 时间范围，如 'MON-FRI 08:00-18:00'。
+-- NULL = 不限。超出时段时持有该角色的指派在判定中不计入，但指派本身不变。
+ALTER TABLE sys_role
+    ADD COLUMN active_window VARCHAR(64) NULL COMMENT '可用时段，如 MON-FRI 08:00-18:00；NULL = 不限';
+
 -- =============================================================================
 -- 演示用约束
 --
@@ -114,6 +125,11 @@ SELECT '运维账号上限', 'CARD_ROLE_USER_MAX', 3, id,
        '持有 SYS_ADMIN 的运维账号最多 3 个。注意约束的是运维账号，不是「系统管理后台」这个业务系统的使用者'
 FROM sys_role WHERE role_code = 'SYS_ADMIN';
 
+INSERT INTO sys_constraint (constraint_name, constraint_type, threshold, target_role_id, description)
+SELECT '超级管理员上限', 'CARD_ROLE_USER_MAX', 3, id,
+       '9/29 需求清单示例：SUPER_ADMIN 最大用户数 3。超管越过权限引擎，人数必须严格受控'
+FROM sys_role WHERE role_code = 'SUPER_ADMIN';
+
 INSERT INTO sys_constraint (constraint_name, constraint_type, threshold, target_role_id, description) VALUES
     ('单用户角色数上限', 'CARD_USER_ROLE_MAX', 5, NULL, '一个用户最多拥有 5 个角色（全局规则）');
 
@@ -130,11 +146,14 @@ SELECT '普通员工权限上限', 'CARD_ROLE_PERM_MAX', 120, id,
 FROM sys_role WHERE role_code = 'EMPLOYEE';
 
 -- 先决条件角色
+-- ⚠️ 原演示规则「部门经理须先为员工」不可用：V2 中部门经理继承普通员工，
+--    该规则对有效角色恒成立；若改按直接角色，导入的部门经理又全部违规
+--    （导入只派生一个角色）。改用两者无继承关系的一对。见 design-log #8。
 INSERT INTO sys_constraint (constraint_name, constraint_type, target_role_id, description)
-SELECT '部门经理须先为员工', 'PREREQUISITE', id,
-       '必须先拥有「普通员工」角色，才能被指派「部门经理」'
-FROM sys_role WHERE role_code = 'DEPT_MANAGER';
+SELECT '审计员须先为员工', 'PREREQUISITE', id,
+       '必须先拥有「普通员工」角色，才能被指派「审计员」——审计员必须是正式员工，不能是临时人员或集成账号'
+FROM sys_role WHERE role_code = 'AUDITOR';
 
 INSERT INTO sys_constraint_role (constraint_id, role_id, role_position)
 SELECT c.id, r.id, 'PREREQUISITE' FROM sys_constraint c, sys_role r
-WHERE c.constraint_name = '部门经理须先为员工' AND r.role_code = 'EMPLOYEE';
+WHERE c.constraint_name = '审计员须先为员工' AND r.role_code = 'EMPLOYEE';

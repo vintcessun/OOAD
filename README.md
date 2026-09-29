@@ -15,11 +15,11 @@
 
 | 数据 | 规模 |
 |---|---|
-| 部门信息表 | **111 个部门**，三层单根（总公司 → 9 分公司 + 10 职能部门 → 子部门） |
+| 部门信息表 | **111 个部门**，三层（总公司 → 9 分公司 + 10 职能部门 → 子部门）；表结构支持多家公司 |
 | 员工信息表 | **10,000 名员工**，含分公司、部门、岗位 |
 | 应用软件功能权限清单 | **18 个软件系统 / 115 个功能模块 / 359 个功能点 × 5 个角色** |
 
-展开后约 **1,795 条原子权限**、**1,800 条角色授予**。系统不实现那 18 个业务系统，只从清单中选取两个模块共 8 个功能点作为**测试系统**来验证权限真实生效。
+展开后约 **1,795 条原子权限**、**1,800 条角色授予**。系统不实现那 18 个业务系统，只从清单中选取两个模块共 8 个功能点，做成两个**外部模拟系统**来验证权限真实生效。
 
 系统按 RBAC 标准模型（ANSI/INCITS 359）分三个迭代逐级增强：
 
@@ -27,7 +27,7 @@
 |---|---|---|
 | 迭代一 | RBAC0 | 用户 → 角色 → 权限的基本授权 |
 | 迭代二 | RBAC1 | RBAC0 + 角色继承（层级角色） |
-| 迭代三 | RBAC2/3 | RBAC1 + 约束（互斥角色、基数、先决条件角色） |
+| 迭代三 | RBAC2/3 | RBAC1 + 约束（SSD、DSD、基数、先决条件角色、时间约束） |
 
 并且用**三种设计范式**分别实现同一套需求，用于横向对比：**结构化（面向功能）设计 / 面向对象设计 / 函数式设计**。
 
@@ -105,10 +105,10 @@
 
 | 文件 | 内容 |
 |---|---|
-| [`rbac-contract/.../db/migration/V1__rbac0_baseline.sql`](rbac-contract/src/main/resources/db/migration/V1__rbac0_baseline.sql) | 迭代一 15 张表 + 操作词汇表 + 7 个内置角色 + 岗位→角色配置表及其 5 条规则 |
+| [`rbac-contract/.../db/migration/V1__rbac0_baseline.sql`](rbac-contract/src/main/resources/db/migration/V1__rbac0_baseline.sql) | 迭代一 17 张表（含鉴权日志两张）+ 操作词汇表 + 8 个内置角色（含超级管理员）+ 岗位→角色配置表及其 5 条规则 |
 | [`V2__rbac1_hierarchy.sql`](rbac-contract/src/main/resources/db/migration/V2__rbac1_hierarchy.sql) | 迭代二：角色继承、菜单、导入任务与异常明细 |
-| [`V3__rbac2_constraints.sql`](rbac-contract/src/main/resources/db/migration/V3__rbac2_constraints.sql) | 迭代三：约束体系、会话；含 6 条演示约束（覆盖三类基数约束） |
-| [`openapi/rbac-api.yaml`](rbac-contract/src/main/resources/openapi/rbac-api.yaml) | 67 个操作、45 个 schema、52 个错误码。两种范式实现必须满足同一份契约 |
+| [`V3__rbac2_constraints.sql`](rbac-contract/src/main/resources/db/migration/V3__rbac2_constraints.sql) | 迭代三：约束体系、会话、角色可用时段；含 7 条演示约束（覆盖三类基数约束） |
+| [`openapi/rbac-api.yaml`](rbac-contract/src/main/resources/openapi/rbac-api.yaml) | 66 个操作（**每个都声明了所需权限**）、45 个 schema、55 个错误码。两种范式实现必须满足同一份契约 |
 
 三个 SQL 脚本按迭代编号，本身就清晰展示了数据模型随 RBAC0 → RBAC1 → RBAC2/3 的演进，可直接作为答辩材料。
 
@@ -117,12 +117,13 @@
 ```
 rbac-parent/
 ├── rbac-contract/      公共契约：DTO、错误码、OpenAPI 规范（两种实现共用，保证可比性）
-├── rbac-structured/    结构化（面向功能）实现：过程 + 记录 + JDBC，不使用多态
+├── rbac-structured/    结构化（面向功能）实现：过程 + 记录 + MyBatis，不使用多态
 ├── rbac-oo/            面向对象实现：领域模型 + GRASP + 设计模式
 ├── rbac-functional/    函数式授权内核：不可变数据 + 纯函数组合
 ├── rbac-test-suite/    契约一致性测试集：同一套用例对三种实现分别执行
 ├── rbac-acceptance/    老师发布的验收测试（原样保存，单独运行）
 ├── rbac-acceptance-adapter/  验收测试与我方契约之间的格式转换（仅在接口形态不同时存在）
+├── rbac-mock-biz/      两个外部模拟系统（OA 公文、HR 考勤），经 HTTP 调用权限中心
 └── rbac-bench/         压测与对比基准
 ```
 
@@ -142,7 +143,7 @@ cd OOAD
 ### 组员请先做三件事
 
 1. **通读 [`docs/11-defense.md`](docs/11-defense.md)** —— 检查是无领导小组面试，每人要讲**文档中的一个设计**，并讲清「需求是什么 / 存在什么问题 / 为什么这么设计 / 效果如何」。先了解这六个设计点各自在讲什么。
-2. **看 [`docs/01-srs.md`](docs/01-srs.md) 附录 C** —— 老师给的三份数据里我们发现了 12 处疑点（中英文混用、空单元格、同名经理、岗位没有对应角色等），以及 19 个架构级待确认问题。**答疑课要问的就是这些。**
+2. **看 [`docs/01-srs.md`](docs/01-srs.md) 附录 C** —— 老师给的三份数据里我们发现了 12 处疑点（中英文混用、空单元格、同名经理、岗位没有对应角色等），以及 22 个架构级待确认问题；附录 E 是 9/29 需求清单的逐条对照。**答疑课要问的就是这些。**
 3. **把三份 xlsx 放进 `data/raw/`** —— 它们不入库（含一万条真实姓名和手机号），需要自己从课程网站下载。
 
 ### 岗位→角色映射先用配置表

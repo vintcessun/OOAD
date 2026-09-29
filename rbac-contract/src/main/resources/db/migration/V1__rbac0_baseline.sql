@@ -19,7 +19,8 @@ SET NAMES utf8mb4;
 -- 1. 组织架构
 -- -----------------------------------------------------------------------------
 
--- 部门。来源：市政公司部门信息表（111 行，三层单根）
+-- 部门。来源：市政公司部门信息表（111 行，三层）。
+-- 支持多棵树：parent_id = 0 的每个节点是一家公司的根（需求 A-22「多个公司」）。当前数据只有一家。
 CREATE TABLE sys_department (
     id              BIGINT       NOT NULL AUTO_INCREMENT,
     dept_name       VARCHAR(128) NOT NULL                COMMENT '部门名称，如「道路工程分公司-财务部」',
@@ -36,7 +37,7 @@ CREATE TABLE sys_department (
     KEY idx_parent  (parent_id),
     KEY idx_manager (manager_user_id),
     KEY idx_path    (path)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='部门（单根三层树）';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='部门（每家公司一棵树）';
 
 -- 岗位 → 角色派生规则。
 -- 员工信息表只有「岗位」没有「角色」，两者的映射是我方推断（数据疑点 C-10）。
@@ -67,18 +68,17 @@ CREATE TABLE sys_user (
     password_hash    VARCHAR(100) NOT NULL             COMMENT 'BCrypt 哈希（cost>=10），含盐。禁止存明文',
     real_name        VARCHAR(64)  NULL,
     department_id    BIGINT       NULL                 COMMENT '所属部门。数据范围判定的依据',
-    position         VARCHAR(32)  NULL                 COMMENT '岗位；仅用于导入时派生初始角色，不参与鉴权',
+    position         VARCHAR(32)  NULL                 COMMENT '岗位；仅用于首次导入时派生初始角色，不参与鉴权',
     -- 手机号属敏感数据（安全需求 S-10）：密文存列，另存脱敏副本供列表展示。
     -- 列表查询一律返回 phone_masked；明文需 sys:security:data:view 权限且单独记审计。
     phone_enc        VARBINARY(64) NULL                COMMENT 'AES-256 加密后的手机号',
     phone_masked     VARCHAR(20)  NULL                 COMMENT '脱敏副本，如 138****5678',
     email            VARCHAR(128) NULL                 COMMENT '员工表未提供，留空',
-    -- 三态而非两态（需求 A-25）。冻结与禁用的判定结果都是拒绝，但语义与可逆性不同：
-    -- 冻结预期会被解除（保留全部配置，可一键恢复），禁用是终态（离职/注销）。
-    -- 合并成两态会使「临时停权」与「离职」在审计日志中无法区分。
-    status           TINYINT      NOT NULL DEFAULT 1   COMMENT '1=ACTIVE 正常 | 2=FROZEN 冻结 | 0=DISABLED 禁用',
-    freeze_reason    VARCHAR(255) NULL                 COMMENT '冻结原因',
-    unfreeze_at      DATETIME     NULL                 COMMENT '自动解冻时间；NULL = 需手工解冻',
+    -- 三态：启用 / 停用 / 删除（需求 A-25，9/29 需求清单）。
+    -- 停用可恢复、保留全部授权；删除是终态，行保留供审计、用户名不可复用。
+    -- 不设自动恢复：权限一律人工分配和回收（S-19）。
+    status           TINYINT      NOT NULL DEFAULT 1   COMMENT '1=ACTIVE 启用 | 0=DISABLED 停用 | 2=DELETED 删除',
+    status_reason    VARCHAR(255) NULL                 COMMENT '停用或删除的原因',
     -- 临时人员（需求 A-26）：无工号、无电话、可无部门，授权带失效时间，
     -- 且不得持有系统管理权限（S-16，由应用层校验）。
     user_type        VARCHAR(16)  NOT NULL DEFAULT 'EMPLOYEE'
@@ -89,7 +89,7 @@ CREATE TABLE sys_user (
     must_change_pwd  TINYINT      NOT NULL DEFAULT 0   COMMENT '首次登录强制改密',
     created_at       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    deleted_at       DATETIME     NULL                 COMMENT '逻辑删除标记',
+    deleted_at       DATETIME     NULL                 COMMENT '删除时间；与 status = 2 同时写入',
     PRIMARY KEY (id),
     UNIQUE KEY uk_username (username),
     KEY idx_status     (status),
@@ -195,12 +195,18 @@ CREATE TABLE sys_user_role (
     id         BIGINT   NOT NULL AUTO_INCREMENT,
     user_id    BIGINT   NOT NULL,
     role_id    BIGINT   NOT NULL,
-    granted_by BIGINT   NULL                       COMMENT '授予人，用于审计',
-    granted_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    expires_at DATETIME NULL                       COMMENT '预留：临时授权；NULL = 永久',
+    -- 授权部门（需求：属于一个部门，但可以有多个部门的权限）。
+    -- 数据范围 DEPT / DEPT_AND_SUB 以它为基准；0 = 以用户所属部门为基准。
+    -- 用 0 而非 NULL：MySQL 唯一键允许多个 NULL，用 NULL 挡不住重复指派。
+    scope_dept_id  BIGINT   NOT NULL DEFAULT 0     COMMENT '授权部门；0 = 用户所属部门',
+    granted_by     BIGINT   NULL                   COMMENT '授予人，用于审计',
+    granted_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    -- 时间约束（迭代三启用）：到期只在判定中不计入，不删除记录，由管理员人工回收（S-19）
+    effective_from DATETIME NULL                   COMMENT '生效时间；NULL = 立即',
+    expires_at     DATETIME NULL                   COMMENT '失效时间；NULL = 永久',
     PRIMARY KEY (id),
-    -- 覆盖索引：判定热路径「按 userId 查直接角色」只走索引，不回表
-    UNIQUE KEY uk_user_role (user_id, role_id),
+    -- 覆盖索引：判定热路径「按 userId 查直接角色」只走索引前缀，不回表
+    UNIQUE KEY uk_user_role (user_id, role_id, scope_dept_id),
     -- 必须：缓存失效时反查「持有某角色的全部用户」，缺此索引会全表扫描
     KEY idx_role (role_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户-角色指派';
@@ -260,6 +266,49 @@ PARTITION BY RANGE (TO_DAYS(occurred_at)) (
     PARTITION p202612 VALUES LESS THAN (TO_DAYS('2027-01-01')),
     PARTITION pmax    VALUES LESS THAN MAXVALUE
 );
+
+-- 鉴权日志。需求要求记录每一次 AUTH_SUCCESS / AUTH_FAILED。
+-- 10,000 QPS 下每天最多约 8.6 亿行，与管理审计差五个数量级，因此单独建表：
+--   批量异步插入；不做哈希链（哈希链要求串行计算，与批量并行写入冲突）；
+--   保留 30 天，到期 DROP PARTITION。生产环境由运维任务按天滚动建分区，此处先建按月骨架。
+CREATE TABLE sys_authz_log (
+    id              BIGINT       NOT NULL AUTO_INCREMENT,
+    user_id         BIGINT       NOT NULL              COMMENT '被判定的主体',
+    caller_code     VARCHAR(32)  NULL                  COMMENT '调用方系统编码：oa / hr / admin-console',
+    permission_code VARCHAR(128) NOT NULL,
+    target_dept_id  BIGINT       NULL,
+    target_user_id  BIGINT       NULL,
+    allowed         TINYINT      NOT NULL              COMMENT '1 = AUTH_SUCCESS | 0 = AUTH_FAILED',
+    reason          VARCHAR(32)  NULL                  COMMENT '拒绝原因码；超管旁路为 SUPER_ADMIN_BYPASS',
+    cache_hit       TINYINT      NULL                  COMMENT '0 = 未命中 | 1 = L1 | 2 = L2',
+    latency_us      INT          NULL                  COMMENT '判定耗时（微秒）',
+    client_ip       VARCHAR(45)  NULL,
+    trace_id        VARCHAR(32)  NULL,
+    occurred_at     DATETIME(3)  NOT NULL,
+    PRIMARY KEY (id, occurred_at),
+    KEY idx_user_time    (user_id, occurred_at),
+    KEY idx_allowed_time (allowed, occurred_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='鉴权日志（只插入，保留 30 天）'
+PARTITION BY RANGE (TO_DAYS(occurred_at)) (
+    PARTITION p202609 VALUES LESS THAN (TO_DAYS('2026-10-01')),
+    PARTITION p202610 VALUES LESS THAN (TO_DAYS('2026-11-01')),
+    PARTITION p202611 VALUES LESS THAN (TO_DAYS('2026-12-01')),
+    PARTITION p202612 VALUES LESS THAN (TO_DAYS('2027-01-01')),
+    PARTITION pmax    VALUES LESS THAN MAXVALUE
+);
+
+-- 鉴权日志的分钟聚合。两个用途：
+--   ① 写入积压时，成功记录降级写本表（拒绝记录仍逐条写明细，不丢）；
+--   ② 权限使用热力图（OBSV-002）直接读本表，不扫明细。
+CREATE TABLE sys_authz_log_minute (
+    user_id         BIGINT       NOT NULL,
+    permission_code VARCHAR(128) NOT NULL,
+    minute_at       DATETIME     NOT NULL              COMMENT '截断到分钟',
+    success_count   INT          NOT NULL DEFAULT 0,
+    fail_count      INT          NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id, permission_code, minute_at),
+    KEY idx_minute (minute_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='鉴权日志分钟聚合（热力图数据源）';
 
 -- -----------------------------------------------------------------------------
 -- 7. 受保护业务桩
@@ -346,11 +395,12 @@ INSERT INTO sys_action (action_code, action_name, risk_weight, sort_order) VALUE
     ('export',  '导出', 5, 4),   --  66 次
     ('approve', '审批', 8, 5);   --  99 次
 
--- 内置角色：前 5 个取自权限清单的列，后 2 个为我方增设的系统级角色。
+-- 内置角色：SUPER_ADMIN 来自 9/29 需求清单；其后 5 个取自权限清单的列；最后 2 个为我方增设的系统级角色。
 -- 增设理由见 docs/01-srs.md §4.1.2：若「配置权限」「配置约束」「审计监督」全部
 -- 归于系统管理员，一个角色权力过大，且无法演示 RBAC2 的职责分离。
 INSERT INTO sys_role (role_code, role_name, description, builtin) VALUES
-    ('SYS_ADMIN',       '系统管理员', '权限清单列 1；对全部 359 个功能点拥有全部操作（显式授予，非引擎旁路）', 1),
+    ('SUPER_ADMIN',     '超级管理员', '9/29 需求清单：越过权限引擎。判定时在账号状态校验之后直接放行，每次放行都审计；人数上限 3（V3 基数约束）', 1),
+    ('SYS_ADMIN',       '系统管理员', '权限清单列 1；对全部 359 个功能点拥有全部操作（显式授予，走正常判定）', 1),
     ('COMPANY_LEADER',  '公司领导',   '权限清单列 2；对全部功能点至少有查看权限', 1),
     ('DEPT_MANAGER',    '部门经理',   '权限清单列 3；297 个功能点有权限，数据范围为本部门', 1),
     ('PROJECT_MANAGER', '项目经理',   '权限清单列 4；161 个功能点有权限，「项目」即项目经理部', 1),
@@ -383,6 +433,11 @@ INSERT INTO sys_department (id, dept_name, parent_id, level, path, sort_order) V
 INSERT INTO sys_user (username, password_hash, real_name, user_type, status, must_change_pwd) VALUES
     ('admin', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '系统管理员', 'EMPLOYEE', 1, 1);
 
+-- 超级管理员账号。日常管理用 admin（SYS_ADMIN，走正常判定），root 只在必要时使用。
+-- 初始口令同上，must_change_pwd=1。
+INSERT INTO sys_user (username, password_hash, real_name, user_type, status, must_change_pwd) VALUES
+    ('root', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '超级管理员', 'EMPLOYEE', 1, 1);
+
 -- HR 系统集成账号。user_type=SYSTEM，仅用于调用 /sync/users 同步人员数据。
 -- 口令为随机强口令，实际部署时由运维重置；该账号不得登录管理台。
 INSERT INTO sys_user (username, password_hash, real_name, user_type, status, must_change_pwd) VALUES
@@ -391,3 +446,7 @@ INSERT INTO sys_user (username, password_hash, real_name, user_type, status, mus
 INSERT INTO sys_user_role (user_id, role_id)
 SELECT u.id, r.id FROM sys_user u, sys_role r
 WHERE u.username = 'admin' AND r.role_code = 'SYS_ADMIN';
+
+INSERT INTO sys_user_role (user_id, role_id)
+SELECT u.id, r.id FROM sys_user u, sys_role r
+WHERE u.username = 'root' AND r.role_code = 'SUPER_ADMIN';

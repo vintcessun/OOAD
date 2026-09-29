@@ -127,13 +127,12 @@ erDiagram
 | password_hash | VARCHAR(100) | NOT NULL | BCrypt 哈希，含盐。**不得存明文** |
 | real_name | VARCHAR(64) | | 真实姓名 |
 | department_id | BIGINT | NULL | 所属部门。**数据范围判定的依据** |
-| position | VARCHAR(32) | | 岗位（董事长/部长/主任/主管/专员/干事…）。**仅用于导入时派生初始角色，不参与鉴权** |
+| position | VARCHAR(32) | | 岗位（董事长/部长/主任/主管/专员/干事…）。**仅用于首次导入时派生初始角色，不参与鉴权** |
 | phone_enc | VARBINARY(64) | NULL | 手机号 **AES-256 密文**（安全需求 S-10） |
 | phone_masked | VARCHAR(20) | NULL | 脱敏副本 `138****5678`，列表一律返回此值 |
 | email | VARCHAR(128) | | 员工表未提供，留空 |
-| **status** | TINYINT | NOT NULL DEFAULT 1 | **三态**：`1=ACTIVE 正常` / `2=FROZEN 冻结` / `0=DISABLED 禁用` |
-| freeze_reason | VARCHAR(255) | NULL | 冻结原因 |
-| unfreeze_at | DATETIME | NULL | 自动解冻时间；NULL = 需手工解冻 |
+| **status** | TINYINT | NOT NULL DEFAULT 1 | **三态**：`1=ACTIVE 启用` / `0=DISABLED 停用` / `2=DELETED 删除` |
+| status_reason | VARCHAR(255) | NULL | 停用或删除的原因 |
 | **user_type** | VARCHAR(16) | NOT NULL DEFAULT 'EMPLOYEE' | `EMPLOYEE` 正式员工 / `TEMPORARY` 临时人员 / `SYSTEM` 系统集成账号 |
 | expires_at | DATETIME | NULL | 账号失效时间；`TEMPORARY` 必填 |
 | login_fail_count | INT | NOT NULL DEFAULT 0 | 连续登录失败次数 |
@@ -141,21 +140,21 @@ erDiagram
 | must_change_pwd | TINYINT | NOT NULL DEFAULT 0 | 首次登录强制改密 |
 | created_at | DATETIME | NOT NULL | |
 | updated_at | DATETIME | NOT NULL | |
-| deleted_at | DATETIME | NULL | 逻辑删除标记 |
+| deleted_at | DATETIME | NULL | 删除时间；与 `status = 2` 同时写入 |
 
 索引：`uk_username`、`idx_status`、`idx_department`、`idx_user_type`、`idx_expires`、`idx_deleted`
 
-**关于三态（需求 A-25）**
+**关于三态（需求 A-25，9/29 需求清单）**
 
 | 状态 | 值 | 授权关系 | 会话 | 判定 | 语义 |
 |---|---|---|---|---|---|
-| 正常 ACTIVE | 1 | 保留 | 有效 | 按权限 | — |
-| **冻结 FROZEN** | 2 | **完整保留** | 立即失效 | 一律拒绝 | 暂停但**可恢复**：休假、调查期间、临时停权 |
-| 禁用 DISABLED | 0 | 保留备查 | 立即失效 | 一律拒绝 | 终态：离职、账号作废 |
+| 启用 ACTIVE | 1 | 保留 | 有效 | 按权限 | — |
+| **停用 DISABLED** | 0 | **完整保留** | 立即失效 | 一律拒绝 | 暂停但**可恢复**：休假、调查期间、离职手续办理中 |
+| 删除 DELETED | 2 | 解除（审计保留快照） | 立即失效 | 一律拒绝 | 终态：离职办结、账号作废。行保留、用户名不可复用 |
 
-> 冻结与禁用的技术效果相同（都拒绝），区别在**语义与可逆性**。把两者合并成 `status=0` 会让「临时停权」和「离职」在审计日志里无法区分——而审计恰恰最需要这个区分。
+> 9/20 会议记录的是「正常 / 冻结 / 禁用」，9/29 需求清单改为「启用 / 停用 / 删除」，以后者为准。原 `FROZEN` 的语义（可恢复、保留授权）由停用承担；原「禁用」的终态语义并入删除。`unfreeze_at`（到期自动解冻）随之删除：需求要求权限一律人工分配和回收，不设自动恢复。见 `12-design-log.md` R-5。
 >
-> 权限本身也可冻结：`sys_role_permission.frozen` 与 `sys_user_role.frozen`（V2 脚本）。冻结 ≠ 撤销——撤销删除授予记录（配置丢失，恢复需重配），冻结保留记录但判定时视为未授予，可一键恢复。
+> 权限本身的冻结标记 `sys_role_permission.frozen` 与 `sys_user_role.frozen`（V2 脚本）保留字段，但不在 9/29 清单中，暂不实现（SRS C.3 Q18）。
 
 **关于临时人员（需求 A-26）**
 
@@ -179,7 +178,7 @@ erDiagram
 
 #### sys_department 部门表
 
-对应「市政公司部门信息表」，111 行，单根三层树。
+对应「市政公司部门信息表」，111 行，三层。表结构支持**多棵树**：`parent_id = 0` 的每个节点是一家公司的根（需求 A-22「多个公司」）。当前数据只有一家公司。
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
@@ -271,11 +270,15 @@ erDiagram
 | id | BIGINT PK | |
 | user_id | BIGINT NOT NULL | |
 | role_id | BIGINT NOT NULL | |
+| **scope_dept_id** | BIGINT NOT NULL DEFAULT 0 | **授权部门**：数据范围 `DEPT` / `DEPT_AND_SUB` 以它为基准；`0` 表示以用户所属部门为基准（SRS §3.2.2） |
 | granted_by | BIGINT | 授予人，用于审计 |
 | granted_at | DATETIME NOT NULL | |
-| expires_at | DATETIME NULL | **预留**：临时授权（附录 B），NULL 表示永久 |
+| effective_from | DATETIME NULL | 时间约束：生效时间，NULL 表示立即（迭代三启用） |
+| expires_at | DATETIME NULL | 时间约束：失效时间，NULL 表示永久。**到期只在判定中不计入，不删除记录**，由管理员人工回收（S-19） |
 
-索引：`uk_user_role(user_id, role_id)`、`idx_role(role_id)`
+索引：`uk_user_role(user_id, role_id, scope_dept_id)`、`idx_role(role_id)`
+
+> **为什么唯一键加上 `scope_dept_id`**：需求要求「一个用户属于一个部门，但可以有属于多个部门的权限」。同一个人以同一个角色负责两个部门，是两条指派，只是授权部门不同。`scope_dept_id` 用 `0` 而不是 `NULL` 表示缺省，因为 MySQL 的唯一键允许多个 `NULL`，用 `NULL` 就挡不住重复指派。
 
 > `idx_role(role_id)` 是必须的：缓存失效时要反查「持有某角色的全部用户」，没有这个索引会全表扫描，而这正好发生在权限变更的关键路径上。
 
@@ -321,6 +324,29 @@ erDiagram
 > 按 `occurred_at` 做 RANGE 分区（按月），便于归档与清理。审计日志预期每日千万级，不分区会在三个月内拖垮查询。
 >
 > **哈希链防篡改（安全需求 S-11）**：每行的 `row_hash` 由前一行的 `prev_hash` 与本行关键字段共同算出，构成链式结构。修改任何一行历史记录，都会使其后**全部行**的校验失败——篡改者必须重算整条链，而链的末端可定期外部存证。这把「审计表不可修改」从一条**制度约定**变成了一个**可验证的技术事实**，接口 `POST /security/audit-chain/verify` 返回首个断裂位置。
+
+#### sys_authz_log 鉴权日志表 / sys_authz_log_minute 分钟聚合表
+
+需求要求记录每一次 `AUTH_SUCCESS` 与 `AUTH_FAILED`。10,000 QPS 下每天最多约 8.6 亿行，量级与管理审计差五个数量级，因此**单独建表**，不与 `sys_audit_log` 混放（取舍见 `02-architecture.md` T-6）。
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| id | BIGINT | |
+| user_id | BIGINT NOT NULL | 被判定的主体 |
+| caller_code | VARCHAR(32) | 调用方系统编码，如 `oa`、`hr`、`admin-console`——「在哪里」 |
+| permission_code | VARCHAR(128) NOT NULL | 被判定的权限码 |
+| target_dept_id / target_user_id | BIGINT NULL | 数据范围判定的目标——「对谁」 |
+| allowed | TINYINT NOT NULL | 1 = `AUTH_SUCCESS`，0 = `AUTH_FAILED` |
+| reason | VARCHAR(32) | 拒绝原因码；超管旁路为 `SUPER_ADMIN_BYPASS`——「为什么」 |
+| cache_hit | TINYINT | 命中哪一级缓存，供命中率统计 |
+| latency_us | INT | 判定耗时（微秒），供 P95/P99 统计 |
+| client_ip | VARCHAR(45) | |
+| trace_id | VARCHAR(32) | |
+| occurred_at | DATETIME(3) NOT NULL | |
+
+主键 `(id, occurred_at)`；按 `occurred_at` 分区，**保留 30 天**，到期整区删除（`DROP PARTITION` 是元数据操作，比 `DELETE` 快几个数量级）。不做哈希链：哈希链要求逐行串行计算，与批量并行写入冲突。
+
+`sys_authz_log_minute(user_id, permission_code, minute_at, success_count, fail_count)` 是按分钟的聚合计数，两个用途：① 写入积压时成功记录降级写这张表，拒绝记录仍逐条写明细（T-6）；② 权限使用热力图（OBSV-002）直接读这张表，不扫明细。
 
 #### biz_oa_document 发文稿件表（受保护业务桩一）
 
@@ -451,6 +477,8 @@ erDiagram
 
 > 三类基数约束**全部实现**，对应课程课件明确列出的三项要求。用单表 + 类型字段而非每类约束一张表，理由是约束的检查流程高度同构（加载规则 → 求值 → 返回违规），单表使 `ConstraintEvaluator` 可以统一加载；差异被推到求值策略中，而非数据模型中。
 
+> **时间约束不在本表**（9/29 需求清单列为 RBAC2 基线）：指派的有效期在 `sys_user_role.effective_from / expires_at`（V1 已建），角色的可用时段在 `sys_role.active_window`（V3 新增，如 `MON-FRI 08:00-18:00`）。两者都由判定管道 S3 过滤，到期不删除记录。
+
 #### sys_constraint_role 约束角色关联表
 
 | 字段 | 类型 | 说明 |
@@ -529,7 +557,7 @@ flowchart TD
 
 - 按「上级部门」列建立 `parent_id`；「总公司」为根（`parent_id = 0`, `level = 1`）。
 - 分两轮：先插入全部部门取得 ID，再回填 `parent_id`、`level`、`path`。原因是 xlsx 中子部门可能先于父部门出现。
-- 校验：必须是**单根、无环、恰好三层**。违反则中止导入。
+- 校验：必须**无环、恰好三层**，违反则中止导入。上级为空的根节点可以有多个，每个视为一家公司；当前数据只有一个。
 
 **步骤 2：导入员工**
 
@@ -619,6 +647,8 @@ flowchart TD
 
 **步骤 8：按岗位派生用户角色**
 
+> **本步骤只在首次导入时执行一次**。需求要求权限一律人工分配和回收（SRS S-19）；首次导入是系统初始化，没有初始角色系统就无法演示。此后 HR 同步进来的新员工、调岗员工都**不派生**，由管理员人工分配。
+
 员工表只有岗位没有角色，需要建立映射。派生规则（写入 `sys_position_role_mapping` 配置表，便于调整）：
 
 | 优先级 | 条件 | 派生角色 |
@@ -633,7 +663,7 @@ flowchart TD
 >
 > ⚠️ **本步骤必须在步骤 7（绑定部门经理）之后执行**：优先级 2、3 都依赖 `sys_department.manager_user_id` 已经填好。顺序颠倒会导致所有部门经理与项目经理被误判为普通员工。
 >
-> `SYS_ADMIN` 不派生给任何真实员工，单独创建 `admin` 账号，符合「系统管理员是运维角色而非业务岗位」的常识。
+> `SYS_ADMIN` 不派生给任何真实员工，单独创建 `admin` 账号，符合「系统管理员是运维角色而非业务岗位」的常识。`SUPER_ADMIN` 同理，单独创建 `root` 账号，日常不使用。
 
 **步骤 9：导入异常报告**
 

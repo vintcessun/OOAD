@@ -257,8 +257,8 @@ public record UserRecord(
         String passwordHash,
         String realName,
         Long departmentId,       // 数据范围判定依据
-        String position,         // 岗位，仅导入时派生角色用
-        int status,              // 1=启用 0=禁用
+        String position,         // 岗位，仅首次导入时派生角色用
+        int status,              // 1=启用 0=停用 2=删除
         int loginFailCount,
         LocalDateTime lockedUntil,
         LocalDateTime deletedAt
@@ -321,6 +321,13 @@ public final class AuthorizationFunctions {
         UserRecord user = userDao.findById(userId);
         if (!AuthenticationFunctions.isEnabled(user)) {
             return AuthzResult.deny("SUBJECT_DISABLED", permissionCode, elapsed(start));
+        }
+
+        // ---- 3.1（续）超级管理员旁路 ----
+        // 需求「越过权限引擎」。排在状态校验之后：停用的超管照样被拒。
+        // 放行时带原因码，审计里能看出这是旁路而非命中某条权限。见 02-architecture.md §4.1 S1b
+        if (CacheFunctions.isSuperAdmin(cache, assignmentDao, userId)) {
+            return AuthzResult.bypass("SUPER_ADMIN_BYPASS", permissionCode, elapsed(start));
         }
 
         // ---- 3.2 查缓存 ----

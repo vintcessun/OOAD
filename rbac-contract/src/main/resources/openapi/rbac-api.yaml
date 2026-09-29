@@ -25,7 +25,14 @@ info:
     1. **判定为「拒绝」时 `code` 仍是 0**。调用方问「他能不能做」、系统答「不能」，
        这是一次成功的调用。HTTP 403 只用于「调用方自己无权调用本接口」。
     2. **401 与 403 严格区分**。401 = 不知道你是谁；403 = 知道你是谁但你不能做这件事。
-  version: 0.1.0
+
+    ## 所有接口都受权限控制（docs/02-architecture.md §4.7）
+    每个操作都必须声明 `x-required-permission`，这是运行时拦截器的**唯一**权限来源：
+    - 具体权限码：调用判定内核；
+    - `"@self"`：本人自助接口，只校验令牌有效与账号启用，且只能作用于令牌主体本人；
+    - 只有 `security: []` 的登录接口（及健康检查）免鉴权。
+    未声明的路由运行时一律拒绝；CI 比对全部路由与本文件，缺一条即构建失败。
+  version: 0.2.0
   contact:
     name: OOAD 课程设计
     url: https://github.com/vintcessun/OOAD
@@ -81,6 +88,7 @@ x-error-codes:
   20003: USER_DISABLED
   20004: USER_LOCKED
   20005: USERNAME_DUPLICATED
+  20006: USER_DELETED           # 账号已删除（终态）；用户名不可复用
   # 21xxx 角色
   21001: ROLE_NOT_FOUND
   21002: ROLE_CODE_DUPLICATED
@@ -123,12 +131,14 @@ x-error-codes:
   28001: GRANT_EXCEEDS_OWN_PERMISSION
   28002: GRANT_EXCEEDS_OWN_SCOPE
   28003: TARGET_OUT_OF_ADMIN_SCOPE
-  28004: USER_FROZEN
+  28004: USER_FROZEN            # 已废弃：9/29 三态调整为 启用/停用/删除，冻结并入停用（20003）。编号保留不回收
   28005: IMPERSONATION_READONLY
   28006: IMPERSONATION_TARGET_HIGHER
   28007: TEMPORARY_USER_CANNOT_ADMIN
   28008: AUDIT_CHAIN_BROKEN
   28009: PASSWORD_POLICY_VIOLATION
+  28010: SUPER_ADMIN_ASSIGN_FORBIDDEN   # 只有超级管理员能分配 SUPER_ADMIN
+  28011: BATCH_TARGET_EMPTY             # 批量授权的目标展开后为空
 
 paths:
 
@@ -248,6 +258,7 @@ paths:
       tags: [authz]
       summary: 缓存统计
       x-iteration: 2
+      x-required-permission: obsv:dashboard:view
       responses:
         '200':
           description: 命中率、条目数、平均重建耗时
@@ -300,6 +311,7 @@ paths:
       tags: [auth]
       summary: 登出
       x-iteration: 1
+      x-required-permission: '@self'
       responses:
         '200': { $ref: '#/components/responses/Ok' }
 
@@ -308,6 +320,7 @@ paths:
       tags: [auth]
       summary: 当前用户信息与有效权限
       x-iteration: 1
+      x-required-permission: '@self'
       responses:
         '200':
           description: 当前用户
@@ -325,6 +338,7 @@ paths:
       tags: [auth]
       summary: 修改本人口令
       x-iteration: 1
+      x-required-permission: '@self'
       requestBody:
         required: true
         content:
@@ -449,8 +463,15 @@ paths:
     parameters: [{ $ref: '#/components/parameters/IdPath' }]
     patch:
       tags: [user]
-      summary: 启用/禁用用户
-      description: 禁用后立即失效其全部会话与权限缓存；不得禁用最后一个持有 SYS_ADMIN 的运维账号。
+      summary: 启用/停用用户
+      description: |
+        账号有**三种状态**：启用（1）/ 停用（0）/ 删除（2）。本接口只在启用与停用之间切换；删除走 `DELETE /users/{id}`，是终态。
+
+        停用 = 暂停但可恢复：**保留全部授权关系**，立即失效会话与权限缓存，判定一律拒绝。
+        启用后权限立即恢复原状。不设定时自动启用——权限一律人工分配和回收。
+
+        管理范围：目标用户须在调用者 sys:* 权限的 data_scope 内，否则 28003。
+        不得停用最后一个持有 SUPER_ADMIN 或 SYS_ADMIN 的账号。
       x-iteration: 1
       x-required-permission: system:user:update
       requestBody:
@@ -508,8 +529,14 @@ paths:
               type: object
               required: [roleIds]
               properties:
-                roleIds: { type: array, items: { type: integer, format: int64 } }
-                reason:  { type: string, description: 变更原因，写入审计 }
+                roleIds:       { type: array, items: { type: integer, format: int64 } }
+                scopeDeptId:
+                  type: integer
+                  format: int64
+                  description: 授权部门。数据范围 DEPT / DEPT_AND_SUB 以它为基准；省略则以用户所属部门为基准（SRS §3.2.2）
+                effectiveFrom: { type: string, format: date-time, description: 时间约束：生效时间（迭代三） }
+                expiresAt:     { type: string, format: date-time, description: 时间约束：失效时间。到期只在判定中不计入，不删除指派（迭代三） }
+                reason:        { type: string, description: 变更原因，写入审计 }
       responses:
         '200':
           description: 分配成功，返回权限变更 diff
@@ -545,6 +572,66 @@ paths:
       responses:
         '200': { $ref: '#/components/responses/Ok' }
 
+  /role-assignments/batch:
+    post:
+      tags: [role]
+      summary: 按分公司 / 部门 / 员工批量授权或撤销
+      description: |
+        9/29 需求清单：「可以以分公司、部门、员工级别的批量权限管理」。
+
+        目标二选一：`userIds`（员工级），或 `deptId` + `includeSub`（部门级；分公司即 includeSub=true 的二级部门）。
+        服务端把目标**展开为逐人指派**后执行：
+        - **全部成功或全部回滚**；
+        - 每个目标仍逐一校验管理范围（28003）与授权上界（28001/28002），迭代三起逐一校验约束；
+        - **不建立「部门→角色」的持续绑定**：之后入职该部门的员工不会自动获得角色（权限一律人工分配）。
+
+        目标超过 1,000 人时，缓存失效改为递增全局版本号（docs/02-architecture.md §4.2）。
+      operationId: batchAssignRoles
+      x-iteration: 1
+      x-required-permission: system:role:assign
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [operation, roleIds]
+              properties:
+                operation:   { type: string, enum: [ASSIGN, REVOKE] }
+                roleIds:     { type: array, items: { type: integer, format: int64 } }
+                userIds:     { type: array, items: { type: integer, format: int64 }, description: 员工级目标；与 deptId 二选一 }
+                deptId:      { type: integer, format: int64, description: 分公司或部门级目标 }
+                includeSub:  { type: boolean, default: false, description: 是否包含下级部门 }
+                scopeDeptId: { type: integer, format: int64, description: 授权部门，同单人分配 }
+                reason:      { type: string }
+      responses:
+        '200':
+          description: 执行结果：展开后的目标人数、新增/撤销指派数、跳过数（已有或本就没有）
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          targetCount:  { type: integer }
+                          changedCount: { type: integer }
+                          skippedCount: { type: integer }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409':
+          description: 任一目标违反约束，整批回滚；返回首个冲突
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/ConstraintViolation' }
+
   /users/{id}/permissions:
     parameters: [{ $ref: '#/components/parameters/IdPath' }]
     get:
@@ -572,47 +659,6 @@ paths:
                   - type: object
                     properties:
                       data: { $ref: '#/components/schemas/EffectivePermissions' }
-
-  /users/{id}/freeze:
-    parameters: [{ $ref: '#/components/parameters/IdPath' }]
-    post:
-      tags: [user]
-      summary: 冻结账号
-      description: |
-        账号有**三种状态**：正常 / 冻结 / 禁用。
-
-        冻结 = 暂停但可恢复：**保留全部授权关系**，但立即失效会话与权限缓存，判定一律拒绝。
-        与禁用的区别不在技术效果（都拒绝），而在语义与可逆性——合并成两态会使
-        「临时停权」与「离职」在审计日志中无法区分。
-
-        管理范围：目标用户须在调用者 sys:* 权限的 data_scope 内，否则 28003。
-        不得冻结最后一个持有 SYS_ADMIN 的运维账号。
-      x-iteration: 1
-      x-required-permission: sys:account:user:edit
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [reason]
-              properties:
-                reason:     { type: string }
-                unfreezeAt: { type: string, format: date-time, description: 自动解冻时间；留空则需手工解冻 }
-      responses:
-        '200': { $ref: '#/components/responses/Ok' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-
-  /users/{id}/unfreeze:
-    parameters: [{ $ref: '#/components/parameters/IdPath' }]
-    post:
-      tags: [user]
-      summary: 解冻账号
-      description: 恢复为正常状态。因授权关系在冻结期间完整保留，解冻后权限立即恢复原状。
-      x-iteration: 1
-      x-required-permission: sys:account:user:edit
-      responses:
-        '200': { $ref: '#/components/responses/Ok' }
 
   /users/{id}/impersonate:
     parameters: [{ $ref: '#/components/parameters/IdPath' }]
@@ -1012,6 +1058,7 @@ paths:
       summary: 操作词汇表
       description: 固定 5 个原子操作，由权限清单的单元格取值归纳得出。
       x-iteration: 1
+      x-required-permission: system:perm:list
       responses:
         '200':
           description: 操作列表
@@ -1033,7 +1080,7 @@ paths:
     get:
       tags: [org]
       summary: 部门树
-      description: 111 个部门，三层，单根「总公司」。
+      description: 111 个部门，三层。支持多家公司（部门森林，每家公司一棵树）；当前数据只有「总公司」一棵。
       x-iteration: 1
       x-required-permission: system:org:view
       responses:
@@ -1187,9 +1234,11 @@ paths:
       description: |
         异步任务，返回 taskId。导入三份 xlsx：部门信息表、员工信息表、功能权限清单。
 
-        导入器会校验层级（单根三层无环）、交叉校验分公司列、同名经理消歧、
+        导入器会校验层级（三层无环）、交叉校验分公司列、同名经理消歧、
         单元格取值归一化，并产出**导入异常报告**——每条 warning 对应 SRS 附录 C
         的一个数据疑点。
+
+        按岗位派生初始角色**只在首次导入时执行一次**；之后的员工变动不派生（权限一律人工分配，SRS S-19）。
       x-iteration: 1
       x-required-permission: system:org:manage
       requestBody:
@@ -1484,6 +1533,7 @@ paths:
     get:
       tags: [permission]
       summary: 当前用户可见菜单树
+      x-required-permission: '@self'
       description: |
         按有效权限过滤**后再下发**，无权限的菜单不出现在响应中，而非下发后由前端隐藏。
         理由：响应体本身不应泄露系统有哪些功能模块。
@@ -1789,8 +1839,8 @@ components:
         allowed: { type: boolean }
         reason:
           type: string
-          description: 拒绝原因；允许时为空
-          enum: [MISSING_PERMISSION, SUBJECT_DISABLED, SUBJECT_FROZEN, SUBJECT_EXPIRED, SUBJECT_INVALID, OUT_OF_DATA_SCOPE, DSD_VIOLATION, SYSTEM_UNAVAILABLE]
+          description: 拒绝原因；允许时为空，超级管理员旁路放行时为 SUPER_ADMIN_BYPASS
+          enum: [MISSING_PERMISSION, SUBJECT_DISABLED, SUBJECT_DELETED, SUBJECT_EXPIRED, SUBJECT_INVALID, OUT_OF_DATA_SCOPE, DSD_VIOLATION, SYSTEM_UNAVAILABLE, SUPER_ADMIN_BYPASS]
         requiredPermission: { type: string, example: 'oa:doc:draft:approve' }
         grantedScope:       { $ref: '#/components/schemas/DataScope' }
         subjectDeptId:      { type: integer, format: int64 }
@@ -1865,15 +1915,14 @@ components:
         departmentId:   { type: integer, format: int64 }
         departmentName: { type: string, example: 综合办公室 }
         departmentPath: { type: string, example: 总公司 / 综合办公室 }
-        position:       { type: string, example: 干事, description: 岗位；仅导入时派生初始角色，不参与鉴权 }
+        position:       { type: string, example: 干事, description: 岗位；仅首次导入时派生初始角色，不参与鉴权 }
         phoneMasked:    { type: string, example: 138****5678, description: '脱敏手机号；明文需单独调 /users/-id-/phone' }
         email:          { type: string }
         status:
           type: integer
           enum: [0, 1, 2]
-          description: '1=ACTIVE 正常 | 2=FROZEN 冻结（暂停但可恢复，保留全部授权） | 0=DISABLED 禁用（终态）'
-        freezeReason:   { type: string }
-        unfreezeAt:     { type: string, format: date-time }
+          description: '1=ACTIVE 启用 | 0=DISABLED 停用（暂停但可恢复，保留全部授权） | 2=DELETED 删除（终态）'
+        statusReason:   { type: string, description: 停用或删除的原因 }
         userType:
           type: string
           enum: [EMPLOYEE, TEMPORARY, SYSTEM]

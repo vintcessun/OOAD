@@ -44,7 +44,7 @@ CREATE TABLE sys_role_inheritance (
 
 -- 在角色-权限授予关系上增加冻结标记。
 -- 冻结 ≠ 撤销：撤销会删除授予记录（配置丢失，恢复需重配），
--- 冻结保留记录但判定时视为不存在，可一键恢复。与账号冻结是同一思路的两处应用。
+-- 冻结保留记录但判定时视为不存在，可一键恢复。与账号停用是同一思路的两处应用。
 ALTER TABLE sys_role_permission
     ADD COLUMN frozen        TINYINT      NOT NULL DEFAULT 0 COMMENT '1 = 冻结，判定时视为未授予但保留配置',
     ADD COLUMN frozen_reason VARCHAR(255) NULL,
