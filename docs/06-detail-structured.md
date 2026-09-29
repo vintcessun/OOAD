@@ -482,7 +482,10 @@ public ApiResponse<AssignResult> assign(@PathVariable Long userId,
                                                   cache, auditSink));
     // ★ 事务已提交，此时才失效缓存
     if (result.success()) {
-        CacheFunctions.invalidateUser(cache, userId);
+        CacheFunctions.invalidateUser(cache, userId);   // 删本地 L1 + Redis L2
+        CacheFunctions.broadcastInvalidation(redis, List.of(userId));
+        // ↑ 向 rbac:invalidate 发布消息并 INCR rbac:perm:version，
+        //   让其他实例清掉各自的 L1。见 02-architecture.md §4.2.1
     }
     return ApiResponse.ok(result);
 }
@@ -490,7 +493,7 @@ public ApiResponse<AssignResult> assign(@PathVariable Long userId,
 
 > **这是结构化实现的一个真实痛点，必须在答辩中如实说明。** `02-architecture.md` §4.2 规定「事件在事务提交后发布」。面向对象实现用观察者模式 + Spring 的 `@TransactionalEventListener(AFTER_COMMIT)` 可以声明式地保证这一点；而结构化实现没有事件机制，只能靠**每个调用点手动记得在事务外再调一次失效**。
 >
-> 这意味着：新增任何一个修改权限的接口，开发者都必须记得加这行代码，编译器不会提醒。**这是一个由范式带来的、可量化的可维护性风险**，将作为对比分析的重要证据（见 `10-paradigm-comparison.md`）。
+> 这意味着：新增任何一个修改权限的接口，开发者都必须记得加这两行代码（本地失效 + 跨实例广播），编译器不会提醒；漏掉第二行在单实例测试中完全发现不了。**这是一个由范式带来的、可量化的可维护性风险**，将作为对比分析的重要证据（见 `10-paradigm-comparison.md`）。
 
 ---
 

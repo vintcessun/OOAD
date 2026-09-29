@@ -19,7 +19,7 @@
 | 员工信息表 | **10,000 名员工**，含分公司、部门、岗位 |
 | 应用软件功能权限清单 | **18 个软件系统 / 115 个功能模块 / 359 个功能点 × 5 个角色** |
 
-展开后约 **1,795 条原子权限**、**1,800 条角色授予**。系统不实现那 18 个业务系统，只从清单中选取两个功能点作为**受保护业务桩**来验证权限真实生效。
+展开后约 **1,795 条原子权限**、**1,800 条角色授予**。系统不实现那 18 个业务系统，只从清单中选取两个模块共 8 个功能点作为**测试系统**来验证权限真实生效。
 
 系统按 RBAC 标准模型（ANSI/INCITS 359）分三个迭代逐级增强：
 
@@ -46,6 +46,8 @@
 
 **每次检查前必须提交：详细设计文档 + Jacoco 测试报告**（无法提供报告则提供代码）。见 [`docs/09-test-plan.md`](docs/09-test-plan.md)。
 
+**组内进度目标**：10 月底交付**可自动测试、可部署的后端**（`mvn verify` 一条命令跑完测试，`docker compose up` 一条命令部署）。老师国庆后发布测试，之后以通过这些测试为准。11 月底检查要能回答**耦合与内聚的理由、结构化设计的理由、设计问题与改正的理由**。
+
 ### 检查方式：无领导小组面试
 
 分**个人陈述**与**自由讨论**两阶段。个人陈述阶段，每位同学依次陈述文档中的**一个设计**，必须讲清楚：
@@ -65,7 +67,7 @@
 |---|---|---|
 | [`00-charter.md`](docs/00-charter.md) | 项目章程、工作分解、里程碑、完成定义(DoD)、协作规范 | 全程 |
 | [`01-srs.md`](docs/01-srs.md) | **需求规格说明书**（领域模型、用例总图、用例表、性能需求、**数据疑点附录 C**） | 检查一 ★ |
-| [`02-architecture.md`](docs/02-architecture.md) | **概要设计**：分层架构、三范式模块划分、授权内核、缓存与失效 | 检查一 ★ |
+| [`02-architecture.md`](docs/02-architecture.md) | **概要设计**：质量属性与取舍、分层架构、三范式模块划分、授权内核、缓存与失效、部署 | 检查一 ★ |
 | [`03-database.md`](docs/03-database.md) | **数据库设计**：ER 图、表结构、索引、**三份 xlsx 的导入设计** | 检查一 ★ |
 | [`04-api.md`](docs/04-api.md) | **API 设计**：统一响应、错误码、全部接口契约 | 检查一 ★ |
 | [`05-ui.md`](docs/05-ui.md) | **前端界面设计**：信息架构、页面清单、线框图、交互约定 | 检查一 ★ |
@@ -75,6 +77,7 @@
 | [`09-test-plan.md`](docs/09-test-plan.md) | 测试计划、Jacoco 覆盖率门槛、压测方案 | 全程 ★ |
 | [`10-paradigm-comparison.md`](docs/10-paradigm-comparison.md) | **三种范式对比分析**（本项目的差异化亮点） | 检查三 ★ |
 | [`11-defense.md`](docs/11-defense.md) | 六个设计点与个人陈述讲稿模板 | 每次检查前 ★ |
+| [`12-design-log.md`](docs/12-design-log.md) | **设计问题与改正记录**：发现了什么问题、为什么错、怎么改 | 检查二 ★ |
 | [`diagrams/`](diagrams/) | StarUML 模型源文件 (.mdj) 与导出图 | 全程 |
 | [`rbac-contract/`](rbac-contract/) | **已落地的契约产物**：Flyway 建表脚本、OpenAPI 规范 | 全程 ★ |
 | [`data/raw/`](data/raw/) | 课程提供的三份原始 xlsx（**含真实人员信息，不入库**，需自行下载） | 全程 |
@@ -102,10 +105,10 @@
 
 | 文件 | 内容 |
 |---|---|
-| [`rbac-contract/.../db/migration/V1__rbac0_baseline.sql`](rbac-contract/src/main/resources/db/migration/V1__rbac0_baseline.sql) | 迭代一 14 张表 + 操作词汇表 + 7 个内置角色 + 岗位→角色配置表及其 5 条规则 |
+| [`rbac-contract/.../db/migration/V1__rbac0_baseline.sql`](rbac-contract/src/main/resources/db/migration/V1__rbac0_baseline.sql) | 迭代一 15 张表 + 操作词汇表 + 7 个内置角色 + 岗位→角色配置表及其 5 条规则 |
 | [`V2__rbac1_hierarchy.sql`](rbac-contract/src/main/resources/db/migration/V2__rbac1_hierarchy.sql) | 迭代二：角色继承、菜单、导入任务与异常明细 |
 | [`V3__rbac2_constraints.sql`](rbac-contract/src/main/resources/db/migration/V3__rbac2_constraints.sql) | 迭代三：约束体系、会话；含 6 条演示约束（覆盖三类基数约束） |
-| [`openapi/rbac-api.yaml`](rbac-contract/src/main/resources/openapi/rbac-api.yaml) | 59 个操作、40 个 schema、43 个错误码。两种范式实现必须满足同一份契约 |
+| [`openapi/rbac-api.yaml`](rbac-contract/src/main/resources/openapi/rbac-api.yaml) | 67 个操作、45 个 schema、52 个错误码。两种范式实现必须满足同一份契约 |
 
 三个 SQL 脚本按迭代编号，本身就清晰展示了数据模型随 RBAC0 → RBAC1 → RBAC2/3 的演进，可直接作为答辩材料。
 
@@ -118,6 +121,8 @@ rbac-parent/
 ├── rbac-oo/            面向对象实现：领域模型 + GRASP + 设计模式
 ├── rbac-functional/    函数式授权内核：不可变数据 + 纯函数组合
 ├── rbac-test-suite/    契约一致性测试集：同一套用例对三种实现分别执行
+├── rbac-acceptance/    老师发布的验收测试（原样保存，单独运行）
+├── rbac-acceptance-adapter/  验收测试与我方契约之间的格式转换（仅在接口形态不同时存在）
 └── rbac-bench/         压测与对比基准
 ```
 
@@ -137,7 +142,7 @@ cd OOAD
 ### 组员请先做三件事
 
 1. **通读 [`docs/11-defense.md`](docs/11-defense.md)** —— 检查是无领导小组面试，每人要讲**文档中的一个设计**，并讲清「需求是什么 / 存在什么问题 / 为什么这么设计 / 效果如何」。先了解这六个设计点各自在讲什么。
-2. **看 [`docs/01-srs.md`](docs/01-srs.md) 附录 C** —— 老师给的三份数据里我们发现了 12 处疑点（中英文混用、空单元格、同名经理、岗位没有对应角色等），以及 12 个架构级待确认问题。**答疑课要问的就是这些。**
+2. **看 [`docs/01-srs.md`](docs/01-srs.md) 附录 C** —— 老师给的三份数据里我们发现了 12 处疑点（中英文混用、空单元格、同名经理、岗位没有对应角色等），以及 19 个架构级待确认问题。**答疑课要问的就是这些。**
 3. **把三份 xlsx 放进 `data/raw/`** —— 它们不入库（含一万条真实姓名和手机号），需要自己从课程网站下载。
 
 ### 岗位→角色映射先用配置表
