@@ -1,0 +1,91 @@
+# 一份编排文件，两种用法（docs/02-architecture.md §6）：
+#   docker compose up -d                              单机：开发、CI、检查演示
+#   docker stack deploy -c docker-compose.yml rbac    Swarm 集群
+# deploy: 段只在 Swarm 下生效，单机 compose 忽略。
+#
+# 课程服务器（3 台 2 核 2G，1 台编译 + 2 台部署）的放置方式见 docs/13-deployment.md：
+#   节点标签 rbac.role=data → MySQL + Redis；rbac.role=app → 两个 Java 服务。
+#
+# 口令与密钥从 .env 读取（不入库），模板见 deploy/env.example。
+
+services:
+  mysql:
+    image: mysql:8.0
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --innodb-buffer-pool-size=256M       # 2G 机器：给 MySQL 留 ~700MB
+      - --max-connections=200
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: rbac
+      MYSQL_USER: rbac
+      MYSQL_PASSWORD: ${DB_PASSWORD:-rbac}
+      TZ: Asia/Shanghai
+    volumes:
+      - mysql-data:/var/lib/mysql
+    # 不对外暴露 3306：云服务器公网 IP 上开放数据库端口会被扫库。
+    # 需要连库时：docker compose exec mysql mysql -urbac -p rbac
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-root}"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    deploy:
+      placement:
+        constraints: [node.labels.rbac.role == data]
+      resources:
+        limits: { memory: 800M }
+
+  # L2 缓存、会话、失效广播。应用侧接入待完成（02 §4.2），先把服务位置占好
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--maxmemory", "128mb", "--maxmemory-policy", "allkeys-lru"]
+    deploy:
+      placement:
+        constraints: [node.labels.rbac.role == data]
+      resources:
+        limits: { memory: 200M }
+
+  rbac-structured:
+    image: ${REGISTRY:-}rbac-structured:${TAG:-latest}
+    build:
+      context: .
+      args: { MODULE: rbac-structured }
+    environment:
+      DB_HOST: mysql
+      DB_PASSWORD: ${DB_PASSWORD:-rbac}
+      RBAC_JWT_SECRET: ${RBAC_JWT_SECRET:-dev-only-secret-change-me-at-least-32-bytes!!}
+      JAVA_OPTS: ${APP_JAVA_OPTS:--Xms256m -Xmx512m -XX:+UseG1GC}
+    ports:
+      - "8081:8081"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    # Swarm 不认 depends_on：MySQL 未就绪时应用启动失败，由 restart_policy 重试直到连上
+    deploy:
+      replicas: ${APP_REPLICAS:-1}
+      placement:
+        constraints: [node.labels.rbac.role == app]
+      restart_policy: { condition: on-failure, delay: 10s }
+      resources:
+        limits: { memory: 700M }
+
+  rbac-mock-biz:
+    image: ${REGISTRY:-}rbac-mock-biz:${TAG:-latest}
+    build:
+      context: .
+      args: { MODULE: rbac-mock-biz }
+    environment:
+      RBAC_CENTER_URL: http://rbac-structured:8081/api/v1
+      JAVA_OPTS: -Xms64m -Xmx256m
+    ports:
+      - "8090:8090"
+    deploy:
+      placement:
+        constraints: [node.labels.rbac.role == app]
+      resources:
+        limits: { memory: 350M }
+
+volumes:
+  mysql-data:

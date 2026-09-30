@@ -1,0 +1,26 @@
+# 每次 push / PR：编译 + 全部单测 + Jacoco 门槛，再验证镜像能构建（09-test-plan.md §4）
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      # GitHub 的机器在境外，直连 Maven Central，不用华为云镜像
+      - run: ./mvnw -B verify
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: jacoco-report
+          path: rbac-structured/target/site/jacoco/
+      - run: docker compose build
