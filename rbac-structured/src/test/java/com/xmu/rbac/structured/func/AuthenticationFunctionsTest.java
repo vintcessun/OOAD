@@ -4,12 +4,17 @@ import com.xmu.rbac.structured.data.LoginOutcome;
 import com.xmu.rbac.structured.data.UserRecord;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BiPredicate;
 import java.util.function.UnaryOperator;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static com.xmu.rbac.structured.func.Fixtures.NOW;
 import static com.xmu.rbac.structured.func.Fixtures.user;
@@ -136,10 +141,22 @@ class AuthenticationFunctionsTest {
     /**
      * 迁移脚本里 admin / root 的初始口令哈希必须真的对应文档写的 Admin@123。
      * 这条测试第一次运行就失败了：原先的哈希抄自网上示例，并不对应 Admin@123（design-log #10）。
+     * 直接读 classpath 上的 V1 脚本（来自 rbac-contract 的 jar），脚本里的哈希一改，测试立刻失败。
      */
     @Test
-    void seedPasswordHashMatchesDocumentedInitialPassword() {
-        String seedHash = "$2a$10$QML7HXgspyFoS7XwRrS1meN2EnGnUOGtXCLQteHHodYiCZQIFb/Jm";
-        assertTrue(new BCryptPasswordEncoder().matches("Admin@123", seedHash));
+    void seedPasswordHashMatchesDocumentedInitialPassword() throws Exception {
+        String v1;
+        try (InputStream in = new ClassPathResource("db/migration/V1__rbac0_baseline.sql").getInputStream()) {
+            v1 = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+        }
+        BCryptPasswordEncoder bcrypt = new BCryptPasswordEncoder();
+        for (String account : List.of("admin", "root")) {
+            Matcher m = Pattern.compile("\\('" + account + "',\\s*'(\\$2a\\$10\\$[^']+)'").matcher(v1);
+            assertTrue(m.find(), "V1 中找不到 " + account + " 的种子行");
+            assertTrue(bcrypt.matches("Admin@123", m.group(1)), account + " 的哈希不对应 Admin@123");
+        }
+        Matcher svc = Pattern.compile("\\('svc_hr_sync',\\s*'(\\$2a\\$10\\$[^']+)'").matcher(v1);
+        assertTrue(svc.find());
+        assertFalse(bcrypt.matches("Admin@123", svc.group(1)), "集成账号不得与管理员共用口令");
     }
 }
