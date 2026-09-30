@@ -140,7 +140,7 @@ rbac-parent/
 git clone https://github.com/vintcessun/OOAD.git
 cd OOAD
 
-# 构建：编译 + 44 个单测 + Jacoco 门槛。只需装 JDK 21，Maven 由 ./mvnw 自动下载
+# 构建：编译 + 48 个单测 + Jacoco 门槛。只需装 JDK 21，Maven 由 ./mvnw 自动下载
 ./mvnw -s deploy/maven-settings-huawei.xml verify          # Windows 用 mvnw.cmd
 # Jacoco 报告：rbac-structured/target/site/jacoco/index.html
 
@@ -192,3 +192,4 @@ curl -X POST http://localhost:8081/api/v1/auth/login \
 6. Erich Gamma et al. *设计模式：可复用面向对象软件的基础*.
 7. ANSI/INCITS 359-2012, *Role Based Access Control*.
 8. 邱明.《支付模块需求规格说明书》(PayReqSPEC) —— 本项目需求文档的格式范本。
+9. 邱明.《面向对象分析与设计》课件 1–4（软件设计概述、需求分析、结构化软件设计、软件体系结构），2026 秋季学期。——设计文档的评价标准（耦合、内聚、DFD 规则、用例级别、架构视图）逐条对照这套课件。
