@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.xmu.rbac</groupId>
+        <artifactId>rbac-parent</artifactId>
+        <version>0.1.0-SNAPSHOT</version>
+    </parent>
+
+    <!--
+      公共契约：Flyway 建表脚本（db/migration）与 OpenAPI 规范（openapi/rbac-api.yaml）。
+      打成 jar 后被各实现模块依赖：
+        - Flyway 从 classpath:db/migration 执行 V1–V3，两种实现共用同一份表结构；
+        - 权限拦截器从 classpath:openapi/rbac-api.yaml 读取每个接口声明的权限。
+    -->
+    <artifactId>rbac-contract</artifactId>
+    <packaging>jar</packaging>
+</project>

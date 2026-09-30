@@ -172,12 +172,17 @@ CREATE TABLE sys_action (
     UNIQUE KEY uk_action_code (action_code)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='操作（5 行，固定词汇表）';
 
--- 权限 = 功能点 × 操作。359 × 5 = 1795 行。
+-- 权限分两类（docs/12-design-log.md #9）：
+--   BIZ      业务权限 = 功能点 × 操作，359 × 5 = 1795 行，由导入器从权限清单写入；
+--   PLATFORM 权限中心自身的管理权限（system:user:list、authz:check:invoke 等），
+--            是 rbac-api.yaml 中 x-required-permission 的取值，由本脚本末尾内置。
+--            它们不属于清单里的任何功能点，因此 resource_id / action_id 为空。
 CREATE TABLE sys_permission (
     id              BIGINT       NOT NULL AUTO_INCREMENT,
-    permission_code VARCHAR(128) NOT NULL          COMMENT '系统:模块:功能点:操作；冗余存储，热路径直接匹配免联表',
-    resource_id     BIGINT       NOT NULL,
-    action_id       BIGINT       NOT NULL,
+    permission_code VARCHAR(128) NOT NULL          COMMENT '判定时直接匹配的字符串；BIZ 为 系统:模块:功能点:操作',
+    perm_type       VARCHAR(16)  NOT NULL DEFAULT 'BIZ' COMMENT 'BIZ 业务权限（导入）| PLATFORM 平台管理权限（内置）',
+    resource_id     BIGINT       NULL              COMMENT 'BIZ 必填；PLATFORM 为空',
+    action_id       BIGINT       NULL              COMMENT 'BIZ 必填；PLATFORM 为空',
     description     VARCHAR(255) NULL,
     created_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -185,7 +190,7 @@ CREATE TABLE sys_permission (
     UNIQUE KEY uk_permission_code  (permission_code),
     UNIQUE KEY uk_resource_action  (resource_id, action_id),
     KEY        idx_resource        (resource_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='权限（约 1795 行）';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='权限（BIZ 约 1795 行 + PLATFORM 内置）';
 
 -- -----------------------------------------------------------------------------
 -- 5. 指派与授予
@@ -431,17 +436,17 @@ INSERT INTO sys_department (id, dept_name, parent_id, level, path, sort_order) V
 -- 运维账号。SYS_ADMIN 不派生给任何真实员工——系统管理员是运维角色而非业务岗位。
 -- 初始口令为 'Admin@123' 的 BCrypt 哈希，must_change_pwd=1 强制首次登录修改。
 INSERT INTO sys_user (username, password_hash, real_name, user_type, status, must_change_pwd) VALUES
-    ('admin', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '系统管理员', 'EMPLOYEE', 1, 1);
+    ('admin', '$2a$10$QML7HXgspyFoS7XwRrS1meN2EnGnUOGtXCLQteHHodYiCZQIFb/Jm', '系统管理员', 'EMPLOYEE', 1, 1);
 
 -- 超级管理员账号。日常管理用 admin（SYS_ADMIN，走正常判定），root 只在必要时使用。
 -- 初始口令同上，must_change_pwd=1。
 INSERT INTO sys_user (username, password_hash, real_name, user_type, status, must_change_pwd) VALUES
-    ('root', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '超级管理员', 'EMPLOYEE', 1, 1);
+    ('root', '$2a$10$QML7HXgspyFoS7XwRrS1meN2EnGnUOGtXCLQteHHodYiCZQIFb/Jm', '超级管理员', 'EMPLOYEE', 1, 1);
 
 -- HR 系统集成账号。user_type=SYSTEM，仅用于调用 /sync/users 同步人员数据。
--- 口令为随机强口令，实际部署时由运维重置；该账号不得登录管理台。
+-- 口令为随机生成、未记录的强口令（哈希不对应任何已知口令），部署时由运维重置；该账号不得登录管理台。
 INSERT INTO sys_user (username, password_hash, real_name, user_type, status, must_change_pwd) VALUES
-    ('svc_hr_sync', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'HR系统集成账号', 'SYSTEM', 1, 0);
+    ('svc_hr_sync', '$2a$10$W/IcEPO40KWvHtZ5Fo4O9eNOUqvw8gmWhsNBx8c93HpsJ9awvTmoq', 'HR系统集成账号', 'SYSTEM', 1, 0);
 
 INSERT INTO sys_user_role (user_id, role_id)
 SELECT u.id, r.id FROM sys_user u, sys_role r
@@ -450,3 +455,60 @@ WHERE u.username = 'admin' AND r.role_code = 'SYS_ADMIN';
 INSERT INTO sys_user_role (user_id, role_id)
 SELECT u.id, r.id FROM sys_user u, sys_role r
 WHERE u.username = 'root' AND r.role_code = 'SUPER_ADMIN';
+
+-- -----------------------------------------------------------------------------
+-- 平台管理权限（PLATFORM）与内置角色的授予
+-- 取值与 rbac-api.yaml 的 x-required-permission 一一对应（'@self' 除外）；
+-- 契约新增接口时须同步在此追加，否则持有者无法调用该接口。
+-- 业务权限（oa:doc:draft:*、hr:attendance:record:* 等）不在此列，由导入器写入。
+-- 职责划分（SRS §4.1.2）：
+--   SYS_ADMIN 日常管理，除「角色继承、约束、审计查询」外的全部平台权限——继承与约束归安全管理员，
+--             审计查询归审计员（审计员监督系统管理员，二者 SSD 互斥）；
+--   SEC_ADMIN 角色继承与约束，以及配置时必须看到的角色、权限列表；
+--   AUDITOR   只读：审计日志、监控面板，无任何配置权限。
+-- SUPER_ADMIN 不需要任何授予：判定管道 S1b 直接放行。
+-- -----------------------------------------------------------------------------
+INSERT INTO sys_permission (permission_code, perm_type, description) VALUES
+    ('authz:check:invoke',           'PLATFORM', '调用权限判定接口（业务系统接入）'),
+    ('authz:explain:invoke',         'PLATFORM', '判定解释'),
+    ('system:user:list',             'PLATFORM', '查看用户'),
+    ('system:user:create',           'PLATFORM', '新增用户'),
+    ('system:user:update',           'PLATFORM', '修改用户、启用停用'),
+    ('system:user:delete',           'PLATFORM', '删除用户'),
+    ('system:role:list',             'PLATFORM', '查看角色'),
+    ('system:role:create',           'PLATFORM', '新增角色'),
+    ('system:role:update',           'PLATFORM', '修改角色'),
+    ('system:role:delete',           'PLATFORM', '删除角色'),
+    ('system:role:assign',           'PLATFORM', '为用户分配角色（含批量）'),
+    ('system:role:revoke',           'PLATFORM', '撤销用户角色'),
+    ('system:perm:list',             'PLATFORM', '查看权限、资源、操作'),
+    ('system:perm:grant',            'PLATFORM', '为角色授予权限'),
+    ('system:perm:revoke',           'PLATFORM', '撤销角色权限'),
+    ('system:org:view',              'PLATFORM', '查看组织架构'),
+    ('system:org:manage',            'PLATFORM', '维护组织架构、导入'),
+    ('system:hier:view',             'PLATFORM', '查看角色继承'),
+    ('system:hier:manage',           'PLATFORM', '维护角色继承'),
+    ('system:constraint:manage',     'PLATFORM', '维护约束'),
+    ('audit:log:list',               'PLATFORM', '查询审计日志'),
+    ('obsv:dashboard:view',          'PLATFORM', '查看监控面板与缓存统计'),
+    ('sys:org:sync:manage',          'PLATFORM', 'HR 人员同步'),
+    ('sys:security:data:view',       'PLATFORM', '查看敏感数据明文'),
+    ('sys:security:password:view',   'PLATFORM', '查看口令策略'),
+    ('sys:security:password:edit',   'PLATFORM', '修改口令策略'),
+    ('sys:account:user:impersonate', 'PLATFORM', '以他人身份只读查看');
+
+INSERT INTO sys_role_permission (role_id, permission_id)
+SELECT r.id, p.id FROM sys_role r, sys_permission p
+WHERE r.role_code = 'SYS_ADMIN' AND p.perm_type = 'PLATFORM'
+  AND p.permission_code NOT IN ('system:hier:manage', 'system:constraint:manage', 'audit:log:list');
+
+INSERT INTO sys_role_permission (role_id, permission_id)
+SELECT r.id, p.id FROM sys_role r, sys_permission p
+WHERE r.role_code = 'SEC_ADMIN'
+  AND p.permission_code IN ('system:hier:view', 'system:hier:manage', 'system:constraint:manage',
+                            'system:role:list', 'system:perm:list');
+
+INSERT INTO sys_role_permission (role_id, permission_id)
+SELECT r.id, p.id FROM sys_role r, sys_permission p
+WHERE r.role_code = 'AUDITOR'
+  AND p.permission_code IN ('audit:log:list', 'obsv:dashboard:view');

@@ -1,0 +1,41 @@
+# 所有环境差异通过环境变量注入，镜像本身不区分开发与部署（02-architecture.md §6）
+server:
+  port: ${SERVER_PORT:8081}
+  servlet:
+    context-path: /api/v1
+
+spring:
+  application:
+    name: rbac-structured
+  datasource:
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:rbac}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
+    username: ${DB_USER:rbac}
+    password: ${DB_PASSWORD:rbac}
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:20}
+  flyway:
+    # 迁移脚本在 rbac-contract 的 jar 里，两种实现共用
+    locations: classpath:db/migration
+
+mybatis:
+  configuration:
+    map-underscore-to-camel-case: true
+    arg-name-based-constructor-auto-mapping: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+rbac:
+  jwt:
+    # 部署时必须用 RBAC_JWT_SECRET 覆盖；这个默认值只用于本地开发
+    secret: ${RBAC_JWT_SECRET:dev-only-secret-change-me-at-least-32-bytes!!}
+  cache:
+    l1-max-size: 100000
+    l1-ttl: PT10M

@@ -4,3 +4,5 @@
 *.png binary
 *.jpg binary
 *.pdf binary
+# Windows 批处理必须是 CRLF
+*.cmd text eol=crlf

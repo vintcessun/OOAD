@@ -1,0 +1,18 @@
+server:
+  port: ${SERVER_PORT:8090}
+  servlet:
+    context-path: /api/v1
+
+spring:
+  application:
+    name: rbac-mock-biz
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+# 权限中心地址。容器内由 docker-compose 注入
+rbac:
+  center-url: ${RBAC_CENTER_URL:http://localhost:8081/api/v1}
