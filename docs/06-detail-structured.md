@@ -239,6 +239,8 @@ rbac-structured/src/main/java/com/xmu/rbac/structured/
     └── AttendanceController.java
 ```
 
+> **代码已落地（2026-10-01）**：`data`、`func`、`dao`、`web` 四个包按本节结构建立，另有 `config` 包负责装配（不计覆盖率）。与下文草图的差别：`authorize()` 多一个 `now` 参数（时间由调用方传入，测试可固定时钟）；主体既可是 `user_<id>` 也可是用户名；主体校验拆成 `AuthenticationFunctions.subjectDenyReason()`，一次返回停用、删除、过期三种原因。缓存句柄 `CacheHandle` 是 `func` 包里的接口，当前实现只有 L1。
+
 > **注意包的划分依据**：`func` 包下不是 `UserFunctions / RoleFunctions / PermissionFunctions` 这种按实体划分，而是按**功能**划分——`AssignmentFunctions` 同时处理用户-角色与角色-权限两种指派，因为它们是同一类功能（建立关联关系）。这正是结构化与面向对象在模块划分上的分歧点。
 
 ---

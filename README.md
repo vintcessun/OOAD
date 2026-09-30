@@ -78,6 +78,7 @@
 | [`10-paradigm-comparison.md`](docs/10-paradigm-comparison.md) | **三种范式对比分析**（本项目的差异化亮点） | 检查三 ★ |
 | [`11-defense.md`](docs/11-defense.md) | 六个设计点与个人陈述讲稿模板 | 每次检查前 ★ |
 | [`12-design-log.md`](docs/12-design-log.md) | **设计问题与改正记录**：发现了什么问题、为什么错、怎么改 | 检查二 ★ |
+| [`13-deployment.md`](docs/13-deployment.md) | **编译、打包与部署手册**：3 台华为云服务器的分工、每一步命令与原因、验收常见问题 | 个人验收 ★ |
 | [`diagrams/`](diagrams/) | StarUML 模型源文件 (.mdj) 与导出图 | 全程 |
 | [`rbac-contract/`](rbac-contract/) | **已落地的契约产物**：Flyway 建表脚本、OpenAPI 规范 | 全程 ★ |
 | [`data/raw/`](data/raw/) | 课程提供的三份原始 xlsx（**含真实人员信息，不入库**，需自行下载） | 全程 |
@@ -88,9 +89,11 @@
 
 | 层 | 选型 | 说明 |
 |---|---|---|
-| 语言 | **Java 17** | Jacoco 是课程提交门槛，必须 JVM 系 |
-| 构建 | Maven 多模块 | 三种范式各成一个模块，见下 |
-| 后端框架 | Spring Boot 3.x | 与《JavaEE 平台技术》课程一致 |
+| 语言 | **Java 21**（服务器装 21.0.2） | Jacoco 是课程提交门槛，必须 JVM 系 |
+| 构建 | **Maven 3.9.9** 多模块，仓库自带 `./mvnw` | 三种范式各成一个模块，见下；依赖走华为云镜像 |
+| 后端框架 | Spring Boot 3.3 | 与《JavaEE 平台技术》课程一致 |
+| 持久化 | 结构化：MyBatis；面向对象：Spring Data JPA；迁移：Flyway | 见 `02-architecture.md` §2.3 |
+| 部署 | Docker + Docker Swarm，华为云 3 台 2 核 2G | 见 [`13-deployment.md`](docs/13-deployment.md) |
 | 数据库 | MySQL 8.0 | |
 | 缓存 | Redis / Caffeine 两级 | 支撑「高负载大并发」的性能需求 |
 | 前端 | Vue 3 + TypeScript + Element Plus | 单套前端，通过切换 baseURL 对接不同范式后端 |
@@ -105,7 +108,7 @@
 
 | 文件 | 内容 |
 |---|---|
-| [`rbac-contract/.../db/migration/V1__rbac0_baseline.sql`](rbac-contract/src/main/resources/db/migration/V1__rbac0_baseline.sql) | 迭代一 17 张表（含鉴权日志两张）+ 操作词汇表 + 8 个内置角色（含超级管理员）+ 岗位→角色配置表及其 5 条规则 |
+| [`rbac-contract/.../db/migration/V1__rbac0_baseline.sql`](rbac-contract/src/main/resources/db/migration/V1__rbac0_baseline.sql) | 迭代一 17 张表（含鉴权日志两张）+ 操作词汇表 + 8 个内置角色（含超级管理员）+ 27 条平台管理权限及其授予 + 岗位→角色配置表及其 5 条规则 |
 | [`V2__rbac1_hierarchy.sql`](rbac-contract/src/main/resources/db/migration/V2__rbac1_hierarchy.sql) | 迭代二：角色继承、菜单、导入任务与异常明细 |
 | [`V3__rbac2_constraints.sql`](rbac-contract/src/main/resources/db/migration/V3__rbac2_constraints.sql) | 迭代三：约束体系、会话、角色可用时段；含 7 条演示约束（覆盖三类基数约束） |
 | [`openapi/rbac-api.yaml`](rbac-contract/src/main/resources/openapi/rbac-api.yaml) | 66 个操作（**每个都声明了所需权限**）、45 个 schema、55 个错误码。两种范式实现必须满足同一份契约 |
@@ -136,9 +139,32 @@ rbac-parent/
 ```bash
 git clone https://github.com/vintcessun/OOAD.git
 cd OOAD
+
+# 构建：编译 + 44 个单测 + Jacoco 门槛。只需装 JDK 21，Maven 由 ./mvnw 自动下载
+./mvnw -s deploy/maven-settings-huawei.xml verify          # Windows 用 mvnw.cmd
+# Jacoco 报告：rbac-structured/target/site/jacoco/index.html
+
+# 部署：MySQL + Redis + 权限中心 + 外部模拟系统，一条命令
+docker compose up -d --build
+curl http://localhost:8081/api/v1/actuator/health          # {"status":"UP"}
+
+# 登录（admin / root 初始口令 Admin@123，登录后用 /auth/change-password 修改）
+curl -X POST http://localhost:8081/api/v1/auth/login \
+     -H 'Content-Type: application/json' -d '{"username":"admin","password":"Admin@123"}'
 ```
 
-代码尚未开工，当前阶段为**文档与设计**。开工顺序见 [`docs/00-charter.md`](docs/00-charter.md) 的里程碑表。
+服务器上的编译、打包、部署全过程见 [`docs/13-deployment.md`](docs/13-deployment.md)。
+
+### 代码进度
+
+| 模块 | 状态 |
+|---|---|
+| `rbac-contract` | ✅ 建表脚本 V1–V3、OpenAPI 契约，打成 jar 供各实现共用 |
+| `rbac-structured` | 🟡 **骨架可运行**：判定内核（主体校验、超管旁路、缓存、匹配）、登录与锁定、改口令、`/authz/check`、`/auth/me`；**所有接口受控的拦截器**与启动自检。其余 38 个迭代一接口待实现 |
+| `rbac-mock-biz` | 🟡 路由已建，业务与鉴权调用待实现 |
+| `rbac-oo` / `rbac-functional` / `rbac-test-suite` / `rbac-acceptance` / `rbac-bench` | ⬜ 到期再加入 `pom.xml` 的 `<modules>`，避免空模块让构建变红 |
+
+新接口的写法照着 `AuthorizationController` → `AuthorizationFunctions` → `AssignmentDao` 三层走：Controller 只做参数转换，逻辑全在 `func` 包的静态函数里，SQL 全在 `dao` 包。**接口路径必须与 `rbac-api.yaml` 逐字一致**，否则启动自检会拒绝启动。
 
 ### 组员请先做三件事
 

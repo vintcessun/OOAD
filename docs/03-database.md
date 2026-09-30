@@ -253,15 +253,34 @@ erDiagram
 | 字段 | 类型 | 说明 |
 |---|---|---|
 | id | BIGINT PK | |
-| permission_code | VARCHAR(128) NOT NULL UNIQUE | `系统:模块:功能点:操作`，冗余存储便于热路径直接匹配 |
-| resource_id | BIGINT NOT NULL | |
-| action_id | BIGINT NOT NULL | |
+| permission_code | VARCHAR(128) NOT NULL UNIQUE | 判定时直接匹配的字符串。BIZ 为 `系统:模块:功能点:操作` |
+| perm_type | VARCHAR(16) NOT NULL DEFAULT 'BIZ' | `BIZ` 业务权限（导入）/ `PLATFORM` 平台管理权限（迁移脚本内置） |
+| resource_id | BIGINT NULL | BIZ 必填；PLATFORM 为空 |
+| action_id | BIGINT NULL | BIZ 必填；PLATFORM 为空 |
 | description | VARCHAR(255) | |
 | created_at / updated_at | DATETIME | |
 
 索引：`uk_permission_code`、`idx_resource(resource_id)`、`uk_resource_action(resource_id, action_id)`
 
-> `permission_code` 与 `(resource_id, action_id)` 是冗余的。保留冗余的理由：授权判定的热路径上需要按字符串直接匹配，避免联表；而 `uk_resource_action` 保证冗余不会产生二义。
+> `permission_code` 与 `(resource_id, action_id)` 是冗余的。保留冗余的理由：授权判定的热路径上需要按字符串直接匹配，避免联表；而 `uk_resource_action` 保证冗余不会产生二义（MySQL 唯一键允许多个 NULL，PLATFORM 行不受它约束）。
+
+**两类权限**（`12-design-log.md` #9）：
+
+| 类型 | 是什么 | 来源 | 行数 |
+|---|---|---|---|
+| `BIZ` | 18 个业务系统的功能点 × 操作，业务系统调 `/authz/check` 时问的就是它 | 导入器从权限清单写入 | 1,795 |
+| `PLATFORM` | 权限中心**自身**的管理权限，即 `rbac-api.yaml` 中每个接口声明的 `x-required-permission`（`system:user:list`、`authz:check:invoke`、`audit:log:list` 等） | `V1__rbac0_baseline.sql` 末尾内置 | 27 |
+
+平台权限不属于清单里的任何功能点，也不在 5 个操作的词汇表里（`list`、`manage`、`invoke` 等），所以 `resource_id` / `action_id` 为空。V1 同时内置三个系统级角色的授予：
+
+| 角色 | 平台权限 | 说明 |
+|---|---|---|
+| `SYS_ADMIN` | 24 条：除角色继承、约束、审计查询外的全部 | 日常管理 |
+| `SEC_ADMIN` | 5 条：继承查看与维护、约束维护、角色与权限列表 | 配置继承与约束时要看到角色和权限 |
+| `AUDITOR` | 2 条：审计查询、监控面板 | 只读 |
+| `SUPER_ADMIN` | 无 | 判定管道 S1b 直接放行，不需要任何授予 |
+
+契约新增接口时，须在 V4 及以后的迁移脚本里补上对应的平台权限，否则只有超级管理员能调用该接口。
 
 #### sys_user_role 用户角色关联表
 
@@ -678,15 +697,15 @@ flowchart TD
 | 表 | 预期行数 |
 |---|---|
 | `sys_department` | 111 |
-| `sys_user` | 10,001（10000 员工 + admin） |
+| `sys_user` | 10,003（10000 员工 + admin + root + svc_hr_sync） |
 | `sys_software_system` | 18 |
 | `sys_function_module` | 115 |
 | `sys_resource` | 359 |
 | `sys_action` | 5 |
-| `sys_permission` | 1,795 |
-| `sys_role` | **7**（5 个清单角色 + 安全管理员 + 审计员） |
-| `sys_role_permission` | 约 1,800 |
-| `sys_user_role` | 约 10,001 |
+| `sys_permission` | 1,822（BIZ 1,795 + PLATFORM 27） |
+| `sys_role` | **8**（超级管理员 + 5 个清单角色 + 安全管理员 + 审计员） |
+| `sys_role_permission` | 约 1,800 + 31（平台权限授予） |
+| `sys_user_role` | 约 10,002（每名员工一个派生角色 + admin + root） |
 
 ### 5.4 压测数据
 
@@ -702,7 +721,8 @@ flowchart TD
 - 使用 **Flyway** 管理 schema 版本，脚本置于 `rbac-contract/src/main/resources/db/migration/`。
 - 三个实现模块**共用同一套迁移脚本**，保证 schema 绝对一致。
 - 命名：`V1__rbac0_baseline.sql`、`V2__rbac1_hierarchy.sql`、`V3__rbac2_constraints.sql`，与三个迭代一一对应。
-- 迁移脚本只增不改：已发布的脚本不得修改，修正须通过新版本脚本。
+- 迁移脚本只增不改：**已在任何环境执行过的脚本**不得修改，修正须通过新版本脚本。Flyway 启动时校验已执行脚本的校验和，改了会直接启动失败。
+- 截至 2026-10-01 尚未部署到任何共享环境，V1 在此之前的修改（#9 平台权限、#10 初始口令哈希）不受此限；首次部署到华为云之后，V1–V3 冻结（`13-deployment.md` §5）。
 
 > 这样安排的额外好处：三次检查时，`V1` `V2` `V3` 三个脚本本身就清晰展示了数据模型随 RBAC0→RBAC1→RBAC2 的演进过程，可直接作为答辩材料。
 

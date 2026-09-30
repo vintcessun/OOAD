@@ -6,6 +6,22 @@
 
 ---
 
+## 0. 当前状态（2026-10-01）
+
+| 项 | 状态 |
+|---|---|
+| 构建 | `./mvnw -s deploy/maven-settings-huawei.xml verify` 通过：编译、44 个单测、Jacoco 门槛检查 |
+| 覆盖率（`rbac-structured`） | `func` 包行 100% / 分支 96%；`web` 包行 100% / 分支 94%；整体行 100% / 分支 95%（已排除 record 与 config） |
+| 已实现 | 判定内核（S1 主体校验、S1b 超管旁路、S2–S6 缓存与匹配）、登录与锁定、改口令、JWT、`/authz/check`、`/auth/me`，以及「所有接口受控」的拦截器与启动自检 |
+| 集成验证 | 在 MySQL 8.0 容器上启动：Flyway 执行 V1–V3；admin 登录拿到 24 条平台权限；root 旁路放行；缺权限拒绝；第二次判定命中缓存；契约外路由 403 |
+| 待做 | Testcontainers 集成测试、其余 38 个迭代一接口、L2 Redis、鉴权日志、导入器、外部模拟系统的业务与鉴权调用 |
+
+单测**全部不启动 Spring**：判定内核的依赖（DAO、缓存）都是参数，测试传内存实现（`Fixtures.java`）。这是「内核不依赖框架」（`02-architecture.md` §2.2）的直接收益，44 个用例几秒跑完。
+
+**第一次运行就抓到一个真实缺陷**：`seedPasswordHashMatchesDocumentedInitialPassword` 断言迁移脚本里 admin 的哈希对应文档写的 `Admin@123`，结果失败——哈希是从网上示例抄的（`12-design-log.md` #10）。按文档部署后管理员将无法登录，而这在代码评审里看不出来。
+
+---
+
 ## 1. 测试策略
 
 ### 1.1 测试金字塔
