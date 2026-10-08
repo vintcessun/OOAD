@@ -6,7 +6,9 @@
 #   bash deploy/setup-server.sh build     # 编译服务器：git + docker + JDK + Maven
 #   bash deploy/setup-server.sh deploy    # 部署服务器：git + docker
 #
-# ⚠ 国庆期间老师会发配置视频和脚本，届时以老师的为准；本脚本只是先把版本定下来。
+# 实验二（老师的《熟悉服务器环境》）已按 /root/jdk-21.0.2 与 /root/apache-maven-3.9.16 手工装过的服务器，
+# 再跑本脚本会检测到 java 21 / mvn 已在 PATH 中而跳过，不会重复安装。
+# Maven 版本：实验二装的是 3.9.16，本仓库 ./mvnw 固定 3.9.9；构建一律用 ./mvnw，两者不冲突。
 set -euo pipefail
 
 ROLE="${1:-deploy}"
@@ -39,7 +41,11 @@ systemctl enable --now docker
 echo "   镜像加速：华为云控制台 → 容器镜像服务 SWR → 镜像资源 → 镜像中心 → 镜像加速器，"
 echo "   把给出的地址写进 /etc/docker/daemon.json 的 registry-mirrors 后 systemctl restart docker"
 
-if [ "$ROLE" = "build" ]; then
+if [ "$ROLE" = "build" ] && java -version 2>&1 | grep -q 'version "21' && command -v mvn >/dev/null 2>&1; then
+  echo "==> 已有 JDK 21 与 Maven（实验二装的），跳过安装"
+  java -version
+  mvn -v
+elif [ "$ROLE" = "build" ]; then
   echo "==> JDK $JDK_VERSION"
   if [ ! -d "/opt/jdk-$JDK_VERSION" ]; then
     curl -fsSL "$MIRROR/openjdk/$JDK_VERSION/openjdk-${JDK_VERSION}_linux-x64_bin.tar.gz" | tar -xz -C /opt

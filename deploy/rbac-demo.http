@@ -1,0 +1,73 @@
+### 部署后的接口检查（实验二要求：现场用 httpclient 或 postman 调用后端 API）
+# IntelliJ IDEA：打开本文件，点每个请求左边的 ▶ 运行。VS Code 装 REST Client 插件也能用。
+# 部署到集群时把 host 改成任一节点的公网 IP（Swarm 的路由网格让每个节点的 8081 都能访问到服务）。
+# 预期结果写在每个请求上方；第 3 个请求把令牌存进 {{token}}，后面的请求自动带上。
+
+@host = http://localhost:8081/api/v1
+@biz = http://localhost:8090/api/v1
+
+### 1. 健康检查（不需要登录）→ 200，status=UP
+GET {{host}}/actuator/health
+
+### 2. 口令错误 → 401，code=20002
+# 连续错 5 次会锁定 15 分钟（code=20003），演示时别连点
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{"username": "admin", "password": "wrong-password"}
+
+### 3. 登录 → 200，data.permissions 为 SYS_ADMIN 的 24 个平台权限，mustChangePwd=true
+# 初始口令见 docs/13-deployment.md §4.5；如已改过，这里用新口令
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{"username": "admin", "password": "Admin@123"}
+
+> {%
+    client.global.set("token", response.body.data.token);
+%}
+
+### 4. 当前用户 → 200，与登录返回的用户、角色、权限一致
+GET {{host}}/auth/me
+Authorization: Bearer {{token}}
+
+### 5. 鉴权：admin 能否列出用户 → allowed=true（允许时 reason 为 null）
+# cached=true：第 3 步登录时已把 admin 的权限集载入 L1 缓存，这次判定不查库
+POST {{host}}/authz/check
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"subject": "admin", "resource": "system:user", "action": "list"}
+
+### 6. 鉴权：admin 能否管理角色继承 → allowed=false，reason=MISSING_PERMISSION
+# 职责分离：角色继承归安全管理员（SEC_ADMIN），系统管理员没有。拒绝也是 HTTP 200、code=0
+POST {{host}}/authz/check
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"subject": "admin", "resource": "system:hier", "action": "manage"}
+
+### 7. 鉴权：超级管理员 root → allowed=true，reason=SUPER_ADMIN_BYPASS
+POST {{host}}/authz/check
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"subject": "root", "resource": "oa:doc:draft", "action": "approve"}
+
+### 8. 不带令牌 → 401，code=10002
+GET {{host}}/auth/me
+
+### 9. 契约里没有声明的接口 → 403，code=10003（所有接口都受权限控制，未声明一律拒绝）
+GET {{host}}/debug/anything
+Authorization: Bearer {{token}}
+
+### 10. 模拟业务系统 → 501，提示该接口需要的权限（迭代二接入权限中心）
+GET {{biz}}/oa/documents
+
+### 11. 修改口令 → 200。会真的改掉 admin 的口令，改完记下新口令
+# 新口令至少 8 位，含大写、小写、数字与特殊字符，且不同于旧口令；否则 400，code=28009
+POST {{host}}/auth/change-password
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"oldPassword": "Admin@123", "newPassword": "<改成你们组自己的新口令>"}

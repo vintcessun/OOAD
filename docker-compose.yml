@@ -1,16 +1,24 @@
 # 一份编排文件，两种用法（docs/02-architecture.md §6）：
 #   docker compose up -d                              单机：开发、CI、检查演示
-#   docker stack deploy -c docker-compose.yml rbac    Swarm 集群
+#   bash deploy/stack.sh up                           Swarm 集群（实验二的做法，见 docs/13-deployment.md §4）
 # deploy: 段只在 Swarm 下生效，单机 compose 忽略。
 #
 # 课程服务器（3 台 2 核 2G，1 台编译 + 2 台部署）的放置方式见 docs/13-deployment.md：
 #   节点标签 rbac.role=data → MySQL + Redis；rbac.role=app → 两个 Java 服务。
 #
 # 口令与密钥从 .env 读取（不入库），模板见 deploy/env.example。
+# 注意 docker stack deploy 不会自动读 .env，所以集群部署一律走 deploy/stack.sh。
+# 下面 :- 后面的默认口令只给本机开发和 CI 用；stack.sh 发现 .env 里还是默认值会拒绝部署。
+
+# 版本号不能省：课程服务器是 Ubuntu 18.04 + apt 的 docker.io（20.10），它的 docker stack deploy
+# 遇到没写 version 的文件会报 unsupported Compose file version: 1.0。新版 docker compose 会提示
+# version 已过时，忽略即可。
+version: "3.8"
 
 services:
   mysql:
-    image: mysql:8.0
+    # 服务器上拉不到 Docker Hub 时，换成 SWR 上的镜像（env.example 有例子）
+    image: ${MYSQL_IMAGE:-mysql:8.0}
     command:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
@@ -39,7 +47,7 @@ services:
 
   # L2 缓存、会话、失效广播。应用侧接入待完成（02 §4.2），先把服务位置占好
   redis:
-    image: redis:7-alpine
+    image: ${REDIS_IMAGE:-redis:7-alpine}
     command: ["redis-server", "--maxmemory", "128mb", "--maxmemory-policy", "allkeys-lru"]
     deploy:
       placement:
@@ -59,10 +67,11 @@ services:
       JAVA_OPTS: ${APP_JAVA_OPTS:--Xms256m -Xmx512m -XX:+UseG1GC}
     ports:
       - "8081:8081"
-    depends_on:
-      mysql:
-        condition: service_healthy
-    # Swarm 不认 depends_on：MySQL 未就绪时应用启动失败，由 restart_policy 重试直到连上
+    # 只能用列表形式：docker stack deploy 不接受 condition: service_healthy 这种写法，
+    # 会直接报 depends_on: must be a list。MySQL 未就绪时应用启动失败、自动重启，直到连上：
+    # 单机 compose 靠 restart，Swarm 靠 deploy.restart_policy（Swarm 忽略 restart 与 depends_on）
+    depends_on: [mysql]
+    restart: on-failure
     deploy:
       replicas: ${APP_REPLICAS:-1}
       placement:

@@ -672,16 +672,16 @@ docker-compose.yml
 
 | 节点 | 角色 | 跑什么 | 节点标签 |
 |---|---|---|---|
-| 编译服务器 | Swarm manager | Maven 构建（临时）、私有镜像仓库 | 无（不分配服务） |
-| 部署服务器 A | 数据 | MySQL、Redis | `rbac.role=data` |
-| 部署服务器 B | 应用 | `rbac-structured`、`rbac-mock-biz` | `rbac.role=app` |
+| package-server | Swarm manager | Maven 构建（临时），镜像推到华为云 SWR | 无（不分配服务） |
+| mysql-server | 数据 | MySQL、Redis | `rbac.role=data` |
+| project-server | 应用 | `rbac-structured`、`rbac-mock-biz` | `rbac.role=app` |
 
 编排文件与上面的需求方案是**同一份**：服务放在哪台机器由节点标签决定，换成 6–8 台时只需给更多节点打 `rbac.role=app` 并调大副本数，不改编排文件。
 
 | | 能验证 | 不能验证 |
 |---|---|---|
 | 功能 | 全部：判定、缓存、失效、所有接口受控、外部模拟系统经网络调用 | — |
-| 部署 | 编译与运行分离、数据与应用分离、镜像经私有仓库分发、Swarm 按标签放置 | 应用多副本下的跨实例失效广播（只有 1 个应用节点） |
+| 部署 | 编译与运行分离、数据与应用分离、镜像经 SWR 分发、Swarm 按标签放置 | 应用多副本下的跨实例失效广播（只有 1 个应用节点） |
 | 性能 | 单节点吞吐与 P95/P99 的**趋势**、缓存命中率 | 10,000 QPS：2 核 2G 的单节点远达不到 3,500 QPS 的单节点目标，集群能力只能推算 |
 
 内存是最紧的约束：每台可用约 1.6G，所以编排文件给每个服务设了内存上限、JVM 堆封顶 512M（`13-deployment.md` §3）。
