@@ -18,8 +18,11 @@ load_env() {
     echo "缺少 .env：cp deploy/env.example .env 后改掉里面的口令" >&2
     exit 1
   fi
-  # docker stack deploy 不读 .env（docker compose 才读），所以先导出成环境变量
+  # docker stack deploy 不读 .env（docker compose 才读），所以先导出成环境变量。
+  # 命令行上临时给的 TAG 优先，不能被 .env 里的 TAG= 空值覆盖
+  local _tag="${TAG-}"
   set -a; . ./.env; set +a
+  TAG="${_tag:-${TAG-}}"
 }
 
 # 实验二要求每组数据库口令不同：拒绝模板值和本机开发用的默认值

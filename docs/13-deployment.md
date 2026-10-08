@@ -140,9 +140,10 @@ bash deploy/build.sh push
 bash deploy/stack.sh init <package-server 的私有IP>
 #   → 输出一条 docker swarm join --token ... 命令，复制到 mysql-server、project-server 上执行
 docker node ls                                 # 三台都是 Ready / Active，package-server 是 Leader
-bash deploy/stack.sh label mysql-server project-server
+bash deploy/stack.sh label <数据节点主机名> <应用节点主机名>   # 以 docker node ls 的 HOSTNAME 列为准
 ```
 
+- 主机名是操作系统里的名字，不一定等于华为云控制台显示的 `mysql-server`、`project-server`。实验二里数据节点的主机名就是 `mysql`。
 - `init` 必须用 `--advertise-addr` 指定**私有 IP**，工作节点通过内网连接 manager。
 - **join 命令里的 token 每次建集群都不同**，不要从历史记录里复制旧的。忘了就执行 `docker swarm join-token worker`。
 - 标签决定容器放到哪台机器上。`docker-compose.yml` 里：
