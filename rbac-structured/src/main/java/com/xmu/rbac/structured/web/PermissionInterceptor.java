@@ -65,7 +65,7 @@ public class PermissionInterceptor implements HandlerInterceptor {
             return true;
         }
 
-        Long userId = TokenFunctions.parseUserId(jwtKey, bearerToken(req));
+        Long userId = TokenFunctions.parseUserId(jwtKey, bearerToken(req), clock.instant());
         if (userId == null) {
             return reject(resp, 401, 10002, "未登录或令牌已失效", null);
         }

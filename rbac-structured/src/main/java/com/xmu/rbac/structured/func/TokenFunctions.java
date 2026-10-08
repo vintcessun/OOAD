@@ -27,13 +27,16 @@ public final class TokenFunctions {
                 .compact();
     }
 
-    /** 返回令牌中的用户 ID；令牌缺失、签名错误或已过期返回 null。 */
-    public static Long parseUserId(SecretKey key, String token) {
+    /**
+     * 返回令牌中的用户 ID；令牌缺失、签名错误或在 now 时刻已过期返回 null。
+     * now 由调用方传入，与签发一致：判定内核不自己读系统时钟，测试才能用固定时间重现。
+     */
+    public static Long parseUserId(SecretKey key, String token, Instant now) {
         if (token == null || token.isBlank()) {
             return null;
         }
         try {
-            String sub = Jwts.parser().verifyWith(key).build()
+            String sub = Jwts.parser().verifyWith(key).clock(() -> Date.from(now)).build()
                     .parseSignedClaims(token).getPayload().getSubject();
             return Long.valueOf(sub);
         } catch (JwtException | IllegalArgumentException e) {

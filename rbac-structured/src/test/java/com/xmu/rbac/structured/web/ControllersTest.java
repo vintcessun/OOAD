@@ -63,7 +63,7 @@ class ControllersTest {
                 auth.login(new AuthController.LoginRequest("alice", "pw-alice"));
         assertEquals(200, resp.getStatusCode().value());
         AuthController.LoginResult r = resp.getBody().data();
-        assertEquals(1L, TokenFunctions.parseUserId(key, r.token()));
+        assertEquals(1L, TokenFunctions.parseUserId(key, r.token(), clock.instant()));
         assertEquals(7200L, r.expiresIn());
         assertEquals(List.of("oa:doc:draft:view"), r.permissions());
         assertEquals("EMPLOYEE", r.roles().get(0).roleCode());
