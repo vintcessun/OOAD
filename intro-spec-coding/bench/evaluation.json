@@ -1,0 +1,16 @@
+{
+  "_comment": "Scoring model from 导论题目1评价指标: Total = 0.35C + 0.20A + 0.15R + 0.10Q + 0.10E + 0.10S. score.mjs reads this file.",
+  "severityWeight": { "critical": 5, "major": 3, "minor": 1 },
+  "dimensions": {
+    "C_correctness": { "max": 35, "build": 5, "publicTests": 5, "hiddenFunctional": 20, "regression": 5 },
+    "A_adherence": { "max": 20, "requirementCoverage": 12, "specViolation": 8 },
+    "R_robustness": { "max": 15, "boundary": 6, "errorHandling": 5, "stateConsistency": 4 },
+    "Q_quality": { "max": 10, "typeCheck": 3, "architectureFit": 3, "maintainability": 2, "testQuality": 2 },
+    "E_efficiency": { "max": 10, "time": 5, "tokens": 5, "refWallSec": 900, "refTokens": 500000 },
+    "S_scope": { "max": 10, "unauthorizedFiles": 4, "unrequestedFeatures": 3, "diffLocality": 3 }
+  },
+  "violationScore": { "none": 8, "minor": 6, "major": 3, "critical": 0 },
+  "firstPassSuccess": "build ok AND all public tests AND all regression tests AND all hidden functional/boundary/state tests pass AND no critical spec violation (exact error codes are scored under Adherence/Robustness, not here)",
+  "allowedPaths": ["src/", "tests/", "openspec/"],
+  "processPaths": ["openspec/"]
+}

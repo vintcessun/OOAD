@@ -54,3 +54,6 @@ desktop.ini
 
 # 课程服务器的 IP、登录口令、数据库口令（本机备忘，不入库）
 deploy/*.local.md
+
+# 导论题目1：实验用的 Claude Code 安装包（本机下载，体积大）
+intro-spec-coding/bench/docker/vendor/
