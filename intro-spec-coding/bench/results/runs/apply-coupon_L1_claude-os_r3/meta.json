@@ -1,0 +1,37 @@
+{
+  "runId": "apply-coupon_L1_claude-os_r3",
+  "task": "apply-coupon",
+  "spec": "L1",
+  "executor": "claude-os",
+  "repeat": 3,
+  "model": "deepseek-flash",
+  "startedAt": "2026-10-09T06:24:50.141Z",
+  "wallSec": 1231.925,
+  "timeoutSec": 1500,
+  "balanceBefore": 18.18,
+  "balanceAfter": 16.61,
+  "balanceDeltaCny": 1.57,
+  "exitCode": 0,
+  "timedOut": false,
+  "turns": 115,
+  "toolCalls": 62,
+  "toolNames": {
+    "Read": 17,
+    "Bash": 21,
+    "Write": 6,
+    "Edit": 18
+  },
+  "askAttempts": 0,
+  "filesRead": 17,
+  "stopReason": "success",
+  "tokensSource": "final",
+  "finalText": "## Implementation Complete\n\n**Change:** `add-order-coupon-application` (schema: spec-driven)\n**Progress:** 7/7 tasks complete ✓ · `openspec validate --strict` passes\n\n### OpenSpec artifacts created\n```\nopenspec/changes/add-order-coupon-application/\n  proposal.md                              why / what / capabilities / impact\n  specs/coupon-redemption/spec.md          delta spec: 10 requirements with scenarios\n  design.md                                layering, validation order, discount math, error mapping\n  tasks.md                                 7 tracked tasks (all done)\n```\n\n### Code changes\n- **`src/routes/orders.ts`** — `POST /orders/:id/apply-coupon` accepting `{ couponCode }`, returns the updated order.\n- **`src/services/orderService.ts`** — `applyCoupon()` runs eligibility checks in a fixed order (order exists → `PENDING` → no existing coupon → coupon exists → `ACTIVE` → validity window → `minAmountCents` → usage limit), then the discount math: `FIXED` = value, `PERCENT` = `floor(amount × value / 100)` capped by `maxDiscountCents`, and always capped at the order amount.\n- **`src/repositories/orderRepository.ts`** — `applyCoupon()` writes `discount_cents`, `final_amount_cents`, `coupon_code`.\n- **`src/repositories/couponRepository.ts`** — `incrementUsedCount()`.\n- **`src/repositories/couponRedemptionRepository.ts`** (new) — `insert()` / `findByOrder()` over `coupon_redemptions`.\n- **`src/app.ts`** — injects the coupon and redemption repositories into `OrderService`.\n- **`tests/couponApplication.test.ts`** (new) — 20 tests: repository layer, both coupon types, cap, rounding, amount cap, usage counting/redemption records, and every rejection path with no side effects.\n\n### Verification\n- `npm run build` — type check passes.\n- `npm test` — **25/25 green** (5 pre-existing + 20 new).\n\n### Assumptions recorded (task text left them open)\nError codes follow the existing `ORDER_NOT_PENDING` / `COUPON_NOT_FOUND` convention: `COUPON_DISABLED`, `COUPON_NOT_YET_VALID`, `COUPON_EXPIRED`, `COUPON_MIN_AMOUNT_NOT_MET` (400); `COUPON_USAGE_LIMIT_REACHED`, `COUPON_ALREADY_APPLIED` (409); `INVALID_REQUEST` for a missing code. A second coupon on the same order is rejected (no stacking), and percent rounding floors in the house's favor. All are pinned in the spec.\n\n`TASK.md` and the existing benchmark tests were not touched. Stopping here — the change is ready to archive with `/opsx:archive` if you want it merged into `openspec/specs/`.",
+  "tokens": {
+    "input": 44639,
+    "cacheRead": 1712512,
+    "cacheCreate": 0,
+    "output": 22119
+  },
+  "costCny": 0.3347,
+  "costCnyPeak": 0.3347
+}

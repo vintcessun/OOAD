@@ -4,12 +4,13 @@
  * DeepSeek deepseek-flash price, CNY per million tokens (api-docs.deepseek.com, read 2026-10-09).
  * Peak = Beijing time Mon–Fri 9:00–12:00 and 14:00–18:00; other times cost half.
  */
-export function tokenCost(t, at) {
+// forcePeak: price every run at the peak tier, so runs started at different times compare fairly.
+export function tokenCost(t, at, forcePeak = false) {
   if (!t) return null;
   const bj = new Date(at.getTime() + 8 * 3600_000);
   const h = bj.getUTCHours(), d = bj.getUTCDay();
   const peak = d >= 1 && d <= 5 && ((h >= 9 && h < 12) || (h >= 14 && h < 18));
-  const k = peak ? 1 : 0.5;
+  const k = peak || forcePeak ? 1 : 0.5;
   const yuan = ((t.cacheRead ?? 0) * 0.04 + ((t.input ?? 0) + (t.cacheCreate ?? 0)) * 2 + (t.output ?? 0) * 8) * k / 1e6;
   return +yuan.toFixed(4);
 }

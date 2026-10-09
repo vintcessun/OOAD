@@ -1,0 +1,35 @@
+{
+  "runId": "apply-coupon_L3_codex-os_r3",
+  "task": "apply-coupon",
+  "spec": "L3",
+  "executor": "codex-os",
+  "repeat": 3,
+  "model": "deepseek-flash",
+  "startedAt": "2026-10-09T06:07:35.523Z",
+  "wallSec": 1066.66,
+  "timeoutSec": 1500,
+  "balanceBefore": 20.54,
+  "balanceAfter": 18.12,
+  "balanceDeltaCny": 2.42,
+  "exitCode": 0,
+  "timedOut": false,
+  "turns": 12,
+  "toolCalls": 40,
+  "toolNames": {
+    "command_execution": 28,
+    "file_change": 12
+  },
+  "askAttempts": 0,
+  "filesRead": 0,
+  "stopReason": "success",
+  "finalText": "Implementation is complete and verified.\n\n## What was built\n\n`POST /orders/:id/apply-coupon` now discounts a pending order with one coupon, end to end.\n\n- [orderService.ts](/work/src/services/orderService.ts) — `applyCoupon(id, body)`: normalizes the code (trim + upper-case), then runs the guards in exactly the spec's precedence order (body → order exists → pending → not already applied → coupon exists → active → `validFrom <= now < validUntil` → usage limit → minimum amount), computes the discount (`FIXED` value or floored percentage, capped by `maxDiscountCents` then by the order amount), and derives `finalAmountCents` from the same numbers. Time comes from the injected `Clock`.\n- [orderRepository.ts](/work/src/repositories/orderRepository.ts) — one transactional method (`BEGIN IMMEDIATE` / `COMMIT`, `ROLLBACK` on any error) that updates the order, inserts the `coupon_redemptions` row and increments `used_count`, re-checking the status/coupon/usage invariants inside the transaction. No SQL was added outside `repositories/`.\n- [orders.ts](/work/src/routes/orders.ts) parses only the id via `parseId` and passes the body through, so the response is the re-read order and deep-equals a follow-up `GET /orders/:id`.\n- [applyCoupon.test.ts](/work/tests/applyCoupon.test.ts) — 26 new tests covering AC-01…AC-10, every error code, precedence, and side-effect-free rejections.\n\n## OpenSpec artifacts\n\n`openspec/changes/order-apply-coupon/` — `proposal.md`, `specs/order-coupons/spec.md` (new capability, 20 requirements with scenarios), `design.md`, `tasks.md`. `openspec validate --strict` passes and the apply tracker reads 9/9 tasks, `state: all_done`.\n\nOne planning note: task 1.2 was conditional on needing a coupon-repo write path; the whole write set fit in the single transactional repository method, so I rewrote that task to reflect the decision (keeping the transaction inside one repository) rather than dropping it. Your `TASK.md` and the existing `tests/orders.test.ts` are untouched, and `npm run build` plus `npm test` (31 tests) both pass. Nothing was archived — say the word if you want the change archived or the spec delta synced into `openspec/specs/`.",
+  "tokens": {
+    "input": 29671,
+    "cacheRead": 1561725,
+    "cacheCreate": 0,
+    "output": 23977
+  },
+  "tokensSource": "final",
+  "costCny": 0.3136,
+  "costCnyPeak": 0.3136
+}

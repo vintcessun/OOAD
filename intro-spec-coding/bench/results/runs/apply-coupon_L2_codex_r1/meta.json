@@ -1,0 +1,34 @@
+{
+  "runId": "apply-coupon_L2_codex_r1",
+  "task": "apply-coupon",
+  "spec": "L2",
+  "executor": "codex",
+  "repeat": 1,
+  "model": "deepseek-flash",
+  "startedAt": "2026-10-09T04:01:35.464Z",
+  "wallSec": 127.047,
+  "balanceBefore": 25.25,
+  "balanceAfter": 25.19,
+  "balanceDeltaCny": 0.06,
+  "exitCode": 0,
+  "timedOut": false,
+  "turns": 10,
+  "toolCalls": 16,
+  "toolNames": {
+    "command_execution": 10,
+    "file_change": 6
+  },
+  "askAttempts": 0,
+  "filesRead": 0,
+  "stopReason": "success",
+  "finalText": "Done. `POST /orders/:id/apply-coupon` is implemented and all checks pass.\n\nWhat I built:\n\n- Business rules live in [orderService.ts](/work/src/services/orderService.ts) — `applyCoupon(id, couponCode)` validates the coupon exists, is `ACTIVE`, is within its validity window, and meets the order's `minAmountCents`, then computes the discount.\n- Discounts: `FIXED` subtracts the face value (`value` cents); `PERCENT` applies `value%` to the order amount. Both respect `maxDiscountCents` and are clamped so the final amount never goes negative. The order's `discount_cents`, `final_amount_cents`, and `coupon_code` are updated, and a `coupon_redemptions` row is recorded with `used_count` incremented.\n- SQL stays in the repositories: [orderRepository.ts](/work/src/repositories/orderRepository.ts) gained `applyCoupon`, [couponRepository.ts](/work/src/repositories/couponRepository.ts) gained `recordRedemption`.\n- The route is registered in [orders.ts](/work/src/routes/orders.ts) and wired in [app.ts](/work/src/app.ts).\n\nBehavior against the acceptance criteria:\n\n- Valid coupon → HTTP 200 with the updated order.\n- Unknown / disabled / expired / not-yet-valid / below-minimum coupon → HTTP 400 with `{ error: { code, message } }` (codes: `COUPON_NOT_FOUND`, `COUPON_INACTIVE`, `COUPON_EXPIRED`, `COUPON_NOT_YET_VALID`, `COUPON_MIN_AMOUNT`).\n- Missing `couponCode` → 400 `INVALID_REQUEST`.\n\nI also added [applyCoupon.test.ts](/work/tests/applyCoupon.test.ts) covering the fixed/percent paths and each rejection case. `npm run build` and `npm test` (12 tests, including the pre-existing 5) pass. `TASK.md` and the existing benchmark tests were left untouched.\n\nOne judgment call worth flagging: the acceptance rule \"invalid coupon → 400\" is applied to a non-existent coupon code (rather than 404), since a missing coupon is one form of an invalid coupon.",
+  "tokens": {
+    "input": 8623,
+    "cacheRead": 227328,
+    "cacheCreate": 0,
+    "output": 9479
+  },
+  "costCny": 0.0511,
+  "tokensSource": "final",
+  "costCnyPeak": 0.1022
+}

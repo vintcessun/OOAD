@@ -1,0 +1,36 @@
+{
+  "runId": "apply-coupon_L3_claude_r1",
+  "task": "apply-coupon",
+  "spec": "L3",
+  "executor": "claude",
+  "repeat": 1,
+  "model": "deepseek-flash",
+  "startedAt": "2026-10-09T03:49:35.368Z",
+  "wallSec": 123.694,
+  "balanceBefore": 26.57,
+  "balanceAfter": 26.49,
+  "balanceDeltaCny": 0.08,
+  "exitCode": 0,
+  "timedOut": false,
+  "turns": 54,
+  "toolCalls": 30,
+  "toolNames": {
+    "Read": 19,
+    "Bash": 4,
+    "Edit": 6,
+    "Write": 1
+  },
+  "askAttempts": 0,
+  "filesRead": 19,
+  "stopReason": "success",
+  "finalText": "Implementation is complete.\n\n## Summary\n\nAdded `POST /orders/:id/apply-coupon` following the existing layering:\n\n**Repositories (all SQL)**\n- `orderRepository.ts`: `applyCoupon()` updates `discount_cents`/`final_amount_cents`/`coupon_code`; `transaction()` wraps a callback in BEGIN/COMMIT with ROLLBACK on throw.\n- `couponRepository.ts`: `insertRedemption()` and `incrementUsedCount()`.\n\n**Service (all rules)** — `orderService.ts:applyCoupon()`\n- REQ-13 validation first, then checks in the exact §6 order: `ORDER_NOT_FOUND` → `ORDER_NOT_PENDING` → `COUPON_ALREADY_APPLIED` → `COUPON_NOT_FOUND` → `COUPON_INACTIVE` → `COUPON_NOT_YET_VALID` → `COUPON_EXPIRED` → `COUPON_USAGE_EXHAUSTED` → `MINIMUM_NOT_MET`.\n- Code normalized via `trim().toUpperCase()` (REQ-01); time read from the injected `Clock` (REQ-03); window is `validFrom <= now < validUntil` (AC-07).\n- Discount: FIXED value / `floor(amount * value / 100)`, capped by `maxDiscountCents` then by the amount (REQ-06–09).\n- REQ-12 atomic write of order fields + redemption row + `used_count + 1`; returns the re-read order so it matches `GET /orders/:id` (REQ-14). All rejections happen before the transaction, so nothing changes on failure.\n\n**Routes/wiring** — `routes/orders.ts` parses params only; `app.ts` injects `CouponRepository` into `OrderService`.\n\n**Tests** — new `tests/applyCoupon.test.ts` (20 tests) covers AC-01 through AC-10 plus every error code and no-side-effect checks. Existing tests untouched; no schema or dependency changes.\n\nVerification: `npm run build` passes, `npm test` → 25/25 passing.",
+  "tokens": {
+    "input": 26107,
+    "cacheRead": 435968,
+    "cacheCreate": 0,
+    "output": 11529
+  },
+  "costCny": 0.1619,
+  "tokensSource": "final",
+  "costCnyPeak": 0.1619
+}

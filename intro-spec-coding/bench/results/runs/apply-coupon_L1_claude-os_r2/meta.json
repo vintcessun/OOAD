@@ -1,0 +1,37 @@
+{
+  "runId": "apply-coupon_L1_claude-os_r2",
+  "task": "apply-coupon",
+  "spec": "L1",
+  "executor": "claude-os",
+  "repeat": 2,
+  "model": "deepseek-flash",
+  "startedAt": "2026-10-09T05:46:39.947Z",
+  "wallSec": 1115.792,
+  "timeoutSec": 1500,
+  "balanceBefore": 22.01,
+  "balanceAfter": 20.77,
+  "balanceDeltaCny": 1.24,
+  "exitCode": 0,
+  "timedOut": false,
+  "turns": 93,
+  "toolCalls": 48,
+  "toolNames": {
+    "Read": 21,
+    "Bash": 15,
+    "Write": 5,
+    "Edit": 7
+  },
+  "askAttempts": 0,
+  "filesRead": 21,
+  "stopReason": "success",
+  "tokensSource": "final",
+  "finalText": "Implementation complete via the full OpenSpec workflow.\n\n## Summary\n\n**Change:** `add-apply-coupon` (`openspec/changes/add-apply-coupon/`) — all 4 planning artifacts created and `openspec validate --strict` passes.\n\n**Endpoint:** `POST /orders/:id/apply-coupon` with body `{ \"couponCode\": \"SAVE20\" }` → `200` with the updated order.\n\n**Behavior implemented (grounded in the existing `db.ts` schema):**\n- **Order checks:** must exist (`ORDER_NOT_FOUND` 404), be `PENDING` (`ORDER_NOT_PENDING` 409), and have no coupon (`ORDER_ALREADY_HAS_COUPON` 409).\n- **Coupon checks:** exists (`COUPON_NOT_FOUND` 404), `ACTIVE` (`COUPON_INACTIVE` 409), inside `validFrom`/`validUntil` (`COUPON_NOT_YET_VALID`/`COUPON_EXPIRED` 409), meets `minAmountCents` (`ORDER_BELOW_MIN_AMOUNT` 409), under `usageLimit` (`COUPON_USAGE_LIMIT_REACHED` 409).\n- **Discount:** `FIXED` = value; `PERCENT` = `floor(amount × value / 100)`; capped by `maxDiscountCents` and clamped to the order amount so `finalAmountCents ≥ 0`.\n- **Persistence:** sets `discount_cents`/`final_amount_cents`/`coupon_code`, inserts a `coupon_redemptions` row, increments `usedCount`.\n\n**Files changed:**\n- `src/routes/orders.ts`, `src/services/orderService.ts`, `src/repositories/orderRepository.ts`, `src/repositories/couponRepository.ts`, `src/app.ts`\n- New tests: `tests/coupon-application.test.ts` (16 tests)\n\n**Verification:** `npm test` → 21/21 pass (including the pre-existing suite); `npm run build` → clean. `TASK.md` and `tests/orders.test.ts` were not modified.\n\n**Assumptions recorded in the spec/design** (the task left these open): percentage discounts round down; validity bounds are inclusive; errors use distinct UPPER_SNAKE codes per condition; one coupon per order.\n\nPer your instruction I stopped at implementation — the change is left un-archived. The `## Workflow follow-up` bullet in `tasks.md` notes `/opsx:archive` for when you're ready.",
+  "tokens": {
+    "input": 44301,
+    "cacheRead": 1422208,
+    "cacheCreate": 0,
+    "output": 23382
+  },
+  "costCny": 0.1663,
+  "costCnyPeak": 0.3325
+}

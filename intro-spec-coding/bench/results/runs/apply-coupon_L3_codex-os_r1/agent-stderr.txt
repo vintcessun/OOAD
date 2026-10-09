@@ -1,0 +1,4 @@
+Reading additional input from stdin...
+2026-10-09T03:55:27.012602Z ERROR codex_core::tools::router: error=write_stdin failed: stdin is closed for this session; rerun exec_command with tty=true to keep stdin open
+2026-10-09T03:57:50.727049Z ERROR codex_core::tools::router: error=apply_patch verification failed: Failed to find expected lines in /work/openspec/changes/apply-coupon-to-order/tasks.md:
+- [ ] 1.1 Update `createApp` in `src/app.ts`

@@ -1,0 +1,38 @@
+{
+  "runId": "apply-coupon_L1_opencode-os_r1",
+  "task": "apply-coupon",
+  "spec": "L1",
+  "executor": "opencode-os",
+  "repeat": 1,
+  "model": "deepseek-flash",
+  "startedAt": "2026-10-09T07:00:34.396Z",
+  "wallSec": 861.565,
+  "timeoutSec": 1500,
+  "balanceBefore": 14.2,
+  "balanceAfter": 12.67,
+  "balanceDeltaCny": 1.53,
+  "exitCode": 0,
+  "timedOut": false,
+  "turns": 38,
+  "toolCalls": 51,
+  "toolNames": {
+    "read": 17,
+    "bash": 18,
+    "skill": 2,
+    "write": 5,
+    "edit": 9
+  },
+  "askAttempts": 0,
+  "filesRead": 17,
+  "stopReason": "stop",
+  "finalText": "Implementation complete.\n\n**Change:** `apply-coupon-to-order` (schema: spec-driven)\n**Artifacts:** proposal, specs (`order-coupons`), design, tasks — all created, `openspec validate --strict` passes.\n**Progress:** 9/9 tasks complete.\n\nImplemented `POST /orders/:id/apply-coupon`:\n- `src/services/orderService.ts:47` validates order/coupon and computes fixed/percent discounts (percent capped by `maxDiscountCents`, clamped to amount), then persists order + redemption + `used_count` in a transaction.\n- `src/repositories/orderRepository.ts` (`applyCoupon`, `transaction`), `src/repositories/couponRepository.ts` (`recordRedemption`, `incrementUsedCount`), `src/db.ts` (`transaction` helper), `src/routes/orders.ts` route, `src/app.ts` wiring.\n- Error codes: `ORDER_NOT_FOUND`/`COUPON_NOT_FOUND` (404); `INVALID_REQUEST` (400); `ORDER_NOT_PENDING`, `COUPON_ALREADY_APPLIED`, `COUPON_DISABLED`, `COUPON_NOT_YET_VALID`, `COUPON_EXPIRED`, `COUPON_USAGE_LIMIT_REACHED`, `COUPON_MIN_AMOUNT_NOT_MET` (409).\n\n`npm run build` clean; `npm test` 20/20 passing (existing `tests/orders.test.ts` untouched).",
+  "tokens": {
+    "input": 26685,
+    "cacheRead": 1143680,
+    "cacheCreate": 0,
+    "output": 17030
+  },
+  "tokensSource": "per-step",
+  "costCny": 0.2354,
+  "costCnyPeak": 0.2354
+}

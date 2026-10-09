@@ -1,0 +1,34 @@
+{
+  "runId": "apply-coupon_L1_codex_r1",
+  "task": "apply-coupon",
+  "spec": "L1",
+  "executor": "codex",
+  "repeat": 1,
+  "model": "deepseek-flash",
+  "startedAt": "2026-10-09T04:14:19.693Z",
+  "wallSec": 228.605,
+  "balanceBefore": 24.64,
+  "balanceAfter": 24.47,
+  "balanceDeltaCny": 0.17,
+  "exitCode": 0,
+  "timedOut": false,
+  "turns": 4,
+  "toolCalls": 20,
+  "toolNames": {
+    "command_execution": 11,
+    "file_change": 9
+  },
+  "askAttempts": 0,
+  "filesRead": 0,
+  "stopReason": "success",
+  "finalText": "`POST /orders/:id/apply-coupon` is implemented and wired end to end. `npm run build` (type-check) and `npm test` both pass, and TASK.md / the benchmark tests are untouched.\n\nWhat it does:\n\n- Route in [orders.ts](/work/src/routes/orders.ts) parses the id and body, delegating to `OrderService.applyCoupon`.\n- [orderService.ts](/work/src/services/orderService.ts) holds the rules: loads the order, then the coupon, and returns the updated order on success.\n- Discount math: `FIXED` uses `value` cents; `PERCENT` uses `floor(amountCents * value / 100)` (rounds down). The result is capped by `maxDiscountCents` and never exceeds the order amount, so `finalAmountCents >= 0`.\n- On success it updates `discount_cents` / `final_amount_cents` / `coupon_code`, writes a `coupon_redemptions` row (new [redemptionRepository.ts](/work/src/repositories/redemptionRepository.ts)), and increments the coupon's `used_count`.\n\nResponse is the updated order (200), matching the style of `pay`/`cancel`.\n\nValidation, in order, with UPPER_SNAKE codes consistent with the existing vocabulary:\n\n| Condition | Status | Code |\n|---|---|---|\n| `couponCode` missing/blank | 400 | `INVALID_REQUEST` |\n| order unknown | 404 | `ORDER_NOT_FOUND` |\n| order already has a coupon | 409 | `COUPON_ALREADY_APPLIED` |\n| order not PENDING | 409 | `ORDER_NOT_PENDING` |\n| coupon unknown | 404 | `COUPON_NOT_FOUND` |\n| coupon DISABLED | 409 | `COUPON_DISABLED` |\n| before `validFrom` | 409 | `COUPON_NOT_YET_VALID` |\n| after `validUntil` | 409 | `COUPON_EXPIRED` |\n| `amountCents < minAmountCents` | 409 | `COUPON_MIN_AMOUNT_NOT_MET` |\n| usage limit reached | 409 | `COUPON_USAGE_LIMIT_REACHED` |\n\nValidity is evaluated against the injected `Clock` (not `new Date()`), per the repo conventions. One judgment call worth flagging: TASK.md didn't specify error names, so I chose codes in the existing `COUPON_*` / `ORDER_*` style and treated domain rejections as 409 conflicts, 404 for missing resources, 400 for malformed input.",
+  "tokens": {
+    "input": 9816,
+    "cacheRead": 342784,
+    "cacheCreate": 0,
+    "output": 11048
+  },
+  "costCny": 0.0609,
+  "tokensSource": "final",
+  "costCnyPeak": 0.1217
+}

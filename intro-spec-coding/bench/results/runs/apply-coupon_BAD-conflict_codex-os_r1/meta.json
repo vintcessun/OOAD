@@ -1,0 +1,35 @@
+{
+  "runId": "apply-coupon_BAD-conflict_codex-os_r1",
+  "task": "apply-coupon",
+  "spec": "BAD-conflict",
+  "executor": "codex-os",
+  "repeat": 1,
+  "model": "deepseek-flash",
+  "startedAt": "2026-10-09T07:03:53.828Z",
+  "wallSec": 806.116,
+  "timeoutSec": 1500,
+  "balanceBefore": 13.69,
+  "balanceAfter": 12.32,
+  "balanceDeltaCny": 1.37,
+  "exitCode": 0,
+  "timedOut": false,
+  "turns": 12,
+  "toolCalls": 46,
+  "toolNames": {
+    "command_execution": 32,
+    "file_change": 14
+  },
+  "askAttempts": 0,
+  "filesRead": 0,
+  "stopReason": "success",
+  "finalText": "Implementation is complete and verified. Here's where things landed.\n\n## OpenSpec change: `apply-coupon-to-order`\n\nAll four planning artifacts plus the apply phase are done and validating (`openspec validate \"apply-coupon-to-order\" --strict` → valid, 8/8 tasks complete):\n\n- [proposal.md](/work/openspec/changes/apply-coupon-to-order/proposal.md) — why, scope, new `coupon-application` capability\n- [spec.md](/work/openspec/changes/apply-coupon-to-order/specs/coupon-application/spec.md) — behavior contract: request shape, normalisation, order/coupon eligibility, discount math, one-coupon rule, atomic persistence, response, error precedence\n- [design.md](/work/openspec/changes/apply-coupon-to-order/design.md) — layering decisions, transaction placement, and the two conflict resolutions\n- [tasks.md](/work/openspec/changes/apply-coupon-to-order/tasks.md) — all 8 tasks checked off\n\n## Code\n\n- [orderService.ts](/work/src/services/orderService.ts) — `applyCoupon(id, rawCouponCode)` runs the checks in the documented order and returns the reloaded order, so the response is identical to `GET /orders/:id`.\n- [couponService.ts](/work/src/services/couponService.ts) — `resolveUsable(code, now)` (existence, `ACTIVE`, `validFrom <= now < validUntil`, usage limit) and `discountFor(coupon, amountCents)` (FIXED / PERCENT with `floor`, `maxDiscountCents` cap, clamp to amount). Time always comes from the injected `Clock`.\n- [couponRedemptionRepository.ts](/work/src/repositories/couponRedemptionRepository.ts) — the only new SQL: one `BEGIN`/`COMMIT` covering the order update, the `coupon_redemptions` insert and `used_count + 1`, with rollback on any failure.\n- [orders.ts](/work/src/routes/orders.ts) — the route parses the id and passes the raw code; validation stays in the service.\n- [app.ts](/work/src/app.ts) — wiring.\n\nTASK.md, `tests/orders.test.ts`, the schema and the dependency list are untouched; [applyCoupon.test.ts](/work/tests/applyCoupon.test.ts) adds 26 tests. `npm run build` passes, `npm test` is 31/31 green.\n\n## Two contradictions I had to resolve\n\nTASK.md contradicts itself in two places. I left TASK.md alone, followed the acceptance criteria, and recorded both decisions in `design.md` so they're a one-line revert each:\n\n- **REQ-08 vs AC-03** — the blanket \"no discount above 10000 cents\" cap would make AC-03 (20000) impossible. Implemented: only the coupon's own `maxDiscountCents` caps the discount.\n- **REQ-10 vs AC-08** — \"reject any second coupon\" contradicts \"a new coupon replaces the old one\". Implemented: re-applying the *same* code is rejected with `COUPON_ALREADY_APPLIED` (which REQ-10's parenthetical and the error table both require), while a *different* coupon replaces the previous one per AC-08. Consequence: the replaced coupon keeps its `used_count` and redemption row, since no reversal rule exists.\n\nIf you actually want the stricter reading of either rule, say so and I'll flip it — that's the cap line in `CouponService.discountFor` and the same-code check in `OrderService.applyCoupon`.\n\nThe change is left unarchived (the apply workflow is where you asked me to stop); archiving is a one-liner when you're ready to review.",
+  "tokens": {
+    "input": 31040,
+    "cacheRead": 2373501,
+    "cacheCreate": 0,
+    "output": 57703
+  },
+  "tokensSource": "final",
+  "costCny": 0.6186,
+  "costCnyPeak": 0.6186
+}

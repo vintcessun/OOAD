@@ -1,0 +1,827 @@
+diff --git a/openspec/changes/apply-coupon-to-order/.openspec.yaml b/openspec/changes/apply-coupon-to-order/.openspec.yaml
+new file mode 100644
+index 0000000..8126432
+--- /dev/null
++++ b/openspec/changes/apply-coupon-to-order/.openspec.yaml
+@@ -0,0 +1,2 @@
++schema: spec-driven
++created: 2026-10-09
+diff --git a/openspec/changes/apply-coupon-to-order/design.md b/openspec/changes/apply-coupon-to-order/design.md
+new file mode 100644
+index 0000000..a8f4621
+--- /dev/null
++++ b/openspec/changes/apply-coupon-to-order/design.md
+@@ -0,0 +1,92 @@
++# Design
++
++## Context
++
++See `proposal.md` - Why. The service is a small TypeScript app on Node's built-in
++`node:sqlite` (`DatabaseSync`), with a strict layering convention documented in
++`README.md`: `routes/` only parse params and call a service, business rules live
++in `services/`, and all SQL lives in `repositories/`. Time is read from an
++injected `Clock` (`src/clock.ts`), never `new Date()` in services. Errors are
++thrown as `AppError`, which the router renders as
++`{ error: { code, message } }` with the matching HTTP status.
++
++The order and coupon data model already exists in `src/db.ts`; no schema change
++is allowed. `OrderService` already receives the injected `Clock` and is wired in
++`src/app.ts`, so it is the natural home for the coupon rules. Requirements are
++specified in `specs/order-coupon/spec.md` - this document only covers how.
++
++## Goals / Non-Goals
++
++**Goals:**
++
++- Implement `POST /orders/:id/apply-coupon` using the existing layering and
++  error conventions, reading the current time from the injected `Clock`.
++- Keep the three success writes (order update, redemption insert, usage-count
++  increment) atomic in a single SQL transaction.
++- Preserve the existing behavior and tests of the current endpoints.
++
++**Non-Goals:**
++
++- No schema/table changes and no new dependencies.
++- No changes to coupon administration (`POST /coupons`, `GET /coupons/:code`).
++- No coupon removal/refund, and no re-applying once an order has a coupon.
++- No changes to the existing `pay` / `cancel` flows beyond what already exists.
++
++## Decisions
++
++### Rules live in `OrderService`; add `CouponRepository` to its constructor
++Rationale: the rules need both the order and the coupon, plus the `Clock` that
++is already injected into `OrderService`. Adding `CouponRepository` as a second
++constructor argument keeps the HTTP layer thin and matches the existing wiring
++in `src/app.ts`. Alternative considered: a standalone
++`CouponApplicationService`; rejected because it would duplicate the order lookup
++and status logic already in `OrderService` and add a second wiring point for no
++behavioral gain.
++
++### Normalize the code in the service, check rules in the exact table order
++`applyCoupon` trims and uppercases `couponCode` first, then evaluates checks in
++this fixed sequence so the first failure wins: input validity (400
++`INVALID_REQUEST`) → order exists (404 `ORDER_NOT_FOUND`) → status `PENDING`
++(409 `ORDER_NOT_PENDING`) → order already has a coupon (409
++`COUPON_ALREADY_APPLIED`) → coupon exists (404 `COUPON_NOT_FOUND`) → `ACTIVE`
++(400 `COUPON_INACTIVE`) → `validFrom <= now` (400 `COUPON_NOT_YET_VALID`) →
++`now < validUntil` (400 `COUPON_EXPIRED`) → usage limit (400
++`COUPON_USAGE_EXHAUSTED`) → minimum amount (400 `MINIMUM_NOT_MET`). This mirrors
++the task's error table directly and keeps the ordering explicit and testable.
++
++### Compute the discount in one small pure step
++Base discount is `coupon.value` for FIXED and
++`Math.floor(order.amountCents * coupon.value / 100)` for PERCENT; then apply
++`maxDiscountCents` cap when non-null; then clamp with
++`Math.min(discount, order.amountCents)`. `finalAmountCents` is
++`amountCents - discount`, which is therefore never negative. Integer-only
++arithmetic keeps all money values in cents.
++
++### Persist atomically in a repository method
++Add `OrderRepository.applyCoupon(orderId, couponCode, discountCents,
++finalAmountCents, now)` that wraps `BEGIN` / `COMMIT` around: the `UPDATE orders`
++setting `discount_cents`, `final_amount_cents`, `coupon_code`; the `INSERT INTO
++coupon_redemptions`; and `UPDATE coupons SET used_count = used_count + 1`. On any
++error it issues `ROLLBACK` and rethrows. Rationale: this keeps all SQL in the
++repository layer (per the layering rule) and guarantees the writes succeed or
++fail together. `node:sqlite` is synchronous, so a simple try/catch around the
++statements is sufficient; there is no async interleaving to guard against within
++one request. Alternative considered: exposing a generic transaction helper from
++`db.ts` and calling several repo methods from the service; rejected as more
++machinery than this single operation needs.
++
++### Reuse the existing serialization for the response
++After a successful write the service re-reads the order via `this.get(id)` and
++returns it, so the `200` body is produced by the same `toOrder` mapper as
++`GET /orders/:id` and cannot drift from it. `created_at` on the redemption row
++uses the same `now` value the rules were evaluated with.
++
++## Risks / Trade-offs
++
++- [A failure between the write statements could partially apply the change] →
++  Wrap all three statements in one transaction with `ROLLBACK` in the `catch`,
++  satisfying the "rejection/failure leaves no trace" requirement.
++- [Divergent time between validity check and `created_at`] → Read `this.clock()`
++  once per request and reuse that single `now` for both.
++- [Rules could drift from the documented error order] → Encode the order in one
++  linear method and cover the precedence cases with tests.
+diff --git a/openspec/changes/apply-coupon-to-order/proposal.md b/openspec/changes/apply-coupon-to-order/proposal.md
+new file mode 100644
+index 0000000..bd07e2e
+--- /dev/null
++++ b/openspec/changes/apply-coupon-to-order/proposal.md
+@@ -0,0 +1,52 @@
++# Proposal
++
++## Why
++
++Customers can place an order but currently have no way to reduce what they owe
++by redeeming a coupon before payment. The `orders` table already reserves
++`discount_cents`, `final_amount_cents`, and `coupon_code`, and the `coupons` /
++`coupon_redemptions` tables already exist, but nothing reads or writes them, so
++discounts are impossible today.
++
++## What Changes
++
++- Add `POST /orders/:id/apply-coupon` that accepts `{ "couponCode": string }`
++  and returns the updated order on success (`HTTP 200`, body identical to
++  `GET /orders/:id`).
++- Implement the coupon decision rules (normalization, status, validity window,
++  minimum amount, FIXED/PERCENT computation, cap, clamp, single-use per order,
++  usage limit) in the service layer.
++- Persist a successful application atomically: update the order's
++  `discount_cents` / `final_amount_cents` / `coupon_code`, insert a
++  `coupon_redemptions` row, and increment `coupons.used_count` in one
++  transaction; roll back everything on any failure.
++- Reject invalid input and each disallowed coupon state with the exact HTTP
++  status and error `code` from the task's error table, checked in the specified
++  order, leaving the database unchanged.
++- Add tests covering the acceptance criteria; keep existing tests untouched.
++
++## Capabilities
++
++### New Capabilities
++
++- `order-coupon`: Applying a single coupon to a `PENDING` order, including the
++  request/response contract, validation and error ordering, discount
++  computation, and the atomic order/redemption/usage-count writes.
++
++### Modified Capabilities
++
++<!-- None: no existing capability covers this behavior. -->
++
++## Impact
++
++- **HTTP**: new route `POST /orders/:id/apply-coupon` in `src/routes/orders.ts`.
++- **Service**: coupon-application rules added to the order service
++  (`src/services/orderService.ts`), using the injected `Clock`.
++- **Repositories**: new reads/writes in `src/repositories/orderRepository.ts`
++  and `src/repositories/couponRepository.ts` (redemption insert, usage count,
++  transactional order update).
++- **Errors**: reuses existing `AppError` helpers/`{ error: { code, message } }`
++  format; no new error shape.
++- **Data**: no schema changes; uses existing `orders`, `coupons`,
++  `coupon_redemptions` columns.
++- **Dependencies**: none added.
+diff --git a/openspec/changes/apply-coupon-to-order/specs/order-coupon/spec.md b/openspec/changes/apply-coupon-to-order/specs/order-coupon/spec.md
+new file mode 100644
+index 0000000..cdf7c84
+--- /dev/null
++++ b/openspec/changes/apply-coupon-to-order/specs/order-coupon/spec.md
+@@ -0,0 +1,191 @@
++# Spec Delta
++
++## Purpose
++
++Enables a customer to redeem a single coupon against a pending order so the
++order's payable amount is reduced before payment, with all-or-nothing
++persistence and deterministic rejection reasons.
++
++## ADDED Requirements
++
++### Requirement: Coupon code normalization and lookup
++The service SHALL trim leading and trailing whitespace from `couponCode`,
++uppercase the result, and look up the coupon by the normalized code in
++`coupons.code`. If no coupon matches, the request SHALL be rejected with HTTP
++404 and code `COUPON_NOT_FOUND`.
++
++#### Scenario: Whitespace and case are normalized
++- **WHEN** a request sends `couponCode` `" save20 "` and a coupon `SAVE20` exists
++- **THEN** the coupon `SAVE20` is matched and applied
++
++#### Scenario: Unknown coupon is rejected
++- **WHEN** the normalized code matches no coupon
++- **THEN** the response is HTTP 404 `COUPON_NOT_FOUND` and no data changes
++
++### Requirement: Request body validation
++The service MUST reject the request with HTTP 400 and code `INVALID_REQUEST`
++when `couponCode` is missing, is not a string, or is empty after trimming.
++
++#### Scenario: Missing couponCode
++- **WHEN** the request body has no `couponCode`
++- **THEN** the response is HTTP 400 `INVALID_REQUEST`
++
++#### Scenario: Non-string couponCode
++- **WHEN** `couponCode` is a non-string value such as a number
++- **THEN** the response is HTTP 400 `INVALID_REQUEST`
++
++#### Scenario: Blank couponCode
++- **WHEN** `couponCode` is empty or only whitespace
++- **THEN** the response is HTTP 400 `INVALID_REQUEST`
++
++### Requirement: Order existence and status eligibility
++The order identified by `:id` MUST exist and its status MUST be `PENDING`. A
++missing order SHALL be rejected with HTTP 404 `ORDER_NOT_FOUND`; a
++non-`PENDING` order SHALL be rejected with HTTP 409 `ORDER_NOT_PENDING`.
++Applying a coupon MUST NOT change the order's status.
++
++#### Scenario: Unknown order
++- **WHEN** no order with `:id` exists
++- **THEN** the response is HTTP 404 `ORDER_NOT_FOUND`
++
++#### Scenario: Non-pending order
++- **WHEN** the order's status is `PAID` or `CANCELLED`
++- **THEN** the response is HTTP 409 `ORDER_NOT_PENDING` and no data changes
++
++#### Scenario: Status remains PENDING after success
++- **WHEN** a coupon is successfully applied to a `PENDING` order
++- **THEN** the order's status is still `PENDING`
++
++### Requirement: Single coupon per order
++An order MUST NOT use more than one coupon. When the order already has a
++non-null `couponCode`, the request SHALL be rejected with HTTP 409
++`COUPON_ALREADY_APPLIED`, including when the same coupon is applied again.
++
++#### Scenario: Second coupon rejected
++- **WHEN** an order already has a coupon and another apply request arrives
++- **THEN** the response is HTTP 409 `COUPON_ALREADY_APPLIED` and the order's amounts are unchanged
++
++### Requirement: Coupon must be active
++The coupon's `status` MUST equal `ACTIVE`. Otherwise the request SHALL be
++rejected with HTTP 400 `COUPON_INACTIVE`.
++
++#### Scenario: Disabled coupon rejected
++- **WHEN** the matched coupon's status is `DISABLED`
++- **THEN** the response is HTTP 400 `COUPON_INACTIVE` and no data changes
++
++### Requirement: Coupon validity window
++Using the injected `Clock`, the current time `now` MUST satisfy
++`validFrom <= now < validUntil`. When `now` is before `validFrom` the request
++SHALL be rejected with HTTP 400 `COUPON_NOT_YET_VALID`; when `now` is at or
++after `validUntil` it SHALL be rejected with HTTP 400 `COUPON_EXPIRED`.
++
++#### Scenario: Not yet valid
++- **WHEN** `now` is before `validFrom`
++- **THEN** the response is HTTP 400 `COUPON_NOT_YET_VALID`
++
++#### Scenario: Boundary at validFrom is allowed
++- **WHEN** `now` equals `validFrom`
++- **THEN** the coupon is accepted, subject to the other rules
++
++#### Scenario: Expired at validUntil
++- **WHEN** `now` equals or is after `validUntil`
++- **THEN** the response is HTTP 400 `COUPON_EXPIRED`
++
++### Requirement: Minimum order amount
++The coupon MUST only apply when `order.amountCents >= coupon.minAmountCents`
++(equality allowed). Otherwise the request SHALL be rejected with HTTP 400
++`MINIMUM_NOT_MET`.
++
++#### Scenario: Below minimum
++- **WHEN** `order.amountCents` is less than `coupon.minAmountCents`
++- **THEN** the response is HTTP 400 `MINIMUM_NOT_MET`
++
++#### Scenario: Exactly at minimum
++- **WHEN** `order.amountCents` equals `coupon.minAmountCents`
++- **THEN** the coupon is accepted
++
++### Requirement: Usage limit
++When `coupon.usageLimit` is not null and `coupon.usedCount >=
++coupon.usageLimit`, the request SHALL be rejected with HTTP 400
++`COUPON_USAGE_EXHAUSTED`.
++
++#### Scenario: Exhausted usage
++- **WHEN** `usedCount` is greater than or equal to a non-null `usageLimit`
++- **THEN** the response is HTTP 400 `COUPON_USAGE_EXHAUSTED` and no data changes
++
++#### Scenario: Unlimited usage
++- **WHEN** `usageLimit` is null
++- **THEN** the usage-limit rule does not reject the request
++
++### Requirement: FIXED discount
++For a `FIXED` coupon the discount SHALL equal `coupon.value` in cents.
++
++#### Scenario: Fixed discount
++- **WHEN** `amountCents` is 10000 and the coupon is FIXED with `value` 1500
++- **THEN** `discountCents` is 1500 and `finalAmountCents` is 8500
++
++### Requirement: PERCENT discount
++For a `PERCENT` coupon the discount SHALL equal
++`floor(order.amountCents * coupon.value / 100)`, rounding down.
++
++#### Scenario: Percentage discount
++- **WHEN** `amountCents` is 10000 and the coupon is PERCENT with `value` 20
++- **THEN** `discountCents` is 2000 and `finalAmountCents` is 8000
++
++#### Scenario: Percentage rounds down
++- **WHEN** `amountCents` is 999 and the coupon is PERCENT with `value` 15
++- **THEN** `discountCents` is 149
++
++### Requirement: Maximum discount cap
++When `coupon.maxDiscountCents` is not null, the discount SHALL be capped at
++`min(discount, coupon.maxDiscountCents)` for both FIXED and PERCENT coupons.
++
++#### Scenario: Cap applies
++- **WHEN** `amountCents` is 100000, the coupon is PERCENT with `value` 20 and `maxDiscountCents` 5000
++- **THEN** `discountCents` is 5000
++
++### Requirement: Discount clamped to order amount
++The discount MUST be `min(discount, order.amountCents)` and
++`finalAmountCents = order.amountCents - discount` MUST NOT be negative.
++
++#### Scenario: Discount exceeds amount
++- **WHEN** `amountCents` is 1000 and a FIXED coupon has `value` 3000
++- **THEN** `discountCents` is 1000 and `finalAmountCents` is 0
++
++### Requirement: Atomic application
++On success the service MUST, in one transaction: set the order's
++`discount_cents`, `final_amount_cents`, and `coupon_code` (normalized uppercase
++code); insert a `coupon_redemptions` row with `order_id`, `coupon_code`,
++`discount_cents`, and `created_at` equal to `now`; and increment
++`coupons.used_count` by 1. If any step fails, all changes MUST roll back.
++
++#### Scenario: Used count and redemption recorded
++- **WHEN** a coupon is applied successfully
++- **THEN** `GET /coupons/:code` reports `usedCount` increased by 1 and one new `coupon_redemptions` row exists
++
++#### Scenario: Rejection leaves no trace
++- **WHEN** the request is rejected by any rule
++- **THEN** the order, the coupon's `used_count`, and `coupon_redemptions` are unchanged
++
++### Requirement: Success response contract
++On success the endpoint MUST return HTTP 200 with the updated order serialized
++identically to `GET /orders/:id`, using fields `id, customer, amountCents,
++discountCents, finalAmountCents, couponCode, status, createdAt`.
++
++#### Scenario: Response matches GET order
++- **WHEN** a coupon is applied successfully to order `:id`
++- **THEN** the HTTP 200 body equals the body of `GET /orders/:id` for that order
++
++### Requirement: Error precedence
++When several rejection rules apply, the service MUST return the first matching
++rule in this order: invalid request, order not found, order not pending,
++already applied, coupon not found, inactive, not yet valid, expired, usage
++exhausted, minimum not met, each with its defined status and code.
++
++#### Scenario: Missing order beats coupon problems
++- **WHEN** the order does not exist and the coupon code is also unknown
++- **THEN** the response is HTTP 404 `ORDER_NOT_FOUND`
++
++#### Scenario: Already applied beats coupon problems
++- **WHEN** the order already has a coupon and the new coupon is also expired
++- **THEN** the response is HTTP 409 `COUPON_ALREADY_APPLIED`
+diff --git a/openspec/changes/apply-coupon-to-order/tasks.md b/openspec/changes/apply-coupon-to-order/tasks.md
+new file mode 100644
+index 0000000..6cce719
+--- /dev/null
++++ b/openspec/changes/apply-coupon-to-order/tasks.md
+@@ -0,0 +1,27 @@
++# Tasks
++
++## 1. Repository: atomic persistence
++
++- [x] 1.1 Add `OrderRepository.applyCoupon(orderId, couponCode, discountCents, finalAmountCents, now)` that updates `orders` (`discount_cents`, `final_amount_cents`, `coupon_code`), inserts the `coupon_redemptions` row, and increments `coupons.used_count`, wrapped in one transaction with rollback on error; verify `npm run build` passes and a focused test shows all three writes appear together.
++- [x] 1.2 Add a focused repository test proving the transaction is all-or-nothing: when a write in the middle fails, the order, `coupon_redemptions`, and `coupons.used_count` are all left unchanged.
++
++## 2. Service: coupon application rules
++
++- [x] 2.1 Inject `CouponRepository` into `OrderService` and update the wiring in `src/app.ts`; verify `npm run build` passes and existing tests still pass.
++- [x] 2.2 Implement `applyCoupon(id, couponCode)` with code normalization (trim + uppercase, REQ-01) and rule checks in the documented error order (`INVALID_REQUEST` → `ORDER_NOT_FOUND` → `ORDER_NOT_PENDING` → `COUPON_ALREADY_APPLIED` → `COUPON_NOT_FOUND` → `COUPON_INACTIVE` → `COUPON_NOT_YET_VALID` → `COUPON_EXPIRED` → `COUPON_USAGE_EXHAUSTED` → `MINIMUM_NOT_MET`), reading `now` from the injected `Clock`; verify with tests for each error code, the precedence cases (AC-08), the min-amount boundary (AC-06), and the validity window boundaries `now == validFrom` / `now == validUntil` (AC-07), plus `" save20 "` matching `SAVE20` (AC-10).
++- [x] 2.3 Implement the discount computation (FIXED = value; PERCENT = `floor(amount * value / 100)`; `maxDiscountCents` cap; clamp to `amountCents`) and persist it through the repository method; verify with tests for AC-01 through AC-05 and that a successful apply increments `usedCount` and adds one `coupon_redemptions` row (AC-09).
++- [x] 2.4 Verify by test that every rejected request leaves the order amounts, `coupons.used_count`, and `coupon_redemptions` unchanged.
++
++## 3. HTTP route
++
++- [x] 3.1 Register `POST /orders/:id/apply-coupon` in `src/routes/orders.ts`, delegating to the service; verify an integration test returns HTTP 200 with a body deep-equal to `GET /orders/:id` and a normalized `couponCode` (REQ-14).
++- [x] 3.2 Verify through the route that missing, non-string, and blank `couponCode` bodies return HTTP 400 `INVALID_REQUEST` (REQ-13).
++
++## 4. Verification
++
++- [x] 4.1 Run `npm run build` and `npm test`; confirm all pre-existing tests and the new tests pass, and that AC-01 through AC-10 are each covered by a test.
++
++## Workflow follow-up
++
++- Archive the change after the project's review requirements are satisfied.
++- Verify the archived result.
+diff --git a/src/app.ts b/src/app.ts
+index 0157a6d..3860b3c 100755
+--- a/src/app.ts
++++ b/src/app.ts
+@@ -26,7 +26,7 @@ export function createApp(options: AppOptions = {}): App {
+ 
+   const orderRepo = new OrderRepository(db);
+   const couponRepo = new CouponRepository(db);
+-  registerOrderRoutes(router, new OrderService(orderRepo, clock));
++  registerOrderRoutes(router, new OrderService(orderRepo, couponRepo, clock));
+   registerCouponRoutes(router, new CouponService(couponRepo));
+ 
+   return { db, request: (method, path, body) => router.handle(method, path, body) };
+diff --git a/src/repositories/orderRepository.ts b/src/repositories/orderRepository.ts
+index 8fc45d5..af22a03 100755
+--- a/src/repositories/orderRepository.ts
++++ b/src/repositories/orderRepository.ts
+@@ -57,4 +57,34 @@ export class OrderRepository {
+   updateStatus(id: number, status: Order["status"]): void {
+     this.db.prepare("UPDATE orders SET status = ? WHERE id = ?").run(status, id);
+   }
++
++  /**
++   * Atomically records a successful coupon application: updates the order's
++   * discount/final amount/coupon code, inserts a redemption row, and bumps the
++   * coupon's usage count. Rolls back every write if any step fails.
++   */
++  applyCoupon(
++    orderId: number,
++    couponCode: string,
++    discountCents: number,
++    finalAmountCents: number,
++    now: string,
++  ): void {
++    this.db.exec("BEGIN");
++    try {
++      this.db
++        .prepare("UPDATE orders SET discount_cents = ?, final_amount_cents = ?, coupon_code = ? WHERE id = ?")
++        .run(discountCents, finalAmountCents, couponCode, orderId);
++      this.db
++        .prepare(
++          "INSERT INTO coupon_redemptions (order_id, coupon_code, discount_cents, created_at) VALUES (?, ?, ?, ?)",
++        )
++        .run(orderId, couponCode, discountCents, now);
++      this.db.prepare("UPDATE coupons SET used_count = used_count + 1 WHERE code = ?").run(couponCode);
++      this.db.exec("COMMIT");
++    } catch (e) {
++      this.db.exec("ROLLBACK");
++      throw e;
++    }
++  }
+ }
+diff --git a/src/routes/orders.ts b/src/routes/orders.ts
+index 2ddfedd..76cf0b0 100755
+--- a/src/routes/orders.ts
++++ b/src/routes/orders.ts
+@@ -8,4 +8,8 @@ export function registerOrderRoutes(router: Router, orders: OrderService): void
+   router.add("GET", "/orders/:id", (p) => ({ status: 200, body: orders.get(parseId(p.id)) }));
+   router.add("POST", "/orders/:id/pay", (p) => ({ status: 200, body: orders.pay(parseId(p.id)) }));
+   router.add("POST", "/orders/:id/cancel", (p) => ({ status: 200, body: orders.cancel(parseId(p.id)) }));
++  router.add("POST", "/orders/:id/apply-coupon", (p, b) => ({
++    status: 200,
++    body: orders.applyCoupon(parseId(p.id), b.couponCode),
++  }));
+ }
+diff --git a/src/services/orderService.ts b/src/services/orderService.ts
+index 63b29b4..7a2e9bd 100755
+--- a/src/services/orderService.ts
++++ b/src/services/orderService.ts
+@@ -1,10 +1,12 @@
+ import type { Clock } from "../clock.ts";
+ import { badRequest, conflict, notFound } from "../errors.ts";
++import type { CouponRepository } from "../repositories/couponRepository.ts";
+ import type { Order, OrderRepository } from "../repositories/orderRepository.ts";
+ 
+ export class OrderService {
+   constructor(
+     private readonly orders: OrderRepository,
++    private readonly coupons: CouponRepository,
+     private readonly clock: Clock,
+   ) {}
+ 
+@@ -41,4 +43,66 @@ export class OrderService {
+     this.orders.updateStatus(id, "CANCELLED");
+     return this.get(id);
+   }
++
++  /**
++   * Applies a single coupon to a PENDING order. Rejection rules are evaluated
++   * in a fixed order so the first failure wins; every rejection leaves the
++   * database unchanged.
++   */
++  applyCoupon(id: number, couponCode: unknown): Order {
++    // REQ-13: request body validation.
++    if (typeof couponCode !== "string" || couponCode.trim() === "") {
++      throw badRequest("INVALID_REQUEST", "couponCode must be a non-empty string");
++    }
++    // REQ-01: normalize before lookup.
++    const code = couponCode.trim().toUpperCase();
++
++    // REQ-04: order must exist and be PENDING.
++    const order = this.orders.findById(id);
++    if (!order) throw notFound("ORDER_NOT_FOUND", `order ${id} not found`);
++    if (order.status !== "PENDING") throw conflict("ORDER_NOT_PENDING", `order ${id} is ${order.status}`);
++
++    // REQ-10: at most one coupon per order.
++    if (order.couponCode !== null) {
++      throw conflict("COUPON_ALREADY_APPLIED", `order ${id} already used coupon ${order.couponCode}`);
++    }
++
++    // REQ-01: coupon must exist.
++    const coupon = this.coupons.findByCode(code);
++    if (!coupon) throw notFound("COUPON_NOT_FOUND", `coupon ${code} not found`);
++
++    // REQ-02: coupon must be ACTIVE.
++    if (coupon.status !== "ACTIVE") throw badRequest("COUPON_INACTIVE", `coupon ${code} is ${coupon.status}`);
++
++    // REQ-03: validity window from the injected Clock.
++    const now = this.clock();
++    const nowMs = now.getTime();
++    if (nowMs < Date.parse(coupon.validFrom)) {
++      throw badRequest("COUPON_NOT_YET_VALID", `coupon ${code} is not valid yet`);
++    }
++    if (nowMs >= Date.parse(coupon.validUntil)) {
++      throw badRequest("COUPON_EXPIRED", `coupon ${code} has expired`);
++    }
++
++    // REQ-11: usage limit.
++    if (coupon.usageLimit !== null && coupon.usedCount >= coupon.usageLimit) {
++      throw badRequest("COUPON_USAGE_EXHAUSTED", `coupon ${code} has reached its usage limit`);
++    }
++
++    // REQ-05: minimum order amount (equality allowed).
++    if (order.amountCents < coupon.minAmountCents) {
++      throw badRequest("MINIMUM_NOT_MET", `order amount ${order.amountCents} is below ${coupon.minAmountCents}`);
++    }
++
++    // REQ-06/07/08/09: compute the discount.
++    let discount =
++      coupon.type === "FIXED" ? coupon.value : Math.floor((order.amountCents * coupon.value) / 100);
++    if (coupon.maxDiscountCents !== null) discount = Math.min(discount, coupon.maxDiscountCents);
++    discount = Math.min(discount, order.amountCents);
++    const finalAmountCents = order.amountCents - discount;
++
++    // REQ-12: atomic persistence.
++    this.orders.applyCoupon(id, code, discount, finalAmountCents, now.toISOString());
++    return this.get(id);
++  }
+ }
+diff --git a/tests/apply-coupon.test.ts b/tests/apply-coupon.test.ts
+new file mode 100644
+index 0000000..443f27b
+--- /dev/null
++++ b/tests/apply-coupon.test.ts
+@@ -0,0 +1,278 @@
++import { describe, expect, it } from "vitest";
++import { createApp, type App } from "../src/app.ts";
++import { OrderRepository } from "../src/repositories/orderRepository.ts";
++
++const VALID_FROM = "2026-01-01T00:00:00Z";
++const VALID_UNTIL = "2027-01-01T00:00:00Z";
++const NOW = "2026-10-01T08:00:00Z";
++
++function appAt(now: string = NOW): App {
++  return createApp({ clock: () => new Date(now) });
++}
++
++function makeCoupon(app: App, overrides: Record<string, unknown> = {}): void {
++  const res = app.request("POST", "/coupons", {
++    code: "SAVE20",
++    type: "PERCENT",
++    value: 20,
++    validFrom: VALID_FROM,
++    validUntil: VALID_UNTIL,
++    ...overrides,
++  });
++  if (res.status !== 201) throw new Error(`coupon setup failed: ${JSON.stringify(res.body)}`);
++}
++
++function makeOrder(app: App, amountCents: number, customer = "alice"): number {
++  const res = app.request("POST", "/orders", { customer, amountCents });
++  if (res.status !== 201) throw new Error(`order setup failed: ${JSON.stringify(res.body)}`);
++  return (res.body as { id: number }).id;
++}
++
++const apply = (app: App, id: number, couponCode: unknown) =>
++  app.request("POST", `/orders/${id}/apply-coupon`, { couponCode });
++
++const errorCode = (body: unknown) => (body as { error: { code: string } }).error.code;
++
++describe("apply coupon - discount computation (AC-01..AC-05)", () => {
++  it("AC-01: PERCENT 20 on 10000 gives 2000 / 8000", () => {
++    const app = appAt();
++    makeCoupon(app, { type: "PERCENT", value: 20 });
++    const id = makeOrder(app, 10000);
++    const res = apply(app, id, "SAVE20");
++    expect(res.status).toBe(200);
++    expect(res.body).toMatchObject({ discountCents: 2000, finalAmountCents: 8000, couponCode: "SAVE20" });
++  });
++
++  it("AC-02: FIXED 1500 on 10000 gives final 8500", () => {
++    const app = appAt();
++    makeCoupon(app, { type: "FIXED", value: 1500 });
++    const id = makeOrder(app, 10000);
++    const res = apply(app, id, "SAVE20");
++    expect(res.body).toMatchObject({ discountCents: 1500, finalAmountCents: 8500 });
++  });
++
++  it("AC-03: PERCENT cap limits discount to maxDiscountCents", () => {
++    const app = appAt();
++    makeCoupon(app, { type: "PERCENT", value: 20, maxDiscountCents: 5000 });
++    const id = makeOrder(app, 100000);
++    const res = apply(app, id, "SAVE20");
++    expect(res.body).toMatchObject({ discountCents: 5000 });
++  });
++
++  it("AC-04: FIXED above amount clamps to amount, final 0", () => {
++    const app = appAt();
++    makeCoupon(app, { type: "FIXED", value: 3000 });
++    const id = makeOrder(app, 1000);
++    const res = apply(app, id, "SAVE20");
++    expect(res.body).toMatchObject({ discountCents: 1000, finalAmountCents: 0 });
++  });
++
++  it("AC-05: PERCENT rounds down", () => {
++    const app = appAt();
++    makeCoupon(app, { type: "PERCENT", value: 15 });
++    const id = makeOrder(app, 999);
++    const res = apply(app, id, "SAVE20");
++    expect(res.body).toMatchObject({ discountCents: 149 });
++  });
++});
++
++describe("apply coupon - eligibility (AC-06, AC-07, AC-10)", () => {
++  it("AC-06: amount equal to minAmountCents succeeds", () => {
++    const app = appAt();
++    makeCoupon(app, { type: "FIXED", value: 500, minAmountCents: 5000 });
++    const id = makeOrder(app, 5000);
++    expect(apply(app, id, "SAVE20").status).toBe(200);
++  });
++
++  it("AC-07: now == validUntil is expired", () => {
++    const app = appAt(VALID_UNTIL);
++    makeCoupon(app);
++    const id = makeOrder(app, 10000);
++    const res = apply(app, id, "SAVE20");
++    expect(res.status).toBe(400);
++    expect(errorCode(res.body)).toBe("COUPON_EXPIRED");
++  });
++
++  it("AC-07: now == validFrom succeeds", () => {
++    const app = appAt(VALID_FROM);
++    makeCoupon(app);
++    const id = makeOrder(app, 10000);
++    expect(apply(app, id, "SAVE20").status).toBe(200);
++  });
++
++  it("AC-10: ' save20 ' matches SAVE20", () => {
++    const app = appAt();
++    makeCoupon(app);
++    const id = makeOrder(app, 10000);
++    const res = apply(app, id, " save20 ");
++    expect(res.status).toBe(200);
++    expect(res.body).toMatchObject({ couponCode: "SAVE20" });
++  });
++});
++
++describe("apply coupon - response and persistence (AC-08, AC-09)", () => {
++  it("AC-08: a second coupon is rejected and amounts are unchanged", () => {
++    const app = appAt();
++    makeCoupon(app);
++    const id = makeOrder(app, 10000);
++    const first = apply(app, id, "SAVE20");
++    expect(first.status).toBe(200);
++    const second = apply(app, id, "SAVE20");
++    expect(second.status).toBe(409);
++    expect(errorCode(second.body)).toBe("COUPON_ALREADY_APPLIED");
++    expect(app.request("GET", `/orders/${id}`).body).toEqual(first.body);
++  });
++
++  it("AC-09: success increments usedCount and adds a redemption row", () => {
++    const app = appAt();
++    makeCoupon(app);
++    const id = makeOrder(app, 10000);
++    expect((app.request("GET", "/coupons/SAVE20").body as { usedCount: number }).usedCount).toBe(0);
++    apply(app, id, "SAVE20");
++    expect((app.request("GET", "/coupons/SAVE20").body as { usedCount: number }).usedCount).toBe(1);
++    const rows = app.db
++      .prepare("SELECT order_id, coupon_code, discount_cents, created_at FROM coupon_redemptions")
++      .all() as unknown as Array<Record<string, unknown>>;
++    expect(rows).toHaveLength(1);
++    expect(rows[0]).toMatchObject({
++      order_id: id,
++      coupon_code: "SAVE20",
++      discount_cents: 2000,
++      created_at: "2026-10-01T08:00:00.000Z",
++    });
++  });
++
++  it("returns HTTP 200 with a body identical to GET /orders/:id", () => {
++    const app = appAt();
++    makeCoupon(app);
++    const id = makeOrder(app, 10000);
++    const applied = apply(app, id, "SAVE20");
++    expect(applied.status).toBe(200);
++    expect(applied.body).toEqual(app.request("GET", `/orders/${id}`).body);
++    expect(applied.body).toMatchObject({ status: "PENDING" });
++  });
++});
++
++describe("apply coupon - errors and precedence", () => {
++  it("REQ-13: missing / non-string / blank couponCode are INVALID_REQUEST", () => {
++    const app = appAt();
++    makeCoupon(app);
++    const id = makeOrder(app, 10000);
++    for (const body of [{}, { couponCode: 123 }, { couponCode: "" }, { couponCode: "   " }]) {
++      const res = app.request("POST", `/orders/${id}/apply-coupon`, body);
++      expect(res.status).toBe(400);
++      expect(errorCode(res.body)).toBe("INVALID_REQUEST");
++    }
++  });
++
++  it("ORDER_NOT_FOUND for an unknown order", () => {
++    const app = appAt();
++    const res = apply(app, 999, "SAVE20");
++    expect(res.status).toBe(404);
++    expect(errorCode(res.body)).toBe("ORDER_NOT_FOUND");
++  });
++
++  it("ORDER_NOT_PENDING for a paid order", () => {
++    const app = appAt();
++    makeCoupon(app);
++    const id = makeOrder(app, 10000);
++    app.request("POST", `/orders/${id}/pay`);
++    const res = apply(app, id, "SAVE20");
++    expect(res.status).toBe(409);
++    expect(errorCode(res.body)).toBe("ORDER_NOT_PENDING");
++  });
++
++  it("COUPON_NOT_FOUND for an unknown code", () => {
++    const app = appAt();
++    const id = makeOrder(app, 10000);
++    const res = apply(app, id, "NOPE");
++    expect(res.status).toBe(404);
++    expect(errorCode(res.body)).toBe("COUPON_NOT_FOUND");
++  });
++
++  it("COUPON_INACTIVE for a disabled coupon", () => {
++    const app = appAt();
++    makeCoupon(app, { status: "DISABLED" });
++    const id = makeOrder(app, 10000);
++    const res = apply(app, id, "SAVE20");
++    expect(res.status).toBe(400);
++    expect(errorCode(res.body)).toBe("COUPON_INACTIVE");
++  });
++
++  it("COUPON_NOT_YET_VALID before validFrom", () => {
++    const app = appAt("2025-12-31T00:00:00Z");
++    makeCoupon(app);
++    const id = makeOrder(app, 10000);
++    const res = apply(app, id, "SAVE20");
++    expect(res.status).toBe(400);
++    expect(errorCode(res.body)).toBe("COUPON_NOT_YET_VALID");
++  });
++
++  it("COUPON_USAGE_EXHAUSTED once usageLimit is reached", () => {
++    const app = appAt();
++    makeCoupon(app, { usageLimit: 1 });
++    const first = makeOrder(app, 10000, "alice");
++    const second = makeOrder(app, 10000, "bob");
++    expect(apply(app, first, "SAVE20").status).toBe(200);
++    const res = apply(app, second, "SAVE20");
++    expect(res.status).toBe(400);
++    expect(errorCode(res.body)).toBe("COUPON_USAGE_EXHAUSTED");
++  });
++
++  it("MINIMUM_NOT_MET below minAmountCents", () => {
++    const app = appAt();
++    makeCoupon(app, { minAmountCents: 20000 });
++    const id = makeOrder(app, 10000);
++    const res = apply(app, id, "SAVE20");
++    expect(res.status).toBe(400);
++    expect(errorCode(res.body)).toBe("MINIMUM_NOT_MET");
++  });
++
++  it("precedence: missing order beats unknown coupon", () => {
++    const app = appAt();
++    const res = apply(app, 999, "NOPE");
++    expect(res.status).toBe(404);
++    expect(errorCode(res.body)).toBe("ORDER_NOT_FOUND");
++  });
++
++  it("precedence: already applied beats coupon problems", () => {
++    const app = appAt();
++    makeCoupon(app);
++    const id = makeOrder(app, 10000);
++    apply(app, id, "SAVE20");
++    const res = apply(app, id, " save20 ");
++    expect(res.status).toBe(409);
++    expect(errorCode(res.body)).toBe("COUPON_ALREADY_APPLIED");
++  });
++
++  it("REQ-12: a rejected request leaves order, usage count and redemptions untouched", () => {
++    const app = appAt();
++    makeCoupon(app, { minAmountCents: 20000 });
++    const id = makeOrder(app, 10000);
++    const before = app.request("GET", `/orders/${id}`).body;
++    apply(app, id, "SAVE20");
++    expect(app.request("GET", `/orders/${id}`).body).toEqual(before);
++    expect((app.request("GET", "/coupons/SAVE20").body as { usedCount: number }).usedCount).toBe(0);
++    const count = app.db.prepare("SELECT COUNT(*) AS n FROM coupon_redemptions").get() as unknown as { n: number };
++    expect(count.n).toBe(0);
++  });
++});
++
++describe("OrderRepository.applyCoupon transaction", () => {
++  it("rolls back all writes when a step fails", () => {
++    const app = appAt();
++    makeCoupon(app);
++    const id = makeOrder(app, 10000);
++    const repo = new OrderRepository(app.db);
++    const before = app.request("GET", `/orders/${id}`).body;
++
++    // The redemption insert violates its coupon_code foreign key, so the
++    // transaction must roll back the order update and the usage-count bump.
++    expect(() => repo.applyCoupon(id, "MISSING", 100, 9900, "2026-10-01T08:00:00.000Z")).toThrow();
++
++    expect(app.request("GET", `/orders/${id}`).body).toEqual(before);
++    expect((app.request("GET", "/coupons/SAVE20").body as { usedCount: number }).usedCount).toBe(0);
++    const count = app.db.prepare("SELECT COUNT(*) AS n FROM coupon_redemptions").get() as unknown as { n: number };
++    expect(count.n).toBe(0);
++  });
++});

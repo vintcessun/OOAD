@@ -1,0 +1,108 @@
+{
+  "runId": "apply-coupon_BAD-ambiguous_codex-os_r1",
+  "spec": "BAD-ambiguous",
+  "executor": "codex-os",
+  "repeat": 1,
+  "total": 90.8,
+  "dimensions": {
+    "C": 35,
+    "A": 19.1,
+    "R": 14.6,
+    "Q": 10,
+    "E": 2.1,
+    "S": 10
+  },
+  "firstPassSuccess": false,
+  "strictSuccess": false,
+  "breakdown": {
+    "C": {
+      "build": 5,
+      "publicTests": 5,
+      "hiddenFunctional": 20,
+      "regression": 5
+    },
+    "A": {
+      "requirementCoverage": 11.1,
+      "specViolation": 8
+    },
+    "R": {
+      "boundary": 5.6,
+      "errorHandling": 5,
+      "stateConsistency": 4
+    },
+    "Q": {
+      "typeCheck": 3,
+      "architectureFit": 3,
+      "maintainability": 2,
+      "testQuality": 2
+    },
+    "E": {
+      "time": 0,
+      "tokens": 2.1
+    },
+    "S": {
+      "unauthorizedFiles": 4,
+      "unrequestedFeatures": 3,
+      "diffLocality": 3
+    }
+  },
+  "detail": {
+    "tscExit": 0,
+    "tscErrors": 0,
+    "publicPassed": 5,
+    "publicTotal": 5,
+    "hiddenPassed": 40,
+    "hiddenTotal": 41,
+    "hiddenWeightedPassRate": 99.2,
+    "boundaryPassRate": 93.8,
+    "requirementsMet": [
+      "REQ-01",
+      "REQ-02",
+      "REQ-03",
+      "REQ-04",
+      "REQ-05",
+      "REQ-06",
+      "REQ-08",
+      "REQ-09",
+      "REQ-10",
+      "REQ-11",
+      "REQ-12",
+      "REQ-13",
+      "REQ-14"
+    ],
+    "requirementsTotal": 14,
+    "violations": [],
+    "worstViolation": "none",
+    "failedTests": [
+      "B03"
+    ],
+    "failureCauses": {
+      "Boundary Error": 1
+    },
+    "filesChanged": [
+      "src/app.ts",
+      "src/repositories/redemptionRepository.ts",
+      "src/routes/orders.ts",
+      "src/services/orderService.ts",
+      "tests/applyCoupon.test.ts"
+    ],
+    "processFilesChanged": 5,
+    "unrelatedFiles": [],
+    "extraRoutes": [],
+    "changedCodeLines": 347,
+    "sqlOutsideRepo": false,
+    "logicInRoutes": false,
+    "maxAddedPerFile": 60,
+    "ownTests": 21,
+    "ownTestsPassed": 21,
+    "totalTokens": 1127948,
+    "tokensSource": "final",
+    "timedOut": false,
+    "wallSec": 1195.3,
+    "costCny": 0.1479,
+    "costCnyPeak": 0.2957,
+    "turns": 16,
+    "toolCalls": 35,
+    "askAttempts": 0
+  }
+}

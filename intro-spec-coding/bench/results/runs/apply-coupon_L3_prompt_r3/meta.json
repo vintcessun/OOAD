@@ -1,0 +1,37 @@
+{
+  "runId": "apply-coupon_L3_prompt_r3",
+  "task": "apply-coupon",
+  "spec": "L3",
+  "executor": "prompt",
+  "repeat": 3,
+  "model": "deepseek-flash",
+  "startedAt": "2026-10-09T05:41:19.243Z",
+  "wallSec": 49.299,
+  "timeoutSec": 1500,
+  "balanceBefore": 22.47,
+  "balanceAfter": 22.47,
+  "balanceDeltaCny": 0,
+  "exitCode": 0,
+  "turns": 1,
+  "toolCalls": 0,
+  "toolNames": {},
+  "askAttempts": 0,
+  "filesRead": 0,
+  "stopReason": "stop",
+  "finalText": "expect(errorCode(res)).toBe(\"COUPON_NOT_FOUND\");\n  });\n\n  it(\"returns COUPON_INACTIVE for a disabled coupon\", () => {\n    const app = makeApp();\n    addCoupon(app, { status: \"DISABLED\" });\n    addOrder(app, 10000);\n\n    const res = apply(app, 1, { couponCode: \"SAVE20\" });\n\n    expect(res.status).toBe(400);\n    expect(errorCode(res)).toBe(\"COUPON_INACTIVE\");\n  });\n\n  it(\"returns COUPON_USAGE_EXHAUSTED once the usage limit is reached\", () => {\n    const app = makeApp();\n    addCoupon(app, { usageLimit: 1 });\n    addOrder(app, 10000, \"alice\");\n    addOrder(app, 10000, \"bob\");\n\n    expect(apply(app, 1, { couponCode: \"SAVE20\" }).status).toBe(200);\n\n    const res = apply(app, 2, { couponCode: \"SAVE20\" });\n\n    expect(res.status).toBe(400);\n    expect(errorCode(res)).toBe(\"COUPON_USAGE_EXHAUSTED\");\n    expect(couponUsedCount(app, \"SAVE20\")).toBe(1);\n    expect(redemptionCount(app)).toBe(1);\n  });\n\n  it(\"returns MINIMUM_NOT_MET and leaves the database untouched\", () => {\n    const app = makeApp();\n    addCoupon(app, { minAmountCents: 2000 });\n    addOrder(app, 1000);\n\n    const res = apply(app, 1, { couponCode: \"SAVE20\" });\n\n    expect(res.status).toBe(400);\n    expect(errorCode(res)).toBe(\"MINIMUM_NOT_MET\");\n    expect(app.request(\"GET\", \"/orders/1\").body).toMatchObject({\n      discountCents: 0,\n      finalAmountCents: 1000,\n      couponCode: null,\n      status: \"PENDING\",\n    });\n    expect(couponUsedCount(app, \"SAVE20\")).toBe(0);\n    expect(redemptionCount(app)).toBe(0);\n  });\n});",
+  "filesWritten": [
+    "src/app.ts",
+    "src/repositories/orderRepository.ts",
+    "src/services/orderService.ts",
+    "src/routes/orders.ts",
+    "tests/applyCoupon.test.ts"
+  ],
+  "tokens": {
+    "input": 155,
+    "cacheRead": 28416,
+    "cacheCreate": 0,
+    "output": 15587
+  },
+  "costCny": 0.0631,
+  "costCnyPeak": 0.1261
+}

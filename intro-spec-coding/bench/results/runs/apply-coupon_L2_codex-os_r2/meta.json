@@ -1,0 +1,35 @@
+{
+  "runId": "apply-coupon_L2_codex-os_r2",
+  "task": "apply-coupon",
+  "spec": "L2",
+  "executor": "codex-os",
+  "repeat": 2,
+  "model": "deepseek-flash",
+  "startedAt": "2026-10-09T06:55:02.271Z",
+  "wallSec": 299.696,
+  "timeoutSec": 1500,
+  "balanceBefore": 15.23,
+  "balanceAfter": 14.5,
+  "balanceDeltaCny": 0.73,
+  "exitCode": 0,
+  "timedOut": false,
+  "turns": 13,
+  "toolCalls": 43,
+  "toolNames": {
+    "command_execution": 32,
+    "file_change": 11
+  },
+  "askAttempts": 0,
+  "filesRead": 0,
+  "stopReason": "success",
+  "finalText": "Implementation is complete and verified. Here's the summary.\n\n## OpenSpec workflow\n\nChange `apply-coupon-to-order` (schema `spec-driven`), all planning artifacts created and validated (`openspec validate --strict` passes):\n\n| Artifact | Path |\n|---|---|\n| Proposal | [proposal.md](/work/openspec/changes/apply-coupon-to-order/proposal.md) |\n| Spec delta | [spec.md](/work/openspec/changes/apply-coupon-to-order/specs/coupon-redemption/spec.md) |\n| Design | [design.md](/work/openspec/changes/apply-coupon-to-order/design.md) |\n| Tasks | [tasks.md](/work/openspec/changes/apply-coupon-to-order/tasks.md) |\n\nApply phase ran to completion: 7/7 tracked tasks checked off, `openspec instructions apply` reports `state: all_done`.\n\n## What was built\n\n`POST /orders/:id/apply-coupon` with body `{ \"couponCode\": \"...\" }`:\n\n- validates the coupon exists, is `ACTIVE`, is inside its `validFrom`/`validUntil` window, meets `minAmountCents`, and has uses left — any failure is HTTP 400\n- `FIXED` subtracts the value; `PERCENT` applies the percentage truncated to whole cents; both respect `maxDiscountCents` and never exceed the order amount\n- persists `discount_cents`, `final_amount_cents`, `coupon_code` on the order and records the redemption (insert + `used_count` bump in one transaction)\n- returns HTTP 200 with the updated order; unknown order still returns 404\n\nChanged: [orderService.ts](/work/src/services/orderService.ts), [routes/orders.ts](/work/src/routes/orders.ts), [orderRepository.ts](/work/src/repositories/orderRepository.ts), [couponRepository.ts](/work/src/repositories/couponRepository.ts), [app.ts](/work/src/app.ts). New tests in [applyCoupon.test.ts](/work/tests/applyCoupon.test.ts) (19 cases).\n\nVerification: `npm run build` passes; `npm test` → 24 passed (2 files).\n\nA couple of judgment calls I recorded in the artifacts rather than guessing silently: a missing/unknown coupon returns 400 (not 404) because the acceptance criteria require 400 for an invalid coupon, and re-applying a coupon recomputes from the order's original amount instead of stacking.\n\n`TASK.md` and `tests/orders.test.ts` are untouched. Per your instruction I stopped at implementation — the change is not archived. When you want, `$openspec-archive-change apply-coupon-to-order` will sync the delta into `openspec/specs/` and move it to the archive.",
+  "tokens": {
+    "input": 30686,
+    "cacheRead": 1310973,
+    "cacheCreate": 0,
+    "output": 24195
+  },
+  "tokensSource": "final",
+  "costCny": 0.3074,
+  "costCnyPeak": 0.3074
+}

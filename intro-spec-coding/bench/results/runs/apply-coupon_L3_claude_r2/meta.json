@@ -1,0 +1,36 @@
+{
+  "runId": "apply-coupon_L3_claude_r2",
+  "task": "apply-coupon",
+  "spec": "L3",
+  "executor": "claude",
+  "repeat": 2,
+  "model": "deepseek-flash",
+  "startedAt": "2026-10-09T04:38:24.853Z",
+  "wallSec": 398.535,
+  "balanceBefore": 23.98,
+  "balanceAfter": 23.82,
+  "balanceDeltaCny": 0.16,
+  "exitCode": 0,
+  "timedOut": false,
+  "turns": 47,
+  "toolCalls": 25,
+  "toolNames": {
+    "Read": 14,
+    "Bash": 5,
+    "Edit": 5,
+    "Write": 1
+  },
+  "askAttempts": 0,
+  "filesRead": 14,
+  "stopReason": "success",
+  "finalText": "Implemented `POST /orders/:id/apply-coupon` following the existing layering. `npm run build` and `npm test` both pass (30 tests: 5 pre-existing + 25 new).\n\n**What changed**\n\n- `src/routes/orders.ts` — HTTP layer only: parses the id and passes the body through.\n- `src/services/orderService.ts` — all rules, in the section-6 error precedence order:\n  - REQ-13 normalize/reject body, REQ-01 trim+uppercase the code;\n  - order existence → PENDING → not-already-used (REQ-04, 10);\n  - coupon lookup → ACTIVE → validity window against the injected `Clock` (REQ-02, 03);\n  - usage limit (REQ-11) → minimum amount (REQ-05);\n  - discount: FIXED value or `floor(amount * value / 100)`, capped by `maxDiscountCents` then by the amount (REQ-06–09).\n- `src/repositories/orderRepository.ts` — `applyCoupon`, a single `BEGIN`/`COMMIT`/`ROLLBACK` unit-of-work that updates the order, inserts the redemption row, and increments `coupons.used_count` (REQ-12). `final_amount_cents` is computed as `amount_cents - discount` in SQL, so it can't go negative.\n- `src/app.ts` — injects `CouponRepository` into `OrderService`.\n- `src/services/couponService.ts` — updated a stale comment that said applying coupons wasn't implemented.\n\n**Verification** — new `tests/applyCoupon.test.ts` covers every AC (AC-01…AC-10), the full error-code table and its precedence, response equality with the subsequent `GET`, and that a rejection leaves the order, `usedCount`, and `coupon_redemptions` untouched.\n\nTASK.md and `tests/orders.test.ts` were not modified; no schema or dependency changes.",
+  "tokens": {
+    "input": 28948,
+    "cacheRead": 371200,
+    "cacheCreate": 0,
+    "output": 10900
+  },
+  "costCny": 0.08,
+  "tokensSource": "final",
+  "costCnyPeak": 0.1599
+}

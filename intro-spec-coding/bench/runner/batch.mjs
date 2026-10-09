@@ -4,7 +4,7 @@
 //   plan  main  = L1/L2/L3 x 7 executors x repeats 1..3
 //         bad   = 3 bad specs x 6 agent executors x repeat 1
 import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
+import { appendFileSync, existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -24,13 +24,19 @@ if (plan === "main") {
   process.exit(2);
 }
 
-const todo = jobs.filter(([s, e, r]) => !existsSync(join(BENCH, "results/runs", `apply-coupon_${s}_${e}_r${r}`, "score.json")));
+// BENCH_REPEATS=3 limits a batch to some repeats, so a second batch process can share the work
+const only = process.env.BENCH_REPEATS?.split(",").map(Number);
+const todo = jobs.filter(
+  ([s, e, r]) =>
+    (!only || only.includes(r)) && !existsSync(join(BENCH, "results/runs", `apply-coupon_${s}_${e}_r${r}`, "score.json")),
+);
 console.log(`${todo.length} of ${jobs.length} runs to do, concurrency ${conc}`);
 
 let next = 0;
 async function worker() {
   while (next < todo.length) {
     const [s, e, r] = todo[next++];
+    if (existsSync(join(BENCH, "results/runs", `apply-coupon_${s}_${e}_r${r}`, "score.json"))) continue; // done by the other batch
     await new Promise((resolve) => {
       const p = spawn(process.execPath, [join(BENCH, "runner/run.mjs"), s, e, String(r)], { stdio: ["ignore", "pipe", "pipe"] });
       let out = "";
@@ -38,6 +44,7 @@ async function worker() {
       p.stderr.on("data", (d) => (out += d));
       p.on("close", (code) => {
         console.log(`[${new Date().toTimeString().slice(0, 8)}] ${code === 0 ? "" : `EXIT ${code} `}${out.trim().split("\n").slice(-1)[0]}`);
+        if (code !== 0) appendFileSync(join(BENCH, "results", "batch-errors.log"), `\n=== ${s} ${e} r${r} exit ${code}\n${out}\n`);
         resolve();
       });
     });

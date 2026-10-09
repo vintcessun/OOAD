@@ -1,0 +1,35 @@
+{
+  "runId": "apply-coupon_BAD-missing_codex_r1",
+  "task": "apply-coupon",
+  "spec": "BAD-missing",
+  "executor": "codex",
+  "repeat": 1,
+  "model": "deepseek-flash",
+  "startedAt": "2026-10-09T06:12:42.964Z",
+  "wallSec": 222.256,
+  "timeoutSec": 1500,
+  "balanceBefore": 19.89,
+  "balanceAfter": 19.39,
+  "balanceDeltaCny": 0.5,
+  "exitCode": 0,
+  "timedOut": false,
+  "turns": 4,
+  "toolCalls": 13,
+  "toolNames": {
+    "command_execution": 8,
+    "file_change": 5
+  },
+  "askAttempts": 0,
+  "filesRead": 0,
+  "stopReason": "success",
+  "finalText": "All checks pass — build clean, 23 tests green. Here's what I implemented.\n\n**Route** — [src/routes/orders.ts](/work/src/routes/orders.ts): added `POST /orders/:id/apply-coupon`, which only parses the id and forwards `couponCode` to the service.\n\n**Service** — [src/services/orderService.ts](/work/src/services/orderService.ts): `applyCoupon` normalizes the code (`trim().toUpperCase()`), then validates in the exact order the spec's error table requires (invalid body → order missing → not pending → coupon already applied → coupon missing → inactive → not-yet-valid → expired → usage exhausted → minimum not met). Time comes from the injected `Clock`. It computes FIXED/PERCENT discounts with floor + optional cap, then delegates the write.\n\n**Repository** — [src/repositories/orderRepository.ts](/work/src/repositories/orderRepository.ts): `applyCoupon` wraps the three writes (order update, `coupon_redemptions` insert, `used_count + 1`) in a single `BEGIN`/`COMMIT`, rolling back on any failure. All SQL stays in the repository layer.\n\nWiring in [src/app.ts](/work/src/app.ts) now passes the coupon repository into `OrderService`.\n\n**Tests** — [tests/applyCoupon.test.ts](/work/tests/applyCoupon.test.ts) covers AC-01, 02, 03, 05, 06, 08, 09, 10 plus every error code and the \"no DB change on rejection\" guarantees. Existing tests and schema were left untouched.\n\nOne design note worth flagging: the three-statement transaction touches the `coupons` table from `OrderRepository` rather than splitting it across two repositories, since a single atomic unit was cleaner than coordinating a cross-repository transaction.",
+  "tokens": {
+    "input": 8783,
+    "cacheRead": 175488,
+    "cacheCreate": 0,
+    "output": 6955
+  },
+  "tokensSource": "final",
+  "costCny": 0.0802,
+  "costCnyPeak": 0.0802
+}

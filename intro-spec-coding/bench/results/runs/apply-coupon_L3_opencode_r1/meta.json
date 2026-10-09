@@ -1,0 +1,36 @@
+{
+  "runId": "apply-coupon_L3_opencode_r1",
+  "task": "apply-coupon",
+  "spec": "L3",
+  "executor": "opencode",
+  "repeat": 1,
+  "model": "deepseek-flash",
+  "startedAt": "2026-10-09T03:50:41.924Z",
+  "wallSec": 115.342,
+  "balanceBefore": 26.53,
+  "balanceAfter": 26.44,
+  "balanceDeltaCny": 0.09,
+  "exitCode": 0,
+  "timedOut": false,
+  "turns": 18,
+  "toolCalls": 27,
+  "toolNames": {
+    "read": 15,
+    "bash": 4,
+    "edit": 7,
+    "write": 1
+  },
+  "askAttempts": 0,
+  "filesRead": 15,
+  "stopReason": "stop",
+  "finalText": "Implemented `POST /orders/:id/apply-coupon` across the existing layers.\n\n- `src/routes/orders.ts:10` — route parses id/body, delegates to service.\n- `src/services/orderService.ts:47` — `applyCoupon` validates in the exact error order (REQ-13 → REQ-10), normalizes code, checks status/validity window/usage/min, computes discount with cap and floor, and returns `get(id)`.\n- `src/repositories/orderRepository.ts:61` — atomic transaction updating order, inserting `coupon_redemptions`, and incrementing `coupons.used_count`.\n- `src/app.ts:29` — injects `CouponRepository` into `OrderService`.\n- `tests/applyCoupon.test.ts` — new tests covering AC-01…AC-10 and the error table.\n\n`npm run build` and `npm test` both pass (19 tests).",
+  "tokens": {
+    "input": 9690,
+    "cacheRead": 306560,
+    "cacheCreate": 0,
+    "output": 9241
+  },
+  "costCny": 0.1056,
+  "tokensSource": "per-step",
+  "costCnyPeak": 0.1056
+}

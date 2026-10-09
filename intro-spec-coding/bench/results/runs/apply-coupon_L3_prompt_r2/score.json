@@ -1,0 +1,105 @@
+{
+  "runId": "apply-coupon_L3_prompt_r2",
+  "spec": "L3",
+  "executor": "prompt",
+  "repeat": 2,
+  "total": 99.6,
+  "dimensions": {
+    "C": 35,
+    "A": 20,
+    "R": 15,
+    "Q": 10,
+    "E": 9.6,
+    "S": 10
+  },
+  "firstPassSuccess": true,
+  "strictSuccess": true,
+  "breakdown": {
+    "C": {
+      "build": 5,
+      "publicTests": 5,
+      "hiddenFunctional": 20,
+      "regression": 5
+    },
+    "A": {
+      "requirementCoverage": 12,
+      "specViolation": 8
+    },
+    "R": {
+      "boundary": 6,
+      "errorHandling": 5,
+      "stateConsistency": 4
+    },
+    "Q": {
+      "typeCheck": 3,
+      "architectureFit": 3,
+      "maintainability": 2,
+      "testQuality": 2
+    },
+    "E": {
+      "time": 4.6,
+      "tokens": 5
+    },
+    "S": {
+      "unauthorizedFiles": 4,
+      "unrequestedFeatures": 3,
+      "diffLocality": 3
+    }
+  },
+  "detail": {
+    "tscExit": 0,
+    "tscErrors": 0,
+    "publicPassed": 5,
+    "publicTotal": 5,
+    "hiddenPassed": 41,
+    "hiddenTotal": 41,
+    "hiddenWeightedPassRate": 100,
+    "boundaryPassRate": 100,
+    "requirementsMet": [
+      "REQ-01",
+      "REQ-02",
+      "REQ-03",
+      "REQ-04",
+      "REQ-05",
+      "REQ-06",
+      "REQ-07",
+      "REQ-08",
+      "REQ-09",
+      "REQ-10",
+      "REQ-11",
+      "REQ-12",
+      "REQ-13",
+      "REQ-14"
+    ],
+    "requirementsTotal": 14,
+    "violations": [],
+    "worstViolation": "none",
+    "failedTests": [],
+    "failureCauses": {},
+    "filesChanged": [
+      "src/app.ts",
+      "src/repositories/orderRepository.ts",
+      "src/routes/orders.ts",
+      "src/services/orderService.ts",
+      "tests/applyCoupon.test.ts"
+    ],
+    "processFilesChanged": 0,
+    "unrelatedFiles": [],
+    "extraRoutes": [],
+    "changedCodeLines": 367,
+    "sqlOutsideRepo": false,
+    "logicInRoutes": false,
+    "maxAddedPerFile": 60,
+    "ownTests": 23,
+    "ownTestsPassed": 23,
+    "totalTokens": 49776,
+    "tokensSource": null,
+    "timedOut": false,
+    "wallSec": 70.2,
+    "costCny": 0.0855,
+    "costCnyPeak": 0.1711,
+    "turns": 1,
+    "toolCalls": 0,
+    "askAttempts": 0
+  }
+}

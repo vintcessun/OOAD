@@ -1,0 +1,37 @@
+{
+  "runId": "apply-coupon_L3_prompt_r1",
+  "task": "apply-coupon",
+  "spec": "L3",
+  "executor": "prompt",
+  "repeat": 1,
+  "model": "deepseek-flash",
+  "startedAt": "2026-10-09T03:49:26.713Z",
+  "wallSec": 50.269,
+  "balanceBefore": 26.57,
+  "balanceAfter": 26.53,
+  "balanceDeltaCny": 0.04,
+  "exitCode": 0,
+  "turns": 1,
+  "toolCalls": 0,
+  "toolNames": {},
+  "askAttempts": 0,
+  "filesRead": 0,
+  "stopReason": "stop",
+  "finalText": ".prepare(\"SELECT COUNT(*) AS n FROM coupon_redemptions\").get()).toMatchObject({ n: 1 });\n  });\n\n  it(\"rejects a different coupon on an order that already has one\", () => {\n    const app = makeApp();\n    createCoupon(app, { code: \"SAVE20\" });\n    createCoupon(app, { code: \"EXTRA5\", type: \"FIXED\", value: 500 });\n    const order = createOrder(app, 10000);\n    expect(apply(app, order.id, { couponCode: \"SAVE20\" }).status).toBe(200);\n\n    const res = apply(app, order.id, { couponCode: \"EXTRA5\" });\n\n    expect(res.status).toBe(409);\n    expect(codeOf(res)).toBe(\"COUPON_ALREADY_APPLIED\");\n    expect(app.request(\"GET\", `/orders/${order.id}`).body).toMatchObject({\n      couponCode: \"SAVE20\",\n      discountCents: 2000,\n      finalAmountCents: 8000,\n    });\n  });\n\n  it(\"AC-09: a successful application records a redemption and bumps usedCount\", () => {\n    const app = makeApp();\n    createCoupon(app);\n    const order = createOrder(app, 10000);\n\n    expect(apply(app, order.id, { couponCode: \"SAVE20\" }).status).toBe(200);\n\n    expect(app.request(\"GET\", \"/coupons/SAVE20\").body).toMatchObject({ usedCount: 1 });\n    const rows = app.db\n      .prepare(\"SELECT order_id, coupon_code, discount_cents, created_at FROM coupon_redemptions\")\n      .all() as Array<Record<string, unknown>>;\n    expect(rows).toHaveLength(1);\n    expect(rows[0]).toMatchObject({\n      order_id: order.id,\n      coupon_code: \"SAVE20\",\n      discount_cents: 2000,\n      created_at: \"2026-10-01T08:00:00.000Z\",\n    });\n  });\n});\n",
+  "filesWritten": [
+    "src/repositories/redemptionRepository.ts",
+    "src/services/orderService.ts",
+    "src/routes/orders.ts",
+    "src/app.ts",
+    "src/services/couponService.ts",
+    "tests/applyCoupon.test.ts"
+  ],
+  "tokens": {
+    "input": 2459,
+    "cacheRead": 26112,
+    "cacheCreate": 0,
+    "output": 15505
+  },
+  "costCny": 0.13,
+  "costCnyPeak": 0.13
+}

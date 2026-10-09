@@ -1,0 +1,11 @@
+Implement the requirements defined in TASK.md.
+
+You may inspect and modify the repository and run existing development commands.
+
+Do not modify TASK.md.
+Do not modify benchmark tests.
+
+When you believe the task is complete, stop.
+
+The full repository is below. Reply with every file you create or change, each as
+[repository files omitted here]

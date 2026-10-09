@@ -1,0 +1,36 @@
+{
+  "runId": "apply-coupon_L2_claude_r2",
+  "task": "apply-coupon",
+  "spec": "L2",
+  "executor": "claude",
+  "repeat": 2,
+  "model": "deepseek-flash",
+  "startedAt": "2026-10-09T05:12:25.348Z",
+  "wallSec": 403.488,
+  "balanceBefore": 23.29,
+  "balanceAfter": 23.15,
+  "balanceDeltaCny": 0.14,
+  "exitCode": 0,
+  "timedOut": false,
+  "turns": 52,
+  "toolCalls": 30,
+  "toolNames": {
+    "Read": 15,
+    "Bash": 5,
+    "Edit": 9,
+    "Write": 1
+  },
+  "askAttempts": 0,
+  "filesRead": 15,
+  "stopReason": "success",
+  "tokensSource": "final",
+  "finalText": "Implemented `POST /orders/:id/apply-coupon`.\n\n**Changes by layer:**\n\n- `src/routes/orders.ts` — new route returning 200, delegating to `OrderService.applyCoupon`.\n- `src/services/orderService.ts` — `applyCoupon(id, couponCode)`: 404 if the order is missing, otherwise validates the coupon, computes the discount, updates the order, and records the redemption.\n- `src/services/couponService.ts` — `resolveForOrder` enforces existence, ACTIVE status, validity window (expired *and* not-yet-valid), `minAmountCents`, and `usageLimit`; all rejections are 400 per the acceptance criteria. `computeDiscount` handles FIXED vs PERCENT (floored), applies `maxDiscountCents` cap, and clamps to the order amount so `finalAmountCents` never goes negative. `recordRedemption` writes the redemption row and bumps `usedCount`.\n- `src/repositories/orderRepository.ts` — `applyCoupon` updates `discount_cents`, `final_amount_cents`, `coupon_code`.\n- `src/repositories/couponRepository.ts` — `incrementUsedCount` and `insertRedemption`.\n- `src/app.ts` — wires a shared `CouponService` into both route groups.\n\n**Verification:** `npm run build` type-checks; existing 5 tests pass. I also ran a temporary 10-case suite covering FIXED, PERCENT with cap, missing/disabled/expired/not-yet-valid coupons, min-amount, usage limit, discount clamping, and unknown order — all passed — then removed it. Only the six source files are modified; `TASK.md` and `tests/orders.test.ts` are untouched.",
+  "tokens": {
+    "input": 25644,
+    "cacheRead": 331904,
+    "cacheCreate": 0,
+    "output": 10369
+  },
+  "costCny": 0.0738,
+  "costCnyPeak": 0.1475
+}

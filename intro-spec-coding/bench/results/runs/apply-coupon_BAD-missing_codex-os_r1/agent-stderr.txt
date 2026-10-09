@@ -1,0 +1,3 @@
+Reading additional input from stdin...
+2026-10-09T06:43:20.156609Z ERROR codex_core::tools::router: error=apply_patch verification failed: Failed to find expected lines in /work/openspec/changes/apply-coupon-to-order/tasks.md:
+- [ ] 1.1 Add `src/repositories/couponRedemptionRepository.ts`

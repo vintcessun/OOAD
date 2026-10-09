@@ -1,0 +1,105 @@
+{
+  "runId": "apply-coupon_L3_opencode_r2",
+  "spec": "L3",
+  "executor": "opencode",
+  "repeat": 2,
+  "total": 96.2,
+  "dimensions": {
+    "C": 35,
+    "A": 20,
+    "R": 15,
+    "Q": 10,
+    "E": 6.2,
+    "S": 10
+  },
+  "firstPassSuccess": true,
+  "strictSuccess": true,
+  "breakdown": {
+    "C": {
+      "build": 5,
+      "publicTests": 5,
+      "hiddenFunctional": 20,
+      "regression": 5
+    },
+    "A": {
+      "requirementCoverage": 12,
+      "specViolation": 8
+    },
+    "R": {
+      "boundary": 6,
+      "errorHandling": 5,
+      "stateConsistency": 4
+    },
+    "Q": {
+      "typeCheck": 3,
+      "architectureFit": 3,
+      "maintainability": 2,
+      "testQuality": 2
+    },
+    "E": {
+      "time": 1.2,
+      "tokens": 5
+    },
+    "S": {
+      "unauthorizedFiles": 4,
+      "unrequestedFeatures": 3,
+      "diffLocality": 3
+    }
+  },
+  "detail": {
+    "tscExit": 0,
+    "tscErrors": 0,
+    "publicPassed": 5,
+    "publicTotal": 5,
+    "hiddenPassed": 41,
+    "hiddenTotal": 41,
+    "hiddenWeightedPassRate": 100,
+    "boundaryPassRate": 100,
+    "requirementsMet": [
+      "REQ-01",
+      "REQ-02",
+      "REQ-03",
+      "REQ-04",
+      "REQ-05",
+      "REQ-06",
+      "REQ-07",
+      "REQ-08",
+      "REQ-09",
+      "REQ-10",
+      "REQ-11",
+      "REQ-12",
+      "REQ-13",
+      "REQ-14"
+    ],
+    "requirementsTotal": 14,
+    "violations": [],
+    "worstViolation": "none",
+    "failedTests": [],
+    "failureCauses": {},
+    "filesChanged": [
+      "src/app.ts",
+      "src/repositories/orderRepository.ts",
+      "src/routes/orders.ts",
+      "src/services/orderService.ts",
+      "tests/applyCoupon.test.ts"
+    ],
+    "processFilesChanged": 0,
+    "unrelatedFiles": [],
+    "extraRoutes": [],
+    "changedCodeLines": 307,
+    "sqlOutsideRepo": false,
+    "logicInRoutes": false,
+    "maxAddedPerFile": 41,
+    "ownTests": 21,
+    "ownTestsPassed": 21,
+    "totalTokens": 259108,
+    "tokensSource": "per-step",
+    "timedOut": false,
+    "wallSec": 691.6,
+    "costCny": 0.053,
+    "costCnyPeak": 0.106,
+    "turns": 14,
+    "toolCalls": 27,
+    "askAttempts": 0
+  }
+}

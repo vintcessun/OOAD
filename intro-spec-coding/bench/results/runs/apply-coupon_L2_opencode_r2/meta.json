@@ -1,0 +1,36 @@
+{
+  "runId": "apply-coupon_L2_opencode_r2",
+  "task": "apply-coupon",
+  "spec": "L2",
+  "executor": "opencode",
+  "repeat": 2,
+  "model": "deepseek-flash",
+  "startedAt": "2026-10-09T05:21:17.103Z",
+  "wallSec": 477.745,
+  "balanceBefore": 23.08,
+  "balanceAfter": 22.93,
+  "balanceDeltaCny": 0.15,
+  "exitCode": 0,
+  "timedOut": false,
+  "turns": 16,
+  "toolCalls": 31,
+  "toolNames": {
+    "read": 17,
+    "bash": 7,
+    "edit": 6,
+    "write": 1
+  },
+  "askAttempts": 0,
+  "filesRead": 17,
+  "stopReason": "stop",
+  "finalText": "Implemented `POST /orders/:id/apply-coupon`.\n\nChanges:\n- `src/routes/orders.ts:11` registers the route, calling `orders.applyCoupon(parseId(p.id), b.couponCode)`.\n- `src/services/orderService.ts:46` validates coupon existence, ACTIVE status, validity window, `minAmountCents`, and usage limit, then computes the discount (FIXED = value, PERCENT = `floor(amount * value / 100)`, capped by `maxDiscountCents` and the order amount).\n- `src/repositories/orderRepository.ts:61` writes `discount_cents`/`final_amount_cents`/`coupon_code`.\n- `src/repositories/couponRepository.ts:61` records the redemption and increments `used_count`.\n- `src/app.ts:29` injects `CouponRepository` into `OrderService`.\n\nInvalid coupons (unknown, inactive, expired, below minimum, over limit) return HTTP 400; a valid coupon returns 200 with the updated order. Unknown orders still return 404. `npm run build` and `npm test` pass.",
+  "tokens": {
+    "input": 10335,
+    "cacheRead": 268544,
+    "cacheCreate": 0,
+    "output": 8725
+  },
+  "tokensSource": "per-step",
+  "costCny": 0.0506,
+  "costCnyPeak": 0.1012
+}

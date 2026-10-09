@@ -1,0 +1,9 @@
+Use OpenSpec to implement the requirements described in TASK.md.
+
+Follow the complete OpenSpec workflow: proposal/spec/design/tasks/apply.
+
+Do not alter the original requirements.
+Do not modify TASK.md.
+Do not modify benchmark tests.
+
+Stop when implementation is complete.

@@ -1,0 +1,37 @@
+{
+  "runId": "apply-coupon_L1_opencode_r1",
+  "task": "apply-coupon",
+  "spec": "L1",
+  "executor": "opencode",
+  "repeat": 1,
+  "model": "deepseek-flash",
+  "startedAt": "2026-10-09T04:19:50.494Z",
+  "wallSec": 924.424,
+  "balanceBefore": 24.39,
+  "balanceAfter": 24.05,
+  "balanceDeltaCny": 0.34,
+  "exitCode": 124,
+  "timedOut": true,
+  "turns": 25,
+  "toolCalls": 48,
+  "toolNames": {
+    "read": 20,
+    "bash": 15,
+    "webfetch": 5,
+    "edit": 7,
+    "write": 1
+  },
+  "askAttempts": 0,
+  "filesRead": 20,
+  "stopReason": "tool-calls",
+  "finalText": "My test used 2-char coupon codes, which fail the existing `[A-Z0-9_-]{3,32}` rule. Let me fix the test.",
+  "tokens": {
+    "input": 23239,
+    "cacheRead": 715264,
+    "cacheCreate": 0,
+    "output": 16145
+  },
+  "costCny": 0.1021,
+  "tokensSource": "per-step",
+  "costCnyPeak": 0.2042
+}

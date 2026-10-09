@@ -1,0 +1,34 @@
+{
+  "runId": "apply-coupon_L2_codex_r2",
+  "task": "apply-coupon",
+  "spec": "L2",
+  "executor": "codex",
+  "repeat": 2,
+  "model": "deepseek-flash",
+  "startedAt": "2026-10-09T05:15:58.447Z",
+  "wallSec": 291.554,
+  "balanceBefore": 23.2,
+  "balanceAfter": 23.13,
+  "balanceDeltaCny": 0.07,
+  "exitCode": 0,
+  "timedOut": false,
+  "turns": 6,
+  "toolCalls": 14,
+  "toolNames": {
+    "command_execution": 8,
+    "file_change": 6
+  },
+  "askAttempts": 0,
+  "filesRead": 0,
+  "stopReason": "success",
+  "finalText": "Implemented `POST /orders/:id/apply-coupon`. Type check and the existing test suite both pass, and I verified all the acceptance scenarios (valid fixed/percent coupons, unknown coupon, expired coupon, disabled coupon, below-minimum amount) with a throwaway test that I've since removed.\n\nWhat it does:\n\n- [orderService.ts](/work/src/services/orderService.ts) adds `applyCoupon(id, couponCode)`, which loads the order, requires it to be `PENDING`, then validates the coupon: exists, `ACTIVE`, within `valid_from`/`valid_until` (using the injected clock), order amount ≥ `min_amount_cents`, and usage limit not exhausted. It computes the discount, updates the order, and records a redemption.\n- Discount math: `FIXED` subtracts the fixed cent value; `PERCENT` uses `floor(amount * value / 100)`; `maxDiscountCents` caps both, and the discount never exceeds the order amount.\n- [orders.ts](/work/src/routes/orders.ts) registers the route, [app.ts](/work/src/app.ts) wires the coupon repository into `OrderService`, and the repositories gained `applyCoupon` (order update) and `recordRedemption` (redemption row + `used_count` bump).\n\nError-status mapping: coupon validation failures (unknown, inactive, expired, not-yet-valid, below minimum, usage limit) return **400**, matching the acceptance criteria; unknown order returns 404 and a non-pending order returns 409, consistent with the existing pay/cancel conventions.\n\nOne judgment call worth flagging: a nonexistent coupon returns 400 rather than 404. The API convention elsewhere uses 404 for missing resources, but the task's acceptance criteria explicitly state that an invalid coupon returns 400, so I treated a missing coupon as \"invalid\" here.",
+  "tokens": {
+    "input": 8538,
+    "cacheRead": 291840,
+    "cacheCreate": 0,
+    "output": 8006
+  },
+  "tokensSource": "final",
+  "costCny": 0.0464,
+  "costCnyPeak": 0.0928
+}

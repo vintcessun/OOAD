@@ -1,0 +1,109 @@
+{
+  "runId": "apply-coupon_BAD-ambiguous_opencode_r1",
+  "spec": "BAD-ambiguous",
+  "executor": "opencode",
+  "repeat": 1,
+  "total": 95.8,
+  "dimensions": {
+    "C": 35,
+    "A": 19.1,
+    "R": 14.6,
+    "Q": 10,
+    "E": 7.1,
+    "S": 10
+  },
+  "firstPassSuccess": false,
+  "strictSuccess": false,
+  "breakdown": {
+    "C": {
+      "build": 5,
+      "publicTests": 5,
+      "hiddenFunctional": 20,
+      "regression": 5
+    },
+    "A": {
+      "requirementCoverage": 11.1,
+      "specViolation": 8
+    },
+    "R": {
+      "boundary": 5.6,
+      "errorHandling": 5,
+      "stateConsistency": 4
+    },
+    "Q": {
+      "typeCheck": 3,
+      "architectureFit": 3,
+      "maintainability": 2,
+      "testQuality": 2
+    },
+    "E": {
+      "time": 2.4,
+      "tokens": 4.6
+    },
+    "S": {
+      "unauthorizedFiles": 4,
+      "unrequestedFeatures": 3,
+      "diffLocality": 3
+    }
+  },
+  "detail": {
+    "tscExit": 0,
+    "tscErrors": 0,
+    "publicPassed": 5,
+    "publicTotal": 5,
+    "hiddenPassed": 40,
+    "hiddenTotal": 41,
+    "hiddenWeightedPassRate": 99.2,
+    "boundaryPassRate": 93.8,
+    "requirementsMet": [
+      "REQ-01",
+      "REQ-02",
+      "REQ-03",
+      "REQ-04",
+      "REQ-05",
+      "REQ-06",
+      "REQ-08",
+      "REQ-09",
+      "REQ-10",
+      "REQ-11",
+      "REQ-12",
+      "REQ-13",
+      "REQ-14"
+    ],
+    "requirementsTotal": 14,
+    "violations": [],
+    "worstViolation": "none",
+    "failedTests": [
+      "B03"
+    ],
+    "failureCauses": {
+      "Boundary Error": 1
+    },
+    "filesChanged": [
+      "src/app.ts",
+      "src/repositories/orderRepository.ts",
+      "src/routes/orders.ts",
+      "src/services/couponService.ts",
+      "src/services/orderService.ts",
+      "tests/applyCoupon.test.ts"
+    ],
+    "processFilesChanged": 0,
+    "unrelatedFiles": [],
+    "extraRoutes": [],
+    "changedCodeLines": 276,
+    "sqlOutsideRepo": false,
+    "logicInRoutes": false,
+    "maxAddedPerFile": 50,
+    "ownTests": 13,
+    "ownTestsPassed": 13,
+    "totalTokens": 436053,
+    "tokensSource": "per-step",
+    "timedOut": false,
+    "wallSec": 429.5,
+    "costCny": 0.0672,
+    "costCnyPeak": 0.1345,
+    "turns": 20,
+    "toolCalls": 34,
+    "askAttempts": 0
+  }
+}

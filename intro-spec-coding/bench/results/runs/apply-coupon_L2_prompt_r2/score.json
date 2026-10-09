@@ -1,0 +1,135 @@
+{
+  "runId": "apply-coupon_L2_prompt_r2",
+  "spec": "L2",
+  "executor": "prompt",
+  "repeat": 2,
+  "total": 25,
+  "dimensions": {
+    "C": 0,
+    "A": 8,
+    "R": 0,
+    "Q": 7,
+    "E": 0,
+    "S": 10
+  },
+  "firstPassSuccess": false,
+  "strictSuccess": false,
+  "breakdown": {
+    "C": {
+      "build": 0,
+      "publicTests": 0,
+      "hiddenFunctional": 0,
+      "regression": 0
+    },
+    "A": {
+      "requirementCoverage": 0,
+      "specViolation": 8
+    },
+    "R": {
+      "boundary": 0,
+      "errorHandling": 0,
+      "stateConsistency": 0
+    },
+    "Q": {
+      "typeCheck": 2,
+      "architectureFit": 3,
+      "maintainability": 2,
+      "testQuality": 0
+    },
+    "E": {
+      "time": 0,
+      "tokens": 0
+    },
+    "S": {
+      "unauthorizedFiles": 4,
+      "unrequestedFeatures": 3,
+      "diffLocality": 3
+    }
+  },
+  "detail": {
+    "tscExit": 2,
+    "tscErrors": 1,
+    "publicPassed": 0,
+    "publicTotal": 5,
+    "hiddenPassed": 0,
+    "hiddenTotal": 41,
+    "hiddenWeightedPassRate": 0,
+    "boundaryPassRate": 0,
+    "requirementsMet": [],
+    "requirementsTotal": 14,
+    "violations": [],
+    "worstViolation": "none",
+    "failedTests": [
+      "H01",
+      "H02",
+      "H03",
+      "H04",
+      "H05",
+      "H06",
+      "H07",
+      "H08",
+      "H09",
+      "H10",
+      "H11",
+      "H12",
+      "H13",
+      "H14",
+      "H15",
+      "B01",
+      "B02",
+      "B03",
+      "B04",
+      "B05",
+      "B06",
+      "B07",
+      "B08",
+      "S01",
+      "S02",
+      "S03",
+      "S04",
+      "R01",
+      "R02",
+      "R03",
+      "R04",
+      "E01",
+      "E02",
+      "E03",
+      "E04",
+      "E05",
+      "E06",
+      "E07",
+      "E08",
+      "E09",
+      "E10"
+    ],
+    "failureCauses": {
+      "Syntax / Build": 41
+    },
+    "filesChanged": [
+      "src/app.ts",
+      "src/repositories/couponRepository.ts",
+      "src/repositories/orderRepository.ts",
+      "src/repositories/redemptionRepository.ts",
+      "src/routes/orders.ts",
+      "src/services/orderService.ts"
+    ],
+    "processFilesChanged": 0,
+    "unrelatedFiles": [],
+    "extraRoutes": [],
+    "changedCodeLines": 85,
+    "sqlOutsideRepo": false,
+    "logicInRoutes": false,
+    "maxAddedPerFile": 48,
+    "ownTests": 0,
+    "ownTestsPassed": 0,
+    "totalTokens": 37743,
+    "tokensSource": null,
+    "timedOut": false,
+    "wallSec": 41.2,
+    "costCny": 0.0432,
+    "costCnyPeak": 0.0865,
+    "turns": 1,
+    "toolCalls": 0,
+    "askAttempts": 0
+  }
+}

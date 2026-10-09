@@ -1,0 +1,194 @@
+diff --git a/src/app.ts b/src/app.ts
+index 0157a6d..3860b3c 100755
+--- a/src/app.ts
++++ b/src/app.ts
+@@ -26,7 +26,7 @@ export function createApp(options: AppOptions = {}): App {
+ 
+   const orderRepo = new OrderRepository(db);
+   const couponRepo = new CouponRepository(db);
+-  registerOrderRoutes(router, new OrderService(orderRepo, clock));
++  registerOrderRoutes(router, new OrderService(orderRepo, couponRepo, clock));
+   registerCouponRoutes(router, new CouponService(couponRepo));
+ 
+   return { db, request: (method, path, body) => router.handle(method, path, body) };
+diff --git a/src/repositories/couponRepository.ts b/src/repositories/couponRepository.ts
+index 094341d..3f8902b 100755
+--- a/src/repositories/couponRepository.ts
++++ b/src/repositories/couponRepository.ts
+@@ -57,4 +57,14 @@ export class CouponRepository {
+     const row = this.db.prepare("SELECT * FROM coupons WHERE code = ?").get(code) as CouponRow | undefined;
+     return row && toCoupon(row);
+   }
++
++  /** Records a redemption and bumps the coupon's used counter. */
++  recordRedemption(orderId: number, code: string, discountCents: number, createdAt: string): void {
++    this.db
++      .prepare(
++        "INSERT INTO coupon_redemptions (order_id, coupon_code, discount_cents, created_at) VALUES (?, ?, ?, ?)",
++      )
++      .run(orderId, code, discountCents, createdAt);
++    this.db.prepare("UPDATE coupons SET used_count = used_count + 1 WHERE code = ?").run(code);
++  }
+ }
+diff --git a/src/repositories/orderRepository.ts b/src/repositories/orderRepository.ts
+index 8fc45d5..987fdfe 100755
+--- a/src/repositories/orderRepository.ts
++++ b/src/repositories/orderRepository.ts
+@@ -57,4 +57,10 @@ export class OrderRepository {
+   updateStatus(id: number, status: Order["status"]): void {
+     this.db.prepare("UPDATE orders SET status = ? WHERE id = ?").run(status, id);
+   }
++
++  applyCoupon(id: number, discountCents: number, finalAmountCents: number, couponCode: string): void {
++    this.db
++      .prepare("UPDATE orders SET discount_cents = ?, final_amount_cents = ?, coupon_code = ? WHERE id = ?")
++      .run(discountCents, finalAmountCents, couponCode, id);
++  }
+ }
+diff --git a/src/routes/orders.ts b/src/routes/orders.ts
+index 2ddfedd..76cf0b0 100755
+--- a/src/routes/orders.ts
++++ b/src/routes/orders.ts
+@@ -8,4 +8,8 @@ export function registerOrderRoutes(router: Router, orders: OrderService): void
+   router.add("GET", "/orders/:id", (p) => ({ status: 200, body: orders.get(parseId(p.id)) }));
+   router.add("POST", "/orders/:id/pay", (p) => ({ status: 200, body: orders.pay(parseId(p.id)) }));
+   router.add("POST", "/orders/:id/cancel", (p) => ({ status: 200, body: orders.cancel(parseId(p.id)) }));
++  router.add("POST", "/orders/:id/apply-coupon", (p, b) => ({
++    status: 200,
++    body: orders.applyCoupon(parseId(p.id), b.couponCode),
++  }));
+ }
+diff --git a/src/services/orderService.ts b/src/services/orderService.ts
+index 63b29b4..e99b691 100755
+--- a/src/services/orderService.ts
++++ b/src/services/orderService.ts
+@@ -1,10 +1,12 @@
+ import type { Clock } from "../clock.ts";
+ import { badRequest, conflict, notFound } from "../errors.ts";
++import type { CouponRepository } from "../repositories/couponRepository.ts";
+ import type { Order, OrderRepository } from "../repositories/orderRepository.ts";
+ 
+ export class OrderService {
+   constructor(
+     private readonly orders: OrderRepository,
++    private readonly coupons: CouponRepository,
+     private readonly clock: Clock,
+   ) {}
+ 
+@@ -41,4 +43,40 @@ export class OrderService {
+     this.orders.updateStatus(id, "CANCELLED");
+     return this.get(id);
+   }
++
++  applyCoupon(id: number, couponCode: unknown): Order {
++    const order = this.get(id);
++    if (typeof couponCode !== "string" || couponCode.trim() === "") {
++      throw badRequest("INVALID_REQUEST", "couponCode is required");
++    }
++    const code = couponCode.trim();
++
++    const coupon = this.coupons.findByCode(code);
++    if (!coupon) throw badRequest("COUPON_NOT_FOUND", `coupon ${code} not found`);
++    if (coupon.status !== "ACTIVE") throw badRequest("COUPON_INACTIVE", `coupon ${code} is not active`);
++
++    const now = this.clock();
++    const validFrom = Date.parse(coupon.validFrom);
++    const validUntil = Date.parse(coupon.validUntil);
++    if (!Number.isNaN(validFrom) && now.getTime() < validFrom) {
++      throw badRequest("COUPON_NOT_YET_VALID", `coupon ${code} is not yet valid`);
++    }
++    if (!Number.isNaN(validUntil) && now.getTime() > validUntil) {
++      throw badRequest("COUPON_EXPIRED", `coupon ${code} has expired`);
++    }
++
++    if (order.amountCents < coupon.minAmountCents) {
++      throw badRequest("COUPON_MIN_AMOUNT", `order amount is below coupon ${code} minimum`);
++    }
++
++    let discountCents =
++      coupon.type === "FIXED" ? coupon.value : Math.round((order.amountCents * coupon.value) / 100);
++    if (coupon.maxDiscountCents !== null) discountCents = Math.min(discountCents, coupon.maxDiscountCents);
++    discountCents = Math.max(0, Math.min(discountCents, order.amountCents));
++
++    const finalAmountCents = order.amountCents - discountCents;
++    this.orders.applyCoupon(id, discountCents, finalAmountCents, code);
++    this.coupons.recordRedemption(id, code, discountCents, now.toISOString());
++    return this.get(id);
++  }
+ }
+diff --git a/tests/applyCoupon.test.ts b/tests/applyCoupon.test.ts
+new file mode 100644
+index 0000000..fb79cba
+--- /dev/null
++++ b/tests/applyCoupon.test.ts
+@@ -0,0 +1,70 @@
++import { describe, expect, it } from "vitest";
++import { createApp } from "../src/app.ts";
++
++const fixedClock = () => new Date("2026-10-01T08:00:00Z");
++
++function setup() {
++  const app = createApp({ clock: fixedClock });
++  app.request("POST", "/orders", { customer: "alice", amountCents: 12000 });
++  return app;
++}
++
++function createCoupon(app: ReturnType<typeof createApp>, coupon: Record<string, unknown>) {
++  return app.request("POST", "/coupons", {
++    validFrom: "2026-01-01T00:00:00Z",
++    validUntil: "2027-01-01T00:00:00Z",
++    ...coupon,
++  });
++}
++
++describe("apply coupon", () => {
++  it("applies a FIXED coupon", () => {
++    const app = setup();
++    createCoupon(app, { code: "SAVE5", type: "FIXED", value: 500 });
++    const res = app.request("POST", "/orders/1/apply-coupon", { couponCode: "SAVE5" });
++    expect(res.status).toBe(200);
++    expect(res.body).toMatchObject({
++      discountCents: 500,
++      finalAmountCents: 11500,
++      couponCode: "SAVE5",
++    });
++    expect(app.request("GET", "/coupons/SAVE5").body).toMatchObject({ usedCount: 1 });
++  });
++
++  it("applies a PERCENT coupon", () => {
++    const app = setup();
++    createCoupon(app, { code: "SAVE20", type: "PERCENT", value: 20 });
++    const res = app.request("POST", "/orders/1/apply-coupon", { couponCode: "SAVE20" });
++    expect(res.status).toBe(200);
++    expect(res.body).toMatchObject({ discountCents: 2400, finalAmountCents: 9600 });
++  });
++
++  it("rejects an unknown coupon", () => {
++    const app = setup();
++    const res = app.request("POST", "/orders/1/apply-coupon", { couponCode: "NOPE" });
++    expect(res.status).toBe(400);
++  });
++
++  it("rejects a disabled coupon", () => {
++    const app = setup();
++    createCoupon(app, { code: "OFF", type: "FIXED", value: 100, status: "DISABLED" });
++    expect(app.request("POST", "/orders/1/apply-coupon", { couponCode: "OFF" }).status).toBe(400);
++  });
++
++  it("rejects a coupon below the order minimum", () => {
++    const app = setup();
++    createCoupon(app, { code: "BIG", type: "FIXED", value: 100, minAmountCents: 50000 });
++    expect(app.request("POST", "/orders/1/apply-coupon", { couponCode: "BIG" }).status).toBe(400);
++  });
++
++  it("rejects an expired coupon", () => {
++    const app = setup();
++    createCoupon(app, { code: "OLD", type: "FIXED", value: 100, validUntil: "2026-06-01T00:00:00Z" });
++    expect(app.request("POST", "/orders/1/apply-coupon", { couponCode: "OLD" }).status).toBe(400);
++  });
++
++  it("rejects a missing couponCode", () => {
++    const app = setup();
++    expect(app.request("POST", "/orders/1/apply-coupon", {}).status).toBe(400);
++  });
++});

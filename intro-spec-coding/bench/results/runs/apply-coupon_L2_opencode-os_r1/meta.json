@@ -1,0 +1,38 @@
+{
+  "runId": "apply-coupon_L2_opencode-os_r1",
+  "task": "apply-coupon",
+  "spec": "L2",
+  "executor": "opencode-os",
+  "repeat": 1,
+  "model": "deepseek-flash",
+  "startedAt": "2026-10-09T04:06:31.535Z",
+  "wallSec": 730.064,
+  "balanceBefore": 24.91,
+  "balanceAfter": 24.42,
+  "balanceDeltaCny": 0.49,
+  "exitCode": 0,
+  "timedOut": false,
+  "turns": 35,
+  "toolCalls": 52,
+  "toolNames": {
+    "read": 17,
+    "bash": 19,
+    "skill": 2,
+    "todowrite": 3,
+    "write": 5,
+    "edit": 6
+  },
+  "askAttempts": 0,
+  "filesRead": 17,
+  "stopReason": "stop",
+  "finalText": "OpenSpec workflow complete.\n\n**Change:** `openspec/changes/apply-coupon-to-order/` — proposal, specs (`order-coupons`), design, tasks (8/8 done, `validate --strict` passes).\n\n**Implementation** (`POST /orders/:id/apply-coupon`):\n- `orderService.ts:47` — `applyCoupon`: validates coupon exists/ACTIVE/in-window/not-exhausted and order pending/meets minimum; FIXED subtracts cents, PERCENT rounds `amount*value/100`, caps at `maxDiscountCents` and the order amount; persists order + redemption in a transaction.\n- `couponRepository.ts:62` / `orderRepository.ts:61` — `recordRedemption`, `applyCoupon`, `transaction`.\n- `orders.ts:11` — route; `app.ts:29` — wiring.\n\n**Verification:** `npm run build` clean, `npm test` 18/18 pass. `TASK.md` and existing tests untouched.\n\nImplementation is complete. Archiving is available via `openspec archive apply-coupon-to-order` when you're ready.",
+  "tokens": {
+    "input": 26262,
+    "cacheRead": 1020288,
+    "cacheCreate": 0,
+    "output": 13898
+  },
+  "costCny": 0.1023,
+  "tokensSource": "per-step",
+  "costCnyPeak": 0.2045
+}

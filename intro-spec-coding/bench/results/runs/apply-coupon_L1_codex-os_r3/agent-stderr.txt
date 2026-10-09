@@ -1,0 +1,8 @@
+Reading additional input from stdin...
+2026-10-09T06:41:38.011980Z ERROR codex_core::tools::router: error=apply_patch verification failed: Failed to find expected lines in /work/src/repositories/couponRepository.ts:
+  findByCode(code: string): Coupon | undefined {
+    const row = this.db.prepare("SELECT * FROM coupons WHERE code = ?").get(code) as CouponRow | undefined;
+    return row && toCoupon(row);
+  }
+          WHERE code = ? AND (usage_limit IS NULL OR used_count < usage_limit)`,
+}

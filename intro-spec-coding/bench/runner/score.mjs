@@ -216,7 +216,7 @@ export function score(runDir, meta) {
       filesChanged: codeFiles.map((n) => n.file), processFilesChanged: numstat.filter((n) => isProcess(n.file)).length,
       unrelatedFiles: unrelated.map((n) => n.file), extraRoutes, changedCodeLines,
       sqlOutsideRepo, logicInRoutes, maxAddedPerFile, ownTests: ownTests.length, ownTestsPassed: ownPassed,
-      totalTokens, tokensSource: meta.tokensSource ?? null, timedOut: !!meta.timedOut, wallSec: r1(meta.wallSec), costCny: meta.costCny,
+      totalTokens, tokensSource: meta.tokensSource ?? null, timedOut: !!meta.timedOut, wallSec: r1(meta.wallSec), costCny: meta.costCny, costCnyPeak: meta.costCnyPeak ?? null,
       turns: meta.turns, toolCalls: meta.toolCalls, askAttempts: meta.askAttempts,
     },
   };

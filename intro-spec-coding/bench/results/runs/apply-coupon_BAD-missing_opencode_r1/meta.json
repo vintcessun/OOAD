@@ -1,0 +1,37 @@
+{
+  "runId": "apply-coupon_BAD-missing_opencode_r1",
+  "task": "apply-coupon",
+  "spec": "BAD-missing",
+  "executor": "opencode",
+  "repeat": 1,
+  "model": "deepseek-flash",
+  "startedAt": "2026-10-09T06:15:40.054Z",
+  "wallSec": 239.498,
+  "timeoutSec": 1500,
+  "balanceBefore": 19.58,
+  "balanceAfter": 19.06,
+  "balanceDeltaCny": 0.52,
+  "exitCode": 0,
+  "timedOut": false,
+  "turns": 13,
+  "toolCalls": 24,
+  "toolNames": {
+    "read": 14,
+    "bash": 4,
+    "edit": 5,
+    "write": 1
+  },
+  "askAttempts": 0,
+  "filesRead": 14,
+  "stopReason": "stop",
+  "finalText": "Implementation complete.\n\n- `POST /orders/:id/apply-coupon` added in `src/routes/orders.ts:11`, parsing only.\n- Business rules in `src/services/orderService.ts` (`applyCoupon`), checked in the exact error-code order from §6, using the injected `Clock`.\n- SQL + atomic transaction for the order update, redemption insert, and `used_count` increment in `src/repositories/orderRepository.ts:62`.\n- Wired `CouponRepository` into `OrderService` in `src/app.ts:29`.\n- Added `tests/applyCoupon.test.ts` covering the acceptance criteria and every error code.\n\n`npm run build` and `npm test` both pass (23 tests).",
+  "tokens": {
+    "input": 10373,
+    "cacheRead": 201088,
+    "cacheCreate": 0,
+    "output": 6914
+  },
+  "tokensSource": "per-step",
+  "costCny": 0.0841,
+  "costCnyPeak": 0.0841
+}

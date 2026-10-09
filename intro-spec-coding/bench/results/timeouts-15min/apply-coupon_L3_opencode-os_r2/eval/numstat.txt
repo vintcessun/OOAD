@@ -1,0 +1,6 @@
+2	0	openspec/changes/order-apply-coupon/.openspec.yaml
+52	0	openspec/changes/order-apply-coupon/design.md
+38	0	openspec/changes/order-apply-coupon/proposal.md
+189	0	openspec/changes/order-apply-coupon/specs/order-coupon-application/spec.md
+30	0	openspec/changes/order-apply-coupon/tasks.md
+13	0	src/db.ts

@@ -82,6 +82,7 @@
 | [`diagrams/`](diagrams/) | StarUML 模型源文件 (.mdj) 与导出图 | 全程 |
 | [`rbac-contract/`](rbac-contract/) | **已落地的契约产物**：Flyway 建表脚本、OpenAPI 规范 | 全程 ★ |
 | [`data/raw/`](data/raw/) | 课程提供的三份原始 xlsx（**含真实人员信息，不入库**，需自行下载） | 全程 |
+| [`intro-spec-coding/`](intro-spec-coding/) | **导论题目 1**（与 RBAC 无关）：Spec Coding 调研报告、PPT 文字稿、选型指南，以及对照实验工程与数据 | 导论 |
 
 ---
 

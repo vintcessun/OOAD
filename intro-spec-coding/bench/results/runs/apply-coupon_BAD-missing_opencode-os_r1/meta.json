@@ -1,0 +1,38 @@
+{
+  "runId": "apply-coupon_BAD-missing_opencode-os_r1",
+  "task": "apply-coupon",
+  "spec": "BAD-missing",
+  "executor": "opencode-os",
+  "repeat": 1,
+  "model": "deepseek-flash",
+  "startedAt": "2026-10-09T06:31:57.166Z",
+  "wallSec": 1082.118,
+  "timeoutSec": 1500,
+  "balanceBefore": 17.48,
+  "balanceAfter": 16.01,
+  "balanceDeltaCny": 1.47,
+  "exitCode": 0,
+  "timedOut": false,
+  "turns": 42,
+  "toolCalls": 61,
+  "toolNames": {
+    "read": 18,
+    "bash": 19,
+    "todowrite": 3,
+    "write": 6,
+    "edit": 15
+  },
+  "askAttempts": 0,
+  "filesRead": 18,
+  "stopReason": "stop",
+  "finalText": "## Implementation Complete\n\n**Change:** `order-apply-coupon` (schema: spec-driven) — progress 9/9 tasks, `openspec validate --strict` passes.\n\n### Planning artifacts\n- `openspec/changes/order-apply-coupon/proposal.md`\n- `.../specs/order-coupon-application/spec.md` (new capability delta)\n- `.../design.md`\n- `.../tasks.md`\n\n### Code\n- `src/repositories/couponRedemptionRepository.ts` — atomic `BEGIN`/`COMMIT`/`ROLLBACK` redemption (order update + redemption insert + `used_count++`).\n- `src/services/orderService.ts` — `applyCoupon` with normalization, checks in the mandated order, FIXED/PERCENT/cap math via injected `Clock`.\n- `src/routes/orders.ts` — `POST /orders/:id/apply-coupon`.\n- `src/app.ts` — wiring.\n- `tests/applyCoupon.test.ts` — 24 new tests (AC-01/02/03/05/06/08/09/10, error ordering, rollback).\n\n### Verification\n- `npm run build`: clean.\n- `npm test`: 29/29 pass (existing 5 + new 24).\n\n`TASK.md` and `tests/orders.test.ts` are untouched. Implementation stopped here; the change is ready for review/archiving when you want it.",
+  "tokens": {
+    "input": 29908,
+    "cacheRead": 1604864,
+    "cacheCreate": 0,
+    "output": 23352
+  },
+  "tokensSource": "per-step",
+  "costCny": 0.3108,
+  "costCnyPeak": 0.3108
+}

@@ -1,0 +1,113 @@
+{
+  "runId": "apply-coupon_L1_codex_r3",
+  "spec": "L1",
+  "executor": "codex",
+  "repeat": 3,
+  "total": 84,
+  "dimensions": {
+    "C": 35,
+    "A": 14.9,
+    "R": 10,
+    "Q": 10,
+    "E": 4.1,
+    "S": 10
+  },
+  "firstPassSuccess": false,
+  "strictSuccess": false,
+  "breakdown": {
+    "C": {
+      "build": 5,
+      "publicTests": 5,
+      "hiddenFunctional": 20,
+      "regression": 5
+    },
+    "A": {
+      "requirementCoverage": 6.9,
+      "specViolation": 8
+    },
+    "R": {
+      "boundary": 4.5,
+      "errorHandling": 2.5,
+      "stateConsistency": 3
+    },
+    "Q": {
+      "typeCheck": 3,
+      "architectureFit": 3,
+      "maintainability": 2,
+      "testQuality": 2
+    },
+    "E": {
+      "time": 1.2,
+      "tokens": 2.9
+    },
+    "S": {
+      "unauthorizedFiles": 4,
+      "unrequestedFeatures": 3,
+      "diffLocality": 3
+    }
+  },
+  "detail": {
+    "tscExit": 0,
+    "tscErrors": 0,
+    "publicPassed": 5,
+    "publicTotal": 5,
+    "hiddenPassed": 33,
+    "hiddenTotal": 41,
+    "hiddenWeightedPassRate": 82.9,
+    "boundaryPassRate": 75,
+    "requirementsMet": [
+      "REQ-04",
+      "REQ-06",
+      "REQ-07",
+      "REQ-08",
+      "REQ-09",
+      "REQ-10",
+      "REQ-13",
+      "REQ-14"
+    ],
+    "requirementsTotal": 14,
+    "violations": [],
+    "worstViolation": "none",
+    "failedTests": [
+      "B04",
+      "B07",
+      "S03",
+      "E02",
+      "E03",
+      "E04",
+      "E05",
+      "E09"
+    ],
+    "failureCauses": {
+      "Boundary Error": 2,
+      "State / Consistency": 1,
+      "Error-code mismatch": 5
+    },
+    "filesChanged": [
+      "src/app.ts",
+      "src/repositories/couponRepository.ts",
+      "src/repositories/orderRepository.ts",
+      "src/routes/orders.ts",
+      "src/services/orderService.ts",
+      "tests/applyCoupon.test.ts"
+    ],
+    "processFilesChanged": 0,
+    "unrelatedFiles": [],
+    "extraRoutes": [],
+    "changedCodeLines": 269,
+    "sqlOutsideRepo": false,
+    "logicInRoutes": false,
+    "maxAddedPerFile": 50,
+    "ownTests": 11,
+    "ownTestsPassed": 11,
+    "totalTokens": 362351,
+    "tokensSource": "final",
+    "timedOut": false,
+    "wallSec": 508.8,
+    "costCny": 0.129,
+    "costCnyPeak": 0.129,
+    "turns": 7,
+    "toolCalls": 18,
+    "askAttempts": 0
+  }
+}

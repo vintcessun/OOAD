@@ -74,6 +74,21 @@ const vol = (host, ctr, ro = false) => ["-v", `${host}:${ctr}${ro ? ":ro" : ""}`
 // Docker Desktop injects the host proxy (host.docker.internal:7890), unreachable from containers here.
 const NO_PROXY = ["-e", "http_proxy=", "-e", "https_proxy=", "-e", "HTTP_PROXY=", "-e", "HTTPS_PROXY="];
 
+// ---------- 0. one process per run id (two batch processes may share the queue) ----------
+if (existsSync(join(outDir, "score.json")) && !process.env.BENCH_FORCE) {
+  console.log(`${runId}: skipped (already scored; BENCH_FORCE=1 to redo)`);
+  process.exit(0);
+}
+const lock = join(BENCH, "results", "runs", `${runId}.lock`);
+mkdirSync(dirname(lock), { recursive: true });
+try {
+  writeFileSync(lock, String(process.pid), { flag: "wx" });
+} catch {
+  console.log(`${runId}: skipped (locked by another process)`);
+  process.exit(0);
+}
+process.on("exit", () => rmSync(lock, { force: true }));
+
 // ---------- 1. fresh workspace ----------
 rmSync(ws, { recursive: true, force: true });
 rmSync(outDir, { recursive: true, force: true });
@@ -105,7 +120,10 @@ const setup = [
   "git init -q && git add -A && git commit -qm base && git tag base",
 ].join(" && ");
 let r = docker(["run", "--rm", ...NO_PROXY, ...vol(ws, "/work"), IMAGE, "bash", "-lc", setup]);
-if (r.status !== 0) throw new Error(`setup failed: ${r.stdout}${r.stderr}`);
+// Docker Desktop sometimes answers 500 while waiting for `--rm` cleanup although the container
+// finished; trust the workspace, not the exit code.
+const baseOk = () => sh("git", ["-c", "safe.directory=*", "-C", ws, "rev-parse", "--verify", "-q", "base"]).status === 0;
+if (r.status !== 0 && !baseOk()) throw new Error(`setup failed: ${r.stdout}${r.stderr}`);
 
 // ---------- 2. agent stage ----------
 const balanceBefore = await balance();
@@ -162,6 +180,7 @@ const meta = {
   ...agentMeta,
 };
 meta.costCny = tokenCost(meta.tokens, new Date(t0));
+meta.costCnyPeak = tokenCost(meta.tokens, new Date(t0), true);
 writeFileSync(join(outDir, "meta.json"), JSON.stringify(meta, null, 2));
 const card = score(outDir, meta);
 writeFileSync(join(outDir, "score.json"), JSON.stringify(card, null, 2));
@@ -170,7 +189,7 @@ console.log(`${runId}: total=${card.total} firstPass=${card.firstPassSuccess} hi
 // ---------- helpers ----------
 async function balance() {
   try {
-    const res = await fetch("https://api.deepseek.com/user/balance", { headers: { Authorization: `Bearer ${KEY}` } });
+    const res = await fetch("https://api.deepseek.com/user/balance", { headers: { Authorization: `Bearer ${KEY}` }, signal: AbortSignal.timeout(15_000) });
     const j = await res.json();
     return Number(j.balance_infos.find((b) => b.currency === "CNY").total_balance);
   } catch {

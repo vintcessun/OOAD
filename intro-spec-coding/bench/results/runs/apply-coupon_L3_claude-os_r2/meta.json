@@ -1,0 +1,38 @@
+{
+  "runId": "apply-coupon_L3_claude-os_r2",
+  "task": "apply-coupon",
+  "spec": "L3",
+  "executor": "claude-os",
+  "repeat": 2,
+  "model": "deepseek-flash",
+  "startedAt": "2026-10-09T06:43:17.288Z",
+  "wallSec": 407.35,
+  "timeoutSec": 1500,
+  "balanceBefore": 16.9,
+  "balanceAfter": 16.01,
+  "balanceDeltaCny": 0.89,
+  "exitCode": 0,
+  "timedOut": false,
+  "turns": 89,
+  "toolCalls": 38,
+  "toolNames": {
+    "Read": 1,
+    "Bash": 24,
+    "Write": 5,
+    "Edit": 7,
+    "Skill": 1
+  },
+  "askAttempts": 0,
+  "filesRead": 1,
+  "stopReason": "success",
+  "tokensSource": "final",
+  "finalText": "## Implementation Complete\n\n**Change:** apply-coupon-to-order · **Schema:** spec-driven · **Progress:** 10/10 tasks complete ✓\n\n### Planning artifacts (OpenSpec)\nCreated under `openspec/changes/apply-coupon-to-order/`:\n- **proposal.md** — why/what; new capability `order-coupons`\n- **specs/order-coupons/spec.md** — 18 requirements with scenarios (validation, normalization, eligibility, discount math, atomicity, error precedence, response shape)\n- **design.md** — transaction ownership, epoch-ms time comparison, validation ordering\n- **tasks.md** — 10 tracked tasks, all complete\n\n`openspec validate --strict` passes.\n\n### Code changes\n- `src/repositories/orderRepository.ts` — `applyCoupon(...)`: `BEGIN`/`COMMIT` with `ROLLBACK` on error, performing the order update, the `coupon_redemptions` insert, and the `used_count` increment atomically\n- `src/repositories/couponRepository.ts` — `countRedemptions(code)` read helper\n- `src/services/orderService.ts` — pure `computeDiscount(order, coupon)` and `applyCoupon(id, body)` implementing all ten rejection conditions in the documented precedence, using the injected `Clock`\n- `src/routes/orders.ts` — registers `POST /orders/:id/apply-coupon` (params only)\n- `src/app.ts` — wires `CouponRepository` into `OrderService`\n\n### Verification\n- `npm run build` — passes, no type errors\n- `npm test` — 29 tests pass (5 existing untouched + 24 new covering AC-01…AC-10, every error code, precedence, rollback, and no-change-on-rejection)\n- `db.ts` schema, `package.json`, and `tests/orders.test.ts` are unmodified; no new dependencies\n\nRequirements (REQ-01…REQ-14) and acceptance criteria (AC-01…AC-10) are covered by tests. The optional archive step is left for after review — say the word and I'll archive the change.",
+  "tokens": {
+    "input": 45246,
+    "cacheRead": 1348992,
+    "cacheCreate": 0,
+    "output": 19549
+  },
+  "costCny": 0.3008,
+  "costCnyPeak": 0.3008
+}

@@ -1,0 +1,6 @@
+4	1	src/app.ts
+5	0	src/repositories/couponRepository.ts
+7	0	src/repositories/orderRepository.ts
+15	0	src/repositories/redemptionRepository.ts
+5	0	src/routes/orders.ts
+48	0	src/services/orderService.ts

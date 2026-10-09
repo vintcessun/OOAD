@@ -1,0 +1,37 @@
+{
+  "runId": "apply-coupon_BAD-missing_claude_r1",
+  "task": "apply-coupon",
+  "spec": "BAD-missing",
+  "executor": "claude",
+  "repeat": 1,
+  "model": "deepseek-flash",
+  "startedAt": "2026-10-09T06:05:08.282Z",
+  "wallSec": 332.343,
+  "timeoutSec": 1500,
+  "balanceBefore": 20.77,
+  "balanceAfter": 20.2,
+  "balanceDeltaCny": 0.57,
+  "exitCode": 0,
+  "timedOut": false,
+  "turns": 66,
+  "toolCalls": 29,
+  "toolNames": {
+    "Read": 17,
+    "Bash": 2,
+    "Edit": 9,
+    "Write": 1
+  },
+  "askAttempts": 0,
+  "filesRead": 16,
+  "stopReason": "success",
+  "tokensSource": "final",
+  "finalText": "Implementation complete. `npm run build` and `npm test` both pass (28 tests, including 23 new ones).\n\n## What I did\n\n**`POST /orders/:id/apply-coupon`** implemented along the existing layering:\n\n- **`src/routes/orders.ts`** — registers the route; parses the id and passes the body through. No logic.\n- **`src/services/orderService.ts`** — `applyCoupon(id, body)` holds all rules. Checks run exactly in the error-code table order: body validity (REQ-13) → order exists → PENDING (REQ-04) → not already couponed (REQ-10) → coupon exists → ACTIVE (REQ-02) → not-yet-valid/expired via the injected `Clock` (REQ-03) → usage limit (REQ-11) → minimum (REQ-05). Discount is FIXED value or `floor(amount * value / 100)` (REQ-06/07), capped when `maxDiscountCents` is set (REQ-08), then `final = amount - discount` (REQ-09). Code is `trim().toUpperCase()` before lookup (REQ-01, REQ-13).\n- **`src/repositories/orderRepository.ts`** — `applyCoupon()` (UPDATE) plus a `transaction()` BEGIN/COMMIT/ROLLBACK wrapper.\n- **`src/repositories/couponRepository.ts`** — `incrementUsedCount()` and `insertRedemption()`.\n- **`src/app.ts`** — injects the coupon repository into `OrderService`.\n\nThe three writes (order update, redemption insert, `used_count + 1`) go through one transaction, so a failure rolls back all of them; rejections occur before any write, leaving the DB untouched. The success response is the updated `Order`, identical to `GET /orders/:id` — verified by a test asserting deep equality.\n\nNo existing tests or schema were modified, and no dependencies were added.\n\nOne thing worth flagging: the spec defines no clamping of `discount` to `amountCents`, so a FIXED coupon whose value exceeds the order amount produces a negative `finalAmountCents` (the schema permits it). I followed the spec literally rather than adding a clamp — let me know if you'd rather cap it.",
+  "tokens": {
+    "input": 28611,
+    "cacheRead": 701184,
+    "cacheCreate": 0,
+    "output": 10480
+  },
+  "costCny": 0.1691,
+  "costCnyPeak": 0.1691
+}

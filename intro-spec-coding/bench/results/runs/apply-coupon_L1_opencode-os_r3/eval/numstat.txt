@@ -1,0 +1,12 @@
+3	0	README.md
+2	0	openspec/changes/apply-coupon-to-order/.openspec.yaml
+60	0	openspec/changes/apply-coupon-to-order/design.md
+39	0	openspec/changes/apply-coupon-to-order/proposal.md
+126	0	openspec/changes/apply-coupon-to-order/specs/order-coupons/spec.md
+25	0	openspec/changes/apply-coupon-to-order/tasks.md
+1	1	src/app.ts
+41	0	src/repositories/couponRepository.ts
+18	0	src/repositories/orderRepository.ts
+4	0	src/routes/orders.ts
+53	0	src/services/orderService.ts
+190	0	tests/applyCoupon.test.ts

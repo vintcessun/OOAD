@@ -1,0 +1,39 @@
+{
+  "runId": "apply-coupon_BAD-ambiguous_opencode-os_r1",
+  "task": "apply-coupon",
+  "spec": "BAD-ambiguous",
+  "executor": "opencode-os",
+  "repeat": 1,
+  "model": "deepseek-flash",
+  "startedAt": "2026-10-09T05:53:23.955Z",
+  "wallSec": 1213.046,
+  "timeoutSec": 1500,
+  "balanceBefore": 21.54,
+  "balanceAfter": 19.8,
+  "balanceDeltaCny": 1.74,
+  "exitCode": 0,
+  "timedOut": false,
+  "turns": 40,
+  "toolCalls": 50,
+  "toolNames": {
+    "read": 1,
+    "bash": 30,
+    "skill": 3,
+    "todowrite": 2,
+    "write": 5,
+    "edit": 9
+  },
+  "askAttempts": 0,
+  "filesRead": 1,
+  "stopReason": "stop",
+  "finalText": "Implementation complete via the full OpenSpec workflow.\n\n**Artifacts** (`openspec/changes/archive/2026-10-09-apply-coupon-to-order/`): proposal → `specs/order-coupons/spec.md` (15 requirements) → design → tasks (6/6). Archived, syncing the new `order-coupons` main spec.\n\n**Code changes:**\n- `src/repositories/orderRepository.ts:70` — `applyCoupon` runs order update, redemption insert, and `used_count` increment in one transaction.\n- `src/services/orderService.ts:76` — `applyCoupon` with code normalization, section-6 error ordering, discount math (FIXED/PERCENT `Math.round`, cap, amount floor) using the injected `Clock`.\n- `src/routes/orders.ts:12` — `POST /orders/:id/apply-coupon`.\n- `src/app.ts:29` — wired `CouponRepository` into `OrderService`.\n- `tests/applyCoupon.test.ts` — 22 new tests covering AC-01…AC-10 and error cases.\n\n**Verification:** `npm run build` clean; `npm test` 27/27 passing; `openspec validate --specs --strict` passes. TASK.md and existing tests untouched.",
+  "tokens": {
+    "input": 30860,
+    "cacheRead": 1308800,
+    "cacheCreate": 0,
+    "output": 18399
+  },
+  "tokensSource": "per-step",
+  "costCny": 0.1306,
+  "costCnyPeak": 0.2613
+}

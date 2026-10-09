@@ -1,0 +1,35 @@
+{
+  "runId": "apply-coupon_BAD-ambiguous_codex_r1",
+  "task": "apply-coupon",
+  "spec": "BAD-ambiguous",
+  "executor": "codex",
+  "repeat": 1,
+  "model": "deepseek-flash",
+  "startedAt": "2026-10-09T07:14:16.868Z",
+  "wallSec": 129.143,
+  "timeoutSec": 1500,
+  "balanceBefore": 12.89,
+  "balanceAfter": 12.41,
+  "balanceDeltaCny": 0.48,
+  "exitCode": 0,
+  "timedOut": false,
+  "turns": 5,
+  "toolCalls": 19,
+  "toolNames": {
+    "command_execution": 13,
+    "file_change": 6
+  },
+  "askAttempts": 0,
+  "filesRead": 0,
+  "stopReason": "success",
+  "finalText": "Implementation complete. `npm run build` (type check) and `npm test` both pass — 22 tests green.\n\n## What I built\n\n`POST /orders/:id/apply-coupon` now applies one coupon to a pending order, implemented along the existing layering (route parses, service holds the rules, repositories hold the SQL).\n\nThe service flow follows the required error precedence exactly: request validation → order exists → order pending → coupon already applied → coupon exists → active → valid-from → valid-until → usage limit → minimum amount. All checks run before any write, so rejections leave the DB untouched.\n\nDiscount rules in [orderService.ts](/work/src/services/orderService.ts): FIXED uses the coupon value, PERCENT uses `floor(amount * value / 100)`, then the `maxDiscountCents` cap (both types), then clamped to the order amount so the final amount never goes negative. Time comes from the injected `Clock` via `getTime()` comparisons (`validFrom` inclusive, `validUntil` exclusive). Codes are trimmed, uppercased, and looked up; the normalized code is what gets stored.\n\nPersistence (REQ-12) happens in a single transaction in [orderRepository.ts](/work/src/repositories/orderRepository.ts): update the order's `discount_cents` / `final_amount_cents` / `coupon_code`, insert the `coupon_redemptions` row, and bump `coupons.used_count` — with rollback on any failure. Redemption/usage SQL lives in [couponRepository.ts](/work/src/repositories/couponRepository.ts), and the route is wired in [orders.ts](/work/src/routes/orders.ts).\n\n## Two judgment calls worth flagging\n\n- REQ-07's \"appropriate rounding\" is left vague by the spec; I round percent discounts **down** (`floor`), consistent with \"折扣不应过大\" / not over-discounting beyond the stated percentage.\n- \"大额订单应给予适当的优惠上限\" (AC-03) has no numeric cap in the spec, so I implemented it as the schema's `maxDiscountCents` cap applied to PERCENT coupons. That's the only deterministically implementable reading.\n\nNew tests are in [applyCoupon.test.ts](/work/tests/applyCoupon.test.ts) covering AC-01/02/03/04/06/07/08/09/10 plus the full error-code precedence and the \"no mutation on rejection\" guarantees. I did not touch TASK.md, the existing tests, or the schema.",
+  "tokens": {
+    "input": 11561,
+    "cacheRead": 241024,
+    "cacheCreate": 0,
+    "output": 18057
+  },
+  "tokensSource": "final",
+  "costCny": 0.1772,
+  "costCnyPeak": 0.1772
+}

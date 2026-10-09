@@ -1,0 +1,36 @@
+{
+  "runId": "apply-coupon_L3_prompt_r2",
+  "task": "apply-coupon",
+  "spec": "L3",
+  "executor": "prompt",
+  "repeat": 2,
+  "model": "deepseek-flash",
+  "startedAt": "2026-10-09T04:38:24.767Z",
+  "wallSec": 70.186,
+  "balanceBefore": 23.98,
+  "balanceAfter": 23.98,
+  "balanceDeltaCny": 0,
+  "exitCode": 0,
+  "turns": 1,
+  "toolCalls": 0,
+  "toolNames": {},
+  "askAttempts": 0,
+  "filesRead": 0,
+  "stopReason": "stop",
+  "finalText": "  it(\"rejects an expired coupon\", () => {\n    const app = newApp();\n    const id = createOrder(app, 10000);\n    createCoupon(app, { code: \"OLD\", validUntil: \"2026-01-01T00:00:00Z\" });\n    const res = apply(app, id, \"OLD\");\n    expect(res.status).toBe(400);\n    expect((res.body as any).error.code).toBe(\"COUPON_EXPIRED\");\n  });\n\n  it(\"rejects an exhausted coupon\", () => {\n    const app = newApp();\n    const first = createOrder(app, 10000);\n    const second = createOrder(app, 10000);\n    createCoupon(app, { code: \"ONCE\", usageLimit: 1 });\n\n    expect(apply(app, first, \"ONCE\").status).toBe(200);\n\n    const res = apply(app, second, \"ONCE\");\n    expect(res.status).toBe(400);\n    expect((res.body as any).error.code).toBe(\"COUPON_USAGE_EXHAUSTED\");\n  });\n\n  it(\"rejects when the minimum amount is not met\", () => {\n    const app = newApp();\n    const id = createOrder(app, 1000);\n    createCoupon(app, { code: \"MIN5\", minAmountCents: 5000 });\n    const res = apply(app, id, \"MIN5\");\n    expect(res.status).toBe(400);\n    expect((res.body as any).error.code).toBe(\"MINIMUM_NOT_MET\");\n  });\n\n  it(\"leaves the order untouched when a rule fails\", () => {\n    const app = newApp();\n    const id = createOrder(app, 1000);\n    createCoupon(app, { code: \"MIN5\", minAmountCents: 5000 });\n\n    apply(app, id, \"MIN5\");\n\n    expect(app.request(\"GET\", `/orders/${id}`).body).toMatchObject({\n      discountCents: 0,\n      finalAmountCents: 1000,\n      couponCode: null,\n      status: \"PENDING\",\n    });\n  });\n});",
+  "filesWritten": [
+    "src/repositories/orderRepository.ts",
+    "src/services/orderService.ts",
+    "src/routes/orders.ts",
+    "src/app.ts",
+    "tests/applyCoupon.test.ts"
+  ],
+  "tokens": {
+    "input": 155,
+    "cacheRead": 28416,
+    "cacheCreate": 0,
+    "output": 21205
+  },
+  "costCny": 0.0855,
+  "costCnyPeak": 0.1711
+}

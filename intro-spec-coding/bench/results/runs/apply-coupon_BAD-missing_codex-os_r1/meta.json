@@ -1,0 +1,35 @@
+{
+  "runId": "apply-coupon_BAD-missing_codex-os_r1",
+  "task": "apply-coupon",
+  "spec": "BAD-missing",
+  "executor": "codex-os",
+  "repeat": 1,
+  "model": "deepseek-flash",
+  "startedAt": "2026-10-09T06:22:57.915Z",
+  "wallSec": 1360.424,
+  "timeoutSec": 1500,
+  "balanceBefore": 18.39,
+  "balanceAfter": 16.61,
+  "balanceDeltaCny": 1.78,
+  "exitCode": 0,
+  "timedOut": false,
+  "turns": 7,
+  "toolCalls": 35,
+  "toolNames": {
+    "command_execution": 28,
+    "file_change": 7
+  },
+  "askAttempts": 0,
+  "filesRead": 0,
+  "stopReason": "success",
+  "finalText": "Implementation complete and verified.\n\n## OpenSpec change: `apply-coupon-to-order`\n\nPlanning artifacts (schema `spec-driven`, all valid with `--strict`):\n\n- [proposal.md](/work/openspec/changes/apply-coupon-to-order/proposal.md) — why/what, new capability `order-coupon-application`\n- [spec.md](/work/openspec/changes/apply-coupon-to-order/specs/order-coupon-application/spec.md) — 15 requirements / 26 scenarios covering every REQ and AC, including the error-precedence contract\n- [design.md](/work/openspec/changes/apply-coupon-to-order/design.md) — layering, single-transaction repository, clock handling, discount math\n- [tasks.md](/work/openspec/changes/apply-coupon-to-order/tasks.md) — 10 tracked tasks, all `[x]` (CLI reports `all_done`)\n\nI used the `openspec-propose` and `openspec-apply-change` skills for the full workflow.\n\n## Implementation\n\n- [couponRedemptionRepository.ts](/work/src/repositories/couponRedemptionRepository.ts) — one `apply(...)` call runs `BEGIN IMMEDIATE` → order update → redemption insert → `used_count + 1` → `COMMIT`, with `ROLLBACK` on any failure.\n- [orderService.ts](/work/src/services/orderService.ts) — `applyCoupon(id, couponCode)`: trim/upper-case, then checks in TASK.md §6 order, single clock reading, FIXED / PERCENT (floored) discounts, `maxDiscountCents` cap, `finalAmountCents`, then re-reads the order so the response matches `GET /orders/:id` exactly.\n- [orders.ts](/work/src/routes/orders.ts) — `POST /orders/:id/apply-coupon`, route only parses `id` and forwards the raw body field.\n- [app.ts](/work/src/app.ts) — wires the new repository into `OrderService`.\n- [apply-coupon.test.ts](/work/tests/apply-coupon.test.ts) — 29 tests: repository transaction + rollback, all ten error codes with statuses, four precedence cases, AC-01/02/03/05/06/08/09/10, and no-write-on-rejection.\n\n`npm run build` passes; `npm test` passes 34/34 (5 existing + 29 new). `TASK.md` and `tests/orders.test.ts` are untouched.\n\nOne deliberate reading worth flagging: the spec defines no floor at zero and the schema does not constrain `final_amount_cents`, so a `FIXED` coupon larger than the order total yields a negative final amount rather than being clamped. It's recorded in design.md (Decision 7) — say the word if you'd rather clamp, and that becomes a spec change. Archiving is left as the post-review follow-up step since you asked me to stop at implementation.",
+  "tokens": {
+    "input": 27413,
+    "cacheRead": 1414141,
+    "cacheCreate": 0,
+    "output": 20108
+  },
+  "tokensSource": "final",
+  "costCny": 0.2723,
+  "costCnyPeak": 0.2723
+}

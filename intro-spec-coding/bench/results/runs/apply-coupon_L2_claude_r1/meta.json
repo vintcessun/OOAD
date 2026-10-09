@@ -1,0 +1,35 @@
+{
+  "runId": "apply-coupon_L2_claude_r1",
+  "task": "apply-coupon",
+  "spec": "L2",
+  "executor": "claude",
+  "repeat": 1,
+  "model": "deepseek-flash",
+  "startedAt": "2026-10-09T04:00:31.073Z",
+  "wallSec": 83.142,
+  "balanceBefore": 25.29,
+  "balanceAfter": 25.25,
+  "balanceDeltaCny": 0.04,
+  "exitCode": 0,
+  "timedOut": false,
+  "turns": 55,
+  "toolCalls": 31,
+  "toolNames": {
+    "Read": 17,
+    "Bash": 7,
+    "Edit": 7
+  },
+  "askAttempts": 0,
+  "filesRead": 17,
+  "stopReason": "success",
+  "finalText": "Implemented `POST /orders/:id/apply-coupon` following the existing layering.\n\n**Changes**\n\n- `src/routes/orders.ts` — new route calling `orders.applyCoupon(parseId(p.id), b.couponCode)`, returns 200.\n- `src/services/orderService.ts` — `applyCoupon(id, couponCode)` enforces all rules in order:\n  - order exists (404 `ORDER_NOT_FOUND` via existing `get`)\n  - `couponCode` present (400 `INVALID_REQUEST`)\n  - coupon exists (400 `COUPON_NOT_FOUND`)\n  - status is `ACTIVE` (400 `COUPON_NOT_ACTIVE`)\n  - `validFrom <= now <= validUntil` using the injected `Clock` (400 `COUPON_EXPIRED`)\n  - `order.amountCents >= minAmountCents` (400 `COUPON_MIN_AMOUNT_NOT_MET`)\n  - usage limit respected (400 `COUPON_USAGE_LIMIT_REACHED`)\n  - FIXED subtracts `value`; PERCENT applies `round(amount * value / 100)`, capped by `maxDiscountCents` and never exceeding the order amount\n- `src/repositories/orderRepository.ts` — `applyCoupon` writes `discount_cents`, `final_amount_cents`, `coupon_code`.\n- `src/repositories/couponRepository.ts` — `incrementUsed` and `recordRedemption` (uses the existing `coupon_redemptions` table).\n- `src/app.ts` — passes the coupon repo into `OrderService`.\n\n**Verification** — `npm run build` (tsc) clean; `npm test` 5/5 pass. I also ran a temporary scratch suite (since removed) covering valid FIXED/PERCENT, cap, below-min, unknown, disabled, expired, not-yet-valid, missing code, unknown order, and the \"discount never exceeds order amount\" edge — all passed.\n\nOne judgment call: per the acceptance criterion \"invalid coupon returns 400\", a non-existent coupon returns **400** (`COUPON_NOT_FOUND`) here, rather than 404 as `GET /coupons/:code` does. Let me know if you'd prefer 404 for the missing-coupon case.",
+  "tokens": {
+    "input": 26018,
+    "cacheRead": 385792,
+    "cacheCreate": 0,
+    "output": 9490
+  },
+  "costCny": 0.0717,
+  "tokensSource": "final",
+  "costCnyPeak": 0.1434
+}

@@ -1,0 +1,21 @@
+{
+  "_rule": "人工判读（见 specs/apply-coupon/DEFECTS.md 与 results/bad-spec-evidence.md）。只有明确说出「规格没有规定 / 规格自相矛盾」并指向具体条款才算发现；只做了选择却没说规格有问题，算静默。",
+  "apply-coupon_BAD-ambiguous_claude_r1": { "detected": "1/2", "note": "指出「大额订单适当上限」没有数值；取整方式未提，按 floor 实现（碰巧与隐藏测试一致）" },
+  "apply-coupon_BAD-ambiguous_codex_r1": { "detected": "1/2", "note": "指出上限没有数值；取整方式未提，按 floor 实现" },
+  "apply-coupon_BAD-ambiguous_opencode_r1": { "detected": "0/2", "note": "两处都未提，按 Math.round 实现" },
+  "apply-coupon_BAD-ambiguous_claude-os_r1": { "detected": "0/2", "note": "design.md 把取整列为风险，但称「规格已明确规定」；上限未提" },
+  "apply-coupon_BAD-ambiguous_codex-os_r1": { "detected": "2/2", "note": "design.md Risks 写明「取整方向未规定」与「上限按 maxDiscountCents 解读」，最终输出也列为两处判断" },
+  "apply-coupon_BAD-ambiguous_opencode-os_r1": { "detected": "1/2", "note": "design.md 把取整选择列为风险（承认是解读）；上限未提" },
+  "apply-coupon_BAD-missing_claude_r1": { "detected": "1/1", "note": "指出规格没有把折扣限制在订单金额以内，按字面实现，最终金额可为负" },
+  "apply-coupon_BAD-missing_codex_r1": { "detected": "0/1", "note": "未提；按字面实现，折扣没有截断到订单金额（隐藏测试 B01 失败）" },
+  "apply-coupon_BAD-missing_opencode_r1": { "detected": "0/1", "note": "未提；按字面实现，折扣没有截断到订单金额（隐藏测试 B01 失败）" },
+  "apply-coupon_BAD-missing_claude-os_r1": { "detected": "0/1", "note": "未提；按字面实现，折扣没有截断到订单金额（隐藏测试 B01 失败）" },
+  "apply-coupon_BAD-missing_codex-os_r1": { "detected": "1/1", "note": "最终输出与 design.md Risks 都写明「规格没有下限 0」，并说明故意保持可见而不是悄悄修正" },
+  "apply-coupon_BAD-missing_opencode-os_r1": { "detected": "0/1", "note": "未提，Open Questions 写「None」；折扣没有截断到订单金额（B01 失败）" },
+  "apply-coupon_BAD-conflict_claude_r1": { "detected": "2/2", "note": "两处冲突都指出；按验收示例实现（换券、不设 100 元总上限），只写在最终输出里" },
+  "apply-coupon_BAD-conflict_codex_r1": { "detected": "2/2", "note": "同上，按验收示例实现，只写在最终输出里" },
+  "apply-coupon_BAD-conflict_opencode_r1": { "detected": "2/2", "note": "同上，按验收示例实现，只写在最终输出里" },
+  "apply-coupon_BAD-conflict_claude-os_r1": { "detected": "2/2", "note": "按 MUST 条款实现（拒绝第二张券、100 元总上限），冲突记录写进 proposal.md 与 design.md" },
+  "apply-coupon_BAD-conflict_codex-os_r1": { "detected": "2/2", "note": "按验收示例实现，冲突与「一行即可改回」写进 design.md" },
+  "apply-coupon_BAD-conflict_opencode-os_r1": { "detected": "2/2", "note": "按 MUST 条款与错误码表实现，冲突写进 design.md" }
+}

@@ -1,0 +1,35 @@
+{
+  "runId": "apply-coupon_L1_codex_r3",
+  "task": "apply-coupon",
+  "spec": "L1",
+  "executor": "codex",
+  "repeat": 3,
+  "model": "deepseek-flash",
+  "startedAt": "2026-10-09T06:18:16.202Z",
+  "wallSec": 508.753,
+  "timeoutSec": 1500,
+  "balanceBefore": 19.21,
+  "balanceAfter": 18.08,
+  "balanceDeltaCny": 1.13,
+  "exitCode": 0,
+  "timedOut": false,
+  "turns": 7,
+  "toolCalls": 18,
+  "toolNames": {
+    "command_execution": 12,
+    "file_change": 6
+  },
+  "askAttempts": 0,
+  "filesRead": 0,
+  "stopReason": "success",
+  "finalText": "Implemented `POST /orders/:id/apply-coupon`.\n\nWhat it does:\n\n- `src/routes/orders.ts` registers the route and passes `body.couponCode` to the service.\n- `src/services/orderService.ts` holds the rules: the order must exist and be `PENDING`, `couponCode` must be a non-empty string, the coupon must exist, be `ACTIVE`, be inside its `validFrom`/`validUntil` window, meet the order's `minAmountCents`, and be under its `usageLimit`. Discounts are `FIXED` value or `floor(amount * value / 100)` for `PERCENT`, capped by `maxDiscountCents` and never above the order amount, so `finalAmountCents` stays ≥ 0. Time comes from the injected `Clock`.\n- Repositories own the SQL: `OrderRepository.applyCoupon` writes `discount_cents`/`final_amount_cents`/`coupon_code`, and `CouponRepository.redeem` inserts the `coupon_redemptions` row and bumps `used_count` inside one transaction.\n\nErrors follow the existing convention (`UPPER_SNAKE` codes via `AppError`): `INVALID_REQUEST` (400), `ORDER_NOT_FOUND`/`COUPON_NOT_FOUND` (404), and `ORDER_NOT_PENDING`, `COUPON_ALREADY_APPLIED`, `COUPON_DISABLED`, `COUPON_NOT_YET_VALID`, `COUPON_EXPIRED`, `COUPON_MIN_AMOUNT_NOT_MET`, `COUPON_USAGE_LIMIT_REACHED` (409).\n\nTwo choices worth flagging, since TASK.md didn't specify them: one coupon per order (re-applying returns 409 rather than replacing), and percent discounts round down. Both are easy to change if you want different semantics.\n\nVerification: `npm run build` type-checks clean and `npm test` passes 16 tests — the 5 existing ones plus 11 new cases in [applyCoupon.test.ts](/work/tests/applyCoupon.test.ts) covering fixed/percent math, the cap and amount clamp, min amount, expiry windows, disabled coupons, usage limits, unknown ids/codes, and the already-applied/non-pending refusals.",
+  "tokens": {
+    "input": 9931,
+    "cacheRead": 340480,
+    "cacheCreate": 0,
+    "output": 11940
+  },
+  "tokensSource": "final",
+  "costCny": 0.129,
+  "costCnyPeak": 0.129
+}

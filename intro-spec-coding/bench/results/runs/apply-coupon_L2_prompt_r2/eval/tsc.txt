@@ -1,0 +1,1 @@
+src/app.ts(36,2): error TS1110: Type expected.

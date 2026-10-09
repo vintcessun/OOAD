@@ -1,0 +1,213 @@
+diff --git a/src/app.ts b/src/app.ts
+index 0157a6d..021b00f 100755
+--- a/src/app.ts
++++ b/src/app.ts
+@@ -2,6 +2,7 @@ import { systemClock, type Clock } from "./clock.ts";
+ import { openDb, type Db } from "./db.ts";
+ import { CouponRepository } from "./repositories/couponRepository.ts";
+ import { OrderRepository } from "./repositories/orderRepository.ts";
++import { RedemptionRepository } from "./repositories/redemptionRepository.ts";
+ import { Router, type HttpResponse } from "./router.ts";
+ import { registerCouponRoutes } from "./routes/coupons.ts";
+ import { registerOrderRoutes } from "./routes/orders.ts";
+@@ -26,7 +27,8 @@ export function createApp(options: AppOptions = {}): App {
+ 
+   const orderRepo = new OrderRepository(db);
+   const couponRepo = new CouponRepository(db);
+-  registerOrderRoutes(router, new OrderService(orderRepo, clock));
++  const redemptionRepo = new RedemptionRepository(db);
++  registerOrderRoutes(router, new OrderService(orderRepo, couponRepo, redemptionRepo, clock));
+   registerCouponRoutes(router, new CouponService(couponRepo));
+ 
+   return { db, request: (method, path, body) => router.handle(method, path, body) };
+diff --git a/src/repositories/couponRepository.ts b/src/repositories/couponRepository.ts
+index 094341d..27d3b50 100755
+--- a/src/repositories/couponRepository.ts
++++ b/src/repositories/couponRepository.ts
+@@ -57,4 +57,8 @@ export class CouponRepository {
+     const row = this.db.prepare("SELECT * FROM coupons WHERE code = ?").get(code) as CouponRow | undefined;
+     return row && toCoupon(row);
+   }
++
++  incrementUsedCount(code: string): void {
++    this.db.prepare("UPDATE coupons SET used_count = used_count + 1 WHERE code = ?").run(code);
++  }
+ }
+diff --git a/src/repositories/orderRepository.ts b/src/repositories/orderRepository.ts
+index 8fc45d5..72aa22c 100755
+--- a/src/repositories/orderRepository.ts
++++ b/src/repositories/orderRepository.ts
+@@ -57,4 +57,11 @@ export class OrderRepository {
+   updateStatus(id: number, status: Order["status"]): void {
+     this.db.prepare("UPDATE orders SET status = ? WHERE id = ?").run(status, id);
+   }
++
++  /** Records the coupon applied to an order and the resulting amounts. */
++  applyCoupon(id: number, discountCents: number, finalAmountCents: number, couponCode: string): void {
++    this.db
++      .prepare("UPDATE orders SET discount_cents = ?, final_amount_cents = ?, coupon_code = ? WHERE id = ?")
++      .run(discountCents, finalAmountCents, couponCode, id);
++  }
+ }
+diff --git a/src/repositories/redemptionRepository.ts b/src/repositories/redemptionRepository.ts
+new file mode 100644
+index 0000000..f73f9dd
+--- /dev/null
++++ b/src/repositories/redemptionRepository.ts
+@@ -0,0 +1,53 @@
++import type { Db } from "../db.ts";
++
++export interface Redemption {
++  id: number;
++  orderId: number;
++  couponCode: string;
++  discountCents: number;
++  createdAt: string;
++}
++
++interface RedemptionRow {
++  id: number;
++  order_id: number;
++  coupon_code: string;
++  discount_cents: number;
++  created_at: string;
++}
++
++const toRedemption = (r: RedemptionRow): Redemption => ({
++  id: r.id,
++  orderId: r.order_id,
++  couponCode: r.coupon_code,
++  discountCents: r.discount_cents,
++  createdAt: r.created_at,
++});
++
++/** Audit trail of coupon redemptions (coupon_redemptions table). */
++export class RedemptionRepository {
++  constructor(private readonly db: Db) {}
++
++  insert(orderId: number, couponCode: string, discountCents: number, createdAt: string): Redemption {
++    const res = this.db
++      .prepare(
++        `INSERT INTO coupon_redemptions (order_id, coupon_code, discount_cents, created_at)
++         VALUES (?, ?, ?, ?)`,
++      )
++      .run(orderId, couponCode, discountCents, createdAt);
++    return this.findById(Number(res.lastInsertRowid))!;
++  }
++
++  findById(id: number): Redemption | undefined {
++    const row = this.db.prepare("SELECT * FROM coupon_redemptions WHERE id = ?").get(id) as
++      | RedemptionRow
++      | undefined;
++    return row && toRedemption(row);
++  }
++
++  listByOrder(orderId: number): Redemption[] {
++    return (
++      this.db.prepare("SELECT * FROM coupon_redemptions WHERE order_id = ? ORDER BY id").all(orderId) as unknown as RedemptionRow[]
++    ).map(toRedemption);
++  }
++}
+diff --git a/src/routes/orders.ts b/src/routes/orders.ts
+index 2ddfedd..76cf0b0 100755
+--- a/src/routes/orders.ts
++++ b/src/routes/orders.ts
+@@ -8,4 +8,8 @@ export function registerOrderRoutes(router: Router, orders: OrderService): void
+   router.add("GET", "/orders/:id", (p) => ({ status: 200, body: orders.get(parseId(p.id)) }));
+   router.add("POST", "/orders/:id/pay", (p) => ({ status: 200, body: orders.pay(parseId(p.id)) }));
+   router.add("POST", "/orders/:id/cancel", (p) => ({ status: 200, body: orders.cancel(parseId(p.id)) }));
++  router.add("POST", "/orders/:id/apply-coupon", (p, b) => ({
++    status: 200,
++    body: orders.applyCoupon(parseId(p.id), b.couponCode),
++  }));
+ }
+diff --git a/src/services/couponService.ts b/src/services/couponService.ts
+index e39f586..599af33 100755
+--- a/src/services/couponService.ts
++++ b/src/services/couponService.ts
+@@ -1,7 +1,7 @@
+ import { badRequest, conflict, notFound } from "../errors.ts";
+ import type { Coupon, CouponRepository } from "../repositories/couponRepository.ts";
+ 
+-/** Coupon administration (create / look up). Applying coupons to orders is not implemented yet. */
++/** Coupon administration (create / look up). Applying coupons to orders lives in OrderService. */
+ export class CouponService {
+   constructor(private readonly coupons: CouponRepository) {}
+ 
+diff --git a/src/services/orderService.ts b/src/services/orderService.ts
+index 63b29b4..b765fb8 100755
+--- a/src/services/orderService.ts
++++ b/src/services/orderService.ts
+@@ -1,10 +1,24 @@
+ import type { Clock } from "../clock.ts";
+ import { badRequest, conflict, notFound } from "../errors.ts";
++import type { Coupon, CouponRepository } from "../repositories/couponRepository.ts";
+ import type { Order, OrderRepository } from "../repositories/orderRepository.ts";
++import type { RedemptionRepository } from "../repositories/redemptionRepository.ts";
++
++/**
++ * Discount in cents for an order, before capping to the order amount.
++ * PERCENT rounds down so an order is never discounted by more than the stated share.
++ */
++function computeDiscount(amountCents: number, coupon: Coupon): number {
++  const raw = coupon.type === "PERCENT" ? Math.floor((amountCents * coupon.value) / 100) : coupon.value;
++  const capped = coupon.maxDiscountCents === null ? raw : Math.min(raw, coupon.maxDiscountCents);
++  return Math.min(capped, amountCents);
++}
+ 
+ export class OrderService {
+   constructor(
+     private readonly orders: OrderRepository,
++    private readonly coupons: CouponRepository,
++    private readonly redemptions: RedemptionRepository,
+     private readonly clock: Clock,
+   ) {}
+ 
+@@ -41,4 +55,47 @@ export class OrderService {
+     this.orders.updateStatus(id, "CANCELLED");
+     return this.get(id);
+   }
++
++  /** Applies a coupon to a pending order and returns the updated order. */
++  applyCoupon(id: number, couponCode: unknown): Order {
++    if (typeof couponCode !== "string" || couponCode.trim() === "") {
++      throw badRequest("INVALID_REQUEST", "couponCode is required");
++    }
++    const code = couponCode.trim();
++    const order = this.get(id);
++
++    if (order.couponCode !== null) {
++      throw conflict("COUPON_ALREADY_APPLIED", `order ${id} already has coupon ${order.couponCode}`);
++    }
++    if (order.status !== "PENDING") {
++      throw conflict("ORDER_NOT_PENDING", `order ${id} is ${order.status}`);
++    }
++
++    const coupon = this.coupons.findByCode(code);
++    if (!coupon) throw notFound("COUPON_NOT_FOUND", `coupon ${code} not found`);
++    if (coupon.status !== "ACTIVE") throw conflict("COUPON_DISABLED", `coupon ${code} is disabled`);
++
++    const now = this.clock();
++    if (now.getTime() < Date.parse(coupon.validFrom)) {
++      throw conflict("COUPON_NOT_YET_VALID", `coupon ${code} is not valid yet`);
++    }
++    if (now.getTime() > Date.parse(coupon.validUntil)) {
++      throw conflict("COUPON_EXPIRED", `coupon ${code} has expired`);
++    }
++    if (order.amountCents < coupon.minAmountCents) {
++      throw conflict(
++        "COUPON_MIN_AMOUNT_NOT_MET",
++        `order amount ${order.amountCents} is below coupon minimum ${coupon.minAmountCents}`,
++      );
++    }
++    if (coupon.usageLimit !== null && coupon.usedCount >= coupon.usageLimit) {
++      throw conflict("COUPON_USAGE_LIMIT_REACHED", `coupon ${code} has reached its usage limit`);
++    }
++
++    const discountCents = computeDiscount(order.amountCents, coupon);
++    this.orders.applyCoupon(id, discountCents, order.amountCents - discountCents, code);
++    this.redemptions.insert(id, code, discountCents, now.toISOString());
++    this.coupons.incrementUsedCount(code);
++    return this.get(id);
++  }
+ }

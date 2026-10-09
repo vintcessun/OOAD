@@ -1,0 +1,38 @@
+{
+  "runId": "apply-coupon_L3_opencode-os_r2",
+  "task": "apply-coupon",
+  "spec": "L3",
+  "executor": "opencode-os",
+  "repeat": 2,
+  "model": "deepseek-flash",
+  "startedAt": "2026-10-09T05:04:24.967Z",
+  "wallSec": 915.577,
+  "balanceBefore": 23.55,
+  "balanceAfter": 23.15,
+  "balanceDeltaCny": 0.4,
+  "exitCode": 124,
+  "timedOut": true,
+  "turns": 21,
+  "toolCalls": 34,
+  "toolNames": {
+    "read": 15,
+    "bash": 11,
+    "skill": 2,
+    "todowrite": 1,
+    "write": 4,
+    "edit": 1
+  },
+  "askAttempts": 0,
+  "filesRead": 15,
+  "stopReason": "tool-calls",
+  "finalText": "Planning artifacts complete. Now applying the change.",
+  "tokens": {
+    "input": 24511,
+    "cacheRead": 484608,
+    "cacheCreate": 0,
+    "output": 8886
+  },
+  "tokensSource": "per-step",
+  "costCny": 0.0697,
+  "costCnyPeak": 0.1395
+}

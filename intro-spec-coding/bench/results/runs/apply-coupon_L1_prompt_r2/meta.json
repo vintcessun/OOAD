@@ -1,0 +1,38 @@
+{
+  "runId": "apply-coupon_L1_prompt_r2",
+  "task": "apply-coupon",
+  "spec": "L1",
+  "executor": "prompt",
+  "repeat": 2,
+  "model": "deepseek-flash",
+  "startedAt": "2026-10-09T05:34:48.794Z",
+  "wallSec": 59.481,
+  "timeoutSec": 1500,
+  "balanceBefore": 22.69,
+  "balanceAfter": 22.66,
+  "balanceDeltaCny": 0.03,
+  "exitCode": 0,
+  "turns": 1,
+  "toolCalls": 0,
+  "toolNames": {},
+  "askAttempts": 0,
+  "filesRead": 0,
+  "stopReason": "stop",
+  "finalText": "    const order = this.orders.findById(id);\n    if (!order) throw notFound(\"ORDER_NOT_FOUND\", `order ${id} not found`);\n    return order;\n  }\n\n  list(): Order[] {\n    return this.orders.list();\n  }\n\n  pay(id: number): Order {\n    const order = this.get(id);\n    if (order.status !== \"PENDING\") throw conflict(\"ORDER_NOT_PENDING\", `order ${id} is ${order.status}`);\n    this.orders.updateStatus(id, \"PAID\");\n    return this.get(id);\n  }\n\n  cancel(id: number): Order {\n    const order = this.get(id);\n    if (order.status !== \"PENDING\") throw conflict(\"ORDER_NOT_PENDING\", `order ${id} is ${order.status}`);\n    this.orders.updateStatus(id, \"CANCELLED\");\n    return this.get(id);\n  }\n\n  applyCoupon(id: number, couponCode: unknown): Order {\n    if (typeof couponCode !== \"string\" || couponCode.trim() === \"\") {\n      throw badRequest(\"INVALID_REQUEST\", \"couponCode is required\");\n    }\n    const order = this.get(id);\n    if (order.status !== \"PENDING\") {\n      throw conflict(\"ORDER_NOT_PENDING\", `order ${id} is ${order.status}`);\n    }\n    if (order.couponCode !== null) {\n      throw conflict(\"COUPON_ALREADY_APPLIED\", `order ${id} already has coupon ${order.couponCode}`);\n    }\n\n    const code = couponCode.trim();\n    const now = this.clock();\n    const discountCents = this.coupons.evaluate(code, order.amountCents, now);\n    this.orders.setCoupon(id, code, discountCents, order.amountCents - discountCents);\n    this.coupons.redeem(id, code, discountCents, now);\n    return this.get(id);\n  }\n}",
+  "filesWritten": [
+    "src/app.ts",
+    "src/routes/orders.ts",
+    "src/repositories/orderRepository.ts",
+    "src/repositories/couponRepository.ts",
+    "src/services/couponService.ts",
+    "src/services/orderService.ts"
+  ],
+  "tokens": {
+    "input": 182,
+    "cacheRead": 26880,
+    "cacheCreate": 0,
+    "output": 15136
+  },
+  "costCny": 0.0613,
+  "costCnyPeak": 0.1225
+}

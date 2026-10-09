@@ -1,0 +1,134 @@
+{
+  "runId": "apply-coupon_L3_claude-os_r2",
+  "spec": "L3",
+  "executor": "claude-os",
+  "repeat": 2,
+  "total": 42,
+  "dimensions": {
+    "C": 20.8,
+    "A": 0,
+    "R": 2.1,
+    "Q": 9,
+    "E": 0,
+    "S": 10
+  },
+  "firstPassSuccess": false,
+  "strictSuccess": false,
+  "breakdown": {
+    "C": {
+      "build": 0,
+      "publicTests": 5,
+      "hiddenFunctional": 10.8,
+      "regression": 5
+    },
+    "A": {
+      "requirementCoverage": 0,
+      "specViolation": 0
+    },
+    "R": {
+      "boundary": 1.1,
+      "errorHandling": 0,
+      "stateConsistency": 1
+    },
+    "Q": {
+      "typeCheck": 2,
+      "architectureFit": 3,
+      "maintainability": 2,
+      "testQuality": 2
+    },
+    "E": {
+      "time": 0,
+      "tokens": 0
+    },
+    "S": {
+      "unauthorizedFiles": 4,
+      "unrequestedFeatures": 3,
+      "diffLocality": 3
+    }
+  },
+  "detail": {
+    "tscExit": 2,
+    "tscErrors": 1,
+    "publicPassed": 5,
+    "publicTotal": 5,
+    "hiddenPassed": 14,
+    "hiddenTotal": 41,
+    "hiddenWeightedPassRate": 38.8,
+    "boundaryPassRate": 18.8,
+    "requirementsMet": [],
+    "requirementsTotal": 14,
+    "violations": [
+      [
+        "critical",
+        "REQ-10 MUST NOT: more than one coupon per order"
+      ],
+      [
+        "critical",
+        "REQ-09 MUST NOT: final amount below 0 / discount above amount"
+      ],
+      [
+        "minor",
+        "REQ-03 read the system time instead of the injected Clock"
+      ]
+    ],
+    "worstViolation": "critical",
+    "failedTests": [
+      "H01",
+      "H02",
+      "H03",
+      "H09",
+      "H10",
+      "H13",
+      "H15",
+      "B01",
+      "B02",
+      "B03",
+      "B05",
+      "B06",
+      "B07",
+      "B08",
+      "S01",
+      "S03",
+      "S04",
+      "E01",
+      "E02",
+      "E03",
+      "E04",
+      "E05",
+      "E06",
+      "E07",
+      "E08",
+      "E09",
+      "E10"
+    ],
+    "failureCauses": {
+      "Missing Requirement": 7,
+      "Boundary Error": 7,
+      "State / Consistency": 3,
+      "Error-code mismatch": 10
+    },
+    "filesChanged": [
+      "src/repositories/couponRedemptionRepository.ts",
+      "src/services/couponService.ts",
+      "tests/couponRedemptionRepository.test.ts"
+    ],
+    "processFilesChanged": 5,
+    "unrelatedFiles": [],
+    "extraRoutes": [],
+    "changedCodeLines": 213,
+    "sqlOutsideRepo": false,
+    "logicInRoutes": false,
+    "maxAddedPerFile": 65,
+    "ownTests": 2,
+    "ownTestsPassed": 2,
+    "totalTokens": 1208029,
+    "tokensSource": "per-message (timed out; main loop only)",
+    "timedOut": true,
+    "wallSec": 909.5,
+    "costCny": 0.0734,
+    "costCnyPeak": 0.1468,
+    "turns": 69,
+    "toolCalls": 33,
+    "askAttempts": 0
+  }
+}

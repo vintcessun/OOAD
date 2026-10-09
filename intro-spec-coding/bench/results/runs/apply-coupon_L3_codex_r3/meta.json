@@ -1,0 +1,35 @@
+{
+  "runId": "apply-coupon_L3_codex_r3",
+  "task": "apply-coupon",
+  "spec": "L3",
+  "executor": "codex",
+  "repeat": 3,
+  "model": "deepseek-flash",
+  "startedAt": "2026-10-09T05:41:33.608Z",
+  "wallSec": 301.425,
+  "timeoutSec": 1500,
+  "balanceBefore": 22.47,
+  "balanceAfter": 22.01,
+  "balanceDeltaCny": 0.46,
+  "exitCode": 0,
+  "timedOut": false,
+  "turns": 6,
+  "toolCalls": 15,
+  "toolNames": {
+    "command_execution": 12,
+    "file_change": 3
+  },
+  "askAttempts": 0,
+  "filesRead": 0,
+  "stopReason": "success",
+  "finalText": "`POST /orders/:id/apply-coupon` is implemented, with `npm run build` and `npm test` both green (26 tests passing).\n\nWhat changed:\n\n- **Route** ([orders.ts](/work/src/routes/orders.ts)): registers `POST /orders/:id/apply-coupon`, parses the id, and hands `body.couponCode` to the service — no business rules in the HTTP layer.\n- **Service** ([orderService.ts](/work/src/services/orderService.ts)): owns all validation and math. It normalizes the code (trim + upper-case, then rejects missing/non-string/blank), and evaluates checks in the exact order from §6: order exists → PENDING → not already couponed → coupon exists → ACTIVE → `validFrom <= now < validUntil` → usage limit → minimum amount. Discount is FIXED value or `floor(amount * value / 100)`, capped by `maxDiscountCents` when set, then clamped to the order amount. `now` comes from the injected `Clock`.\n- **Repository** ([redemptionRepository.ts](/work/src/repositories/redemptionRepository.ts)): performs the REQ-12 write in one transaction — update order (`discount_cents`, `final_amount_cents`, upper-cased `coupon_code`), insert the `coupon_redemptions` row with `created_at = now`, and bump `coupons.used_count`; any error rolls back.\n- **Wiring** ([app.ts](/work/src/app.ts)): constructs the redemption repository and injects it into `OrderService`.\n- **Tests** ([apply-coupon.test.ts](/work/tests/apply-coupon.test.ts)): 21 new cases covering AC-01 through AC-10 (discount math, boundaries at `validFrom`/`validUntil`, one-coupon-per-order with an unchanged order, `usedCount` bump + redemption row, `\" save20 \"` matching) plus every rejection code and a no-side-effects check on failure.\n\nThe success response returns the re-read order, so it is byte-for-byte identical to `GET /orders/:id`. TASK.md and the existing tests were left untouched.",
+  "tokens": {
+    "input": 10241,
+    "cacheRead": 218880,
+    "cacheCreate": 0,
+    "output": 12368
+  },
+  "tokensSource": "final",
+  "costCny": 0.0641,
+  "costCnyPeak": 0.1282
+}

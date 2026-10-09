@@ -1,0 +1,37 @@
+{
+  "runId": "apply-coupon_L2_claude_r3",
+  "task": "apply-coupon",
+  "spec": "L2",
+  "executor": "claude",
+  "repeat": 3,
+  "model": "deepseek-flash",
+  "startedAt": "2026-10-09T05:57:03.448Z",
+  "wallSec": 568.508,
+  "timeoutSec": 1500,
+  "balanceBefore": 21.33,
+  "balanceAfter": 20.62,
+  "balanceDeltaCny": 0.71,
+  "exitCode": 0,
+  "timedOut": false,
+  "turns": 47,
+  "toolCalls": 28,
+  "toolNames": {
+    "Read": 14,
+    "Bash": 5,
+    "Edit": 8,
+    "Write": 1
+  },
+  "askAttempts": 0,
+  "filesRead": 14,
+  "stopReason": "success",
+  "tokensSource": "final",
+  "finalText": "Implemented `POST /orders/:id/apply-coupon`. Build and tests pass; TASK.md and the benchmark tests are untouched.\n\n**How it works**\n\n- `src/routes/orders.ts:11` — new route parses the id, passes `body.couponCode` to the service, returns 200.\n- `src/services/orderService.ts` — `applyCoupon(id, couponCode)` loads the order (404 `ORDER_NOT_FOUND` if missing), validates the coupon via `CouponService`, computes the discount from the order's amount, persists it, records a redemption, and returns the updated order.\n- `src/services/couponService.ts` — coupon rules, throwing `AppError(400, …)`:\n  - `resolveForOrder` — couponCode required → `INVALID_REQUEST`; must exist → `COUPON_NOT_FOUND`; must be `ACTIVE` → `COUPON_NOT_ACTIVE`; must be inside `[validFrom, validUntil]` → `COUPON_NOT_YET_VALID` / `COUPON_EXPIRED` (using the injected `Clock`); `amountCents >= minAmountCents` → `COUPON_MIN_AMOUNT`; usage limit respected → `COUPON_USAGE_LIMIT`.\n  - `discountFor` — FIXED subtracts `value`; PERCENT is `round(amount * value / 100)`; capped by `maxDiscountCents` and never exceeding the order amount.\n  - `redeem` — inserts into `coupon_redemptions` and bumps `used_count`.\n- Repositories gained the SQL: `OrderRepository.applyCoupon` and `CouponRepository.incrementUsedCount` / `insertRedemption`.\n- `src/app.ts` wiring updated to share one `CouponService` between the order and coupon routes.\n\n**Acceptance criteria:** valid coupon → 200; invalid (missing/disabled/not-yet-valid/below-minimum/over-limit) → 400; expired → 400 and no redemption written. I verified each case plus FIXED/PERCENT math, the max-discount cap, zero-floor, usage limits and 404 for unknown orders with a temporary test file, which passed and was then deleted.",
+  "tokens": {
+    "input": 24429,
+    "cacheRead": 354176,
+    "cacheCreate": 0,
+    "output": 9919
+  },
+  "costCny": 0.0712,
+  "costCnyPeak": 0.1424
+}

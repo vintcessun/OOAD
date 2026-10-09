@@ -1,0 +1,405 @@
+diff --git a/src/app.ts b/src/app.ts
+index 0157a6d..021b00f 100755
+--- a/src/app.ts
++++ b/src/app.ts
+@@ -2,6 +2,7 @@ import { systemClock, type Clock } from "./clock.ts";
+ import { openDb, type Db } from "./db.ts";
+ import { CouponRepository } from "./repositories/couponRepository.ts";
+ import { OrderRepository } from "./repositories/orderRepository.ts";
++import { RedemptionRepository } from "./repositories/redemptionRepository.ts";
+ import { Router, type HttpResponse } from "./router.ts";
+ import { registerCouponRoutes } from "./routes/coupons.ts";
+ import { registerOrderRoutes } from "./routes/orders.ts";
+@@ -26,7 +27,8 @@ export function createApp(options: AppOptions = {}): App {
+ 
+   const orderRepo = new OrderRepository(db);
+   const couponRepo = new CouponRepository(db);
+-  registerOrderRoutes(router, new OrderService(orderRepo, clock));
++  const redemptionRepo = new RedemptionRepository(db);
++  registerOrderRoutes(router, new OrderService(orderRepo, couponRepo, redemptionRepo, clock));
+   registerCouponRoutes(router, new CouponService(couponRepo));
+ 
+   return { db, request: (method, path, body) => router.handle(method, path, body) };
+diff --git a/src/repositories/redemptionRepository.ts b/src/repositories/redemptionRepository.ts
+new file mode 100644
+index 0000000..856d595
+--- /dev/null
++++ b/src/repositories/redemptionRepository.ts
+@@ -0,0 +1,36 @@
++import type { Db } from "../db.ts";
++
++export interface ApplyCouponInput {
++  orderId: number;
++  couponCode: string;
++  discountCents: number;
++  finalAmountCents: number;
++  createdAt: string;
++}
++
++/**
++ * Writes for applying a coupon to an order. All three statements run in one
++ * transaction so a coupon can never be half-applied (REQ-12).
++ */
++export class RedemptionRepository {
++  constructor(private readonly db: Db) {}
++
++  apply(input: ApplyCouponInput): void {
++    this.db.exec("BEGIN");
++    try {
++      this.db
++        .prepare("UPDATE orders SET discount_cents = ?, final_amount_cents = ?, coupon_code = ? WHERE id = ?")
++        .run(input.discountCents, input.finalAmountCents, input.couponCode, input.orderId);
++      this.db
++        .prepare(
++          "INSERT INTO coupon_redemptions (order_id, coupon_code, discount_cents, created_at) VALUES (?, ?, ?, ?)",
++        )
++        .run(input.orderId, input.couponCode, input.discountCents, input.createdAt);
++      this.db.prepare("UPDATE coupons SET used_count = used_count + 1 WHERE code = ?").run(input.couponCode);
++      this.db.exec("COMMIT");
++    } catch (error) {
++      this.db.exec("ROLLBACK");
++      throw error;
++    }
++  }
++}
+diff --git a/src/routes/orders.ts b/src/routes/orders.ts
+index 2ddfedd..8c75523 100755
+--- a/src/routes/orders.ts
++++ b/src/routes/orders.ts
+@@ -6,6 +6,7 @@ export function registerOrderRoutes(router: Router, orders: OrderService): void
+   router.add("POST", "/orders", (_, b) => ({ status: 201, body: orders.create(b.customer, b.amountCents) }));
+   router.add("GET", "/orders", () => ({ status: 200, body: orders.list() }));
+   router.add("GET", "/orders/:id", (p) => ({ status: 200, body: orders.get(parseId(p.id)) }));
++  router.add("POST", "/orders/:id/apply-coupon", (p, b) => ({ status: 200, body: orders.applyCoupon(parseId(p.id), b) }));
+   router.add("POST", "/orders/:id/pay", (p) => ({ status: 200, body: orders.pay(parseId(p.id)) }));
+   router.add("POST", "/orders/:id/cancel", (p) => ({ status: 200, body: orders.cancel(parseId(p.id)) }));
+ }
+diff --git a/src/services/orderService.ts b/src/services/orderService.ts
+index 63b29b4..45a4ed5 100755
+--- a/src/services/orderService.ts
++++ b/src/services/orderService.ts
+@@ -1,10 +1,14 @@
+ import type { Clock } from "../clock.ts";
+ import { badRequest, conflict, notFound } from "../errors.ts";
++import type { Coupon, CouponRepository } from "../repositories/couponRepository.ts";
+ import type { Order, OrderRepository } from "../repositories/orderRepository.ts";
++import type { RedemptionRepository } from "../repositories/redemptionRepository.ts";
+ 
+ export class OrderService {
+   constructor(
+     private readonly orders: OrderRepository,
++    private readonly coupons: CouponRepository,
++    private readonly redemptions: RedemptionRepository,
+     private readonly clock: Clock,
+   ) {}
+ 
+@@ -41,4 +45,59 @@ export class OrderService {
+     this.orders.updateStatus(id, "CANCELLED");
+     return this.get(id);
+   }
++
++  /** Applies a coupon to a pending order, lowering its amount due (REQ-01 .. REQ-14). */
++  applyCoupon(id: number, body: unknown): Order {
++    const couponCode = this.normalizeCode(body);
++
++    const order = this.orders.findById(id);
++    if (!order) throw notFound("ORDER_NOT_FOUND", `order ${id} not found`);
++    if (order.status !== "PENDING") throw conflict("ORDER_NOT_PENDING", `order ${id} is ${order.status}`);
++    if (order.couponCode !== null) {
++      throw conflict("COUPON_ALREADY_APPLIED", `order ${id} already used coupon ${order.couponCode}`);
++    }
++
++    const coupon = this.coupons.findByCode(couponCode);
++    if (!coupon) throw notFound("COUPON_NOT_FOUND", `coupon ${couponCode} not found`);
++    if (coupon.status !== "ACTIVE") throw badRequest("COUPON_INACTIVE", `coupon ${couponCode} is ${coupon.status}`);
++
++    const now = this.clock();
++    if (now.getTime() < Date.parse(coupon.validFrom)) {
++      throw badRequest("COUPON_NOT_YET_VALID", `coupon ${couponCode} is not yet valid`);
++    }
++    if (now.getTime() >= Date.parse(coupon.validUntil)) {
++      throw badRequest("COUPON_EXPIRED", `coupon ${couponCode} has expired`);
++    }
++    if (coupon.usageLimit !== null && coupon.usedCount >= coupon.usageLimit) {
++      throw badRequest("COUPON_USAGE_EXHAUSTED", `coupon ${couponCode} is exhausted`);
++    }
++    if (order.amountCents < coupon.minAmountCents) {
++      throw badRequest("MINIMUM_NOT_MET", `order ${id} is below coupon minimum`);
++    }
++
++    const discount = this.discountFor(order.amountCents, coupon);
++    const finalAmountCents = order.amountCents - discount;
++    this.redemptions.apply({
++      orderId: id,
++      couponCode: coupon.code,
++      discountCents: discount,
++      finalAmountCents,
++      createdAt: now.toISOString(),
++    });
++    return this.get(id);
++  }
++
++  private normalizeCode(body: unknown): string {
++    const raw = (body as { couponCode?: unknown } | null | undefined)?.couponCode;
++    if (typeof raw !== "string" || raw.trim() === "") {
++      throw badRequest("INVALID_REQUEST", "couponCode is required");
++    }
++    return raw.trim().toUpperCase();
++  }
++
++  private discountFor(amountCents: number, coupon: Coupon): number {
++    const raw = coupon.type === "PERCENT" ? Math.floor((amountCents * coupon.value) / 100) : coupon.value;
++    const capped = coupon.maxDiscountCents === null ? raw : Math.min(raw, coupon.maxDiscountCents);
++    return Math.max(0, Math.min(capped, amountCents));
++  }
+ }
+diff --git a/tests/applyCoupon.test.ts b/tests/applyCoupon.test.ts
+new file mode 100644
+index 0000000..6081480
+--- /dev/null
++++ b/tests/applyCoupon.test.ts
+@@ -0,0 +1,244 @@
++import { describe, expect, it } from "vitest";
++import { createApp, type App } from "../src/app.ts";
++
++const NOW = "2026-10-01T08:00:00Z";
++const fixedClock = () => new Date(NOW);
++
++function setup(): App {
++  return createApp({ clock: fixedClock });
++}
++
++function createOrder(app: App, amountCents: number): number {
++  const res = app.request("POST", "/orders", { customer: "alice", amountCents });
++  expect(res.status).toBe(201);
++  return (res.body as { id: number }).id;
++}
++
++function createCoupon(app: App, overrides: Record<string, unknown> = {}): void {
++  const res = app.request("POST", "/coupons", {
++    code: "SAVE20",
++    type: "PERCENT",
++    value: 20,
++    validFrom: "2026-01-01T00:00:00Z",
++    validUntil: "2027-01-01T00:00:00Z",
++    ...overrides,
++  });
++  expect(res.status).toBe(201);
++}
++
++function redemptionCount(app: App, code: string): number {
++  const row = app.db.prepare("SELECT COUNT(*) AS n FROM coupon_redemptions WHERE coupon_code = ?").get(code) as {
++    n: number;
++  };
++  return row.n;
++}
++
++function errorCode(body: unknown): string {
++  return (body as { error: { code: string } }).error.code;
++}
++
++describe("apply coupon - discount math", () => {
++  it("AC-01 percent: 20% of 10000 is 2000", () => {
++    const app = setup();
++    const id = createOrder(app, 10000);
++    createCoupon(app);
++    const res = app.request("POST", `/orders/${id}/apply-coupon`, { couponCode: "SAVE20" });
++    expect(res.status).toBe(200);
++    expect(res.body).toMatchObject({ discountCents: 2000, finalAmountCents: 8000 });
++  });
++
++  it("AC-02 fixed: 1500 off 10000", () => {
++    const app = setup();
++    const id = createOrder(app, 10000);
++    createCoupon(app, { type: "FIXED", value: 1500 });
++    const res = app.request("POST", `/orders/${id}/apply-coupon`, { couponCode: "SAVE20" });
++    expect(res.body).toMatchObject({ discountCents: 1500, finalAmountCents: 8500 });
++  });
++
++  it("AC-03 percent is capped by maxDiscountCents", () => {
++    const app = setup();
++    const id = createOrder(app, 100000);
++    createCoupon(app, { maxDiscountCents: 5000 });
++    const res = app.request("POST", `/orders/${id}/apply-coupon`, { couponCode: "SAVE20" });
++    expect(res.body).toMatchObject({ discountCents: 5000, finalAmountCents: 95000 });
++  });
++
++  it("AC-04 fixed discount is capped at the order amount (never negative)", () => {
++    const app = setup();
++    const id = createOrder(app, 1000);
++    createCoupon(app, { type: "FIXED", value: 3000 });
++    const res = app.request("POST", `/orders/${id}/apply-coupon`, { couponCode: "SAVE20" });
++    expect(res.body).toMatchObject({ discountCents: 1000, finalAmountCents: 0 });
++  });
++
++  it("AC-05 percent rounds down", () => {
++    const app = setup();
++    const id = createOrder(app, 999);
++    createCoupon(app, { value: 15 });
++    const res = app.request("POST", `/orders/${id}/apply-coupon`, { couponCode: "SAVE20" });
++    expect(res.body).toMatchObject({ discountCents: 149, finalAmountCents: 850 });
++  });
++
++  it("AC-06 allows an order exactly equal to the minimum", () => {
++    const app = setup();
++    const id = createOrder(app, 5000);
++    createCoupon(app, { minAmountCents: 5000 });
++    const res = app.request("POST", `/orders/${id}/apply-coupon`, { couponCode: "SAVE20" });
++    expect(res.status).toBe(200);
++    expect(res.body).toMatchObject({ discountCents: 1000, finalAmountCents: 4000 });
++  });
++});
++
++describe("apply coupon - response and normalization", () => {
++  it("AC-14 returns exactly what GET /orders/:id returns", () => {
++    const app = setup();
++    const id = createOrder(app, 10000);
++    createCoupon(app);
++    const applied = app.request("POST", `/orders/${id}/apply-coupon`, { couponCode: "SAVE20" });
++    expect(applied.body).toEqual(app.request("GET", `/orders/${id}`).body);
++  });
++
++  it("AC-10 trims and upper-cases the coupon code", () => {
++    const app = setup();
++    const id = createOrder(app, 10000);
++    createCoupon(app);
++    const res = app.request("POST", `/orders/${id}/apply-coupon`, { couponCode: " save20 " });
++    expect(res.status).toBe(200);
++    expect(res.body).toMatchObject({ couponCode: "SAVE20" });
++  });
++});
++
++describe("apply coupon - time window", () => {
++  it("AC-07 rejects at exactly validUntil", () => {
++    const app = setup();
++    const id = createOrder(app, 10000);
++    createCoupon(app, { validUntil: NOW });
++    const res = app.request("POST", `/orders/${id}/apply-coupon`, { couponCode: "SAVE20" });
++    expect(res.status).toBe(400);
++    expect(errorCode(res.body)).toBe("COUPON_EXPIRED");
++  });
++
++  it("AC-07 accepts at exactly validFrom", () => {
++    const app = setup();
++    const id = createOrder(app, 10000);
++    createCoupon(app, { validFrom: NOW });
++    const res = app.request("POST", `/orders/${id}/apply-coupon`, { couponCode: "SAVE20" });
++    expect(res.status).toBe(200);
++  });
++
++  it("rejects before validFrom", () => {
++    const app = setup();
++    const id = createOrder(app, 10000);
++    createCoupon(app, { validFrom: "2026-11-01T00:00:00Z" });
++    const res = app.request("POST", `/orders/${id}/apply-coupon`, { couponCode: "SAVE20" });
++    expect(errorCode(res.body)).toBe("COUPON_NOT_YET_VALID");
++  });
++});
++
++describe("apply coupon - single use per order", () => {
++  it("AC-08 rejects a second coupon and leaves the order untouched", () => {
++    const app = setup();
++    const id = createOrder(app, 10000);
++    createCoupon(app);
++    expect(app.request("POST", `/orders/${id}/apply-coupon`, { couponCode: "SAVE20" }).status).toBe(200);
++    const before = app.request("GET", `/orders/${id}`).body;
++    const res = app.request("POST", `/orders/${id}/apply-coupon`, { couponCode: "SAVE20" });
++    expect(res.status).toBe(409);
++    expect(errorCode(res.body)).toBe("COUPON_ALREADY_APPLIED");
++    expect(app.request("GET", `/orders/${id}`).body).toEqual(before);
++    expect(redemptionCount(app, "SAVE20")).toBe(1);
++  });
++});
++
++describe("apply coupon - redemption bookkeeping", () => {
++  it("AC-09 increments used_count and inserts a redemption row", () => {
++    const app = setup();
++    const id = createOrder(app, 10000);
++    createCoupon(app);
++    expect(redemptionCount(app, "SAVE20")).toBe(0);
++    app.request("POST", `/orders/${id}/apply-coupon`, { couponCode: "SAVE20" });
++    expect(app.request("GET", "/coupons/SAVE20").body).toMatchObject({ usedCount: 1 });
++    expect(redemptionCount(app, "SAVE20")).toBe(1);
++    const row = app.db
++      .prepare("SELECT order_id, discount_cents, created_at FROM coupon_redemptions WHERE coupon_code = ?")
++      .get("SAVE20") as { order_id: number; discount_cents: number; created_at: string };
++    expect(row).toEqual({ order_id: id, discount_cents: 2000, created_at: new Date(NOW).toISOString() });
++  });
++});
++
++describe("apply coupon - validation and error ordering", () => {
++  it("rejects a missing / non-string / blank couponCode as INVALID_REQUEST", () => {
++    const app = setup();
++    const id = createOrder(app, 10000);
++    for (const couponCode of [undefined, 123, "   "]) {
++      const res = app.request("POST", `/orders/${id}/apply-coupon`, { couponCode });
++      expect(res.status).toBe(400);
++      expect(errorCode(res.body)).toBe("INVALID_REQUEST");
++    }
++    const noBody = app.request("POST", `/orders/${id}/apply-coupon`, {});
++    expect(errorCode(noBody.body)).toBe("INVALID_REQUEST");
++  });
++
++  it("rejects an unknown order", () => {
++    const app = setup();
++    const res = app.request("POST", "/orders/999/apply-coupon", { couponCode: "SAVE20" });
++    expect(res.status).toBe(404);
++    expect(errorCode(res.body)).toBe("ORDER_NOT_FOUND");
++  });
++
++  it("rejects a non-pending order", () => {
++    const app = setup();
++    const id = createOrder(app, 10000);
++    app.request("POST", `/orders/${id}/pay`);
++    const res = app.request("POST", `/orders/${id}/apply-coupon`, { couponCode: "SAVE20" });
++    expect(res.status).toBe(409);
++    expect(errorCode(res.body)).toBe("ORDER_NOT_PENDING");
++  });
++
++  it("rejects an unknown coupon", () => {
++    const app = setup();
++    const id = createOrder(app, 10000);
++    const res = app.request("POST", `/orders/${id}/apply-coupon`, { couponCode: "NOPE" });
++    expect(res.status).toBe(404);
++    expect(errorCode(res.body)).toBe("COUPON_NOT_FOUND");
++  });
++
++  it("rejects a disabled coupon and leaves the database unchanged", () => {
++    const app = setup();
++    const id = createOrder(app, 10000);
++    createCoupon(app, { status: "DISABLED" });
++    const res = app.request("POST", `/orders/${id}/apply-coupon`, { couponCode: "SAVE20" });
++    expect(res.status).toBe(400);
++    expect(errorCode(res.body)).toBe("COUPON_INACTIVE");
++    expect(app.request("GET", `/orders/${id}`).body).toMatchObject({ couponCode: null, finalAmountCents: 10000 });
++    expect(redemptionCount(app, "SAVE20")).toBe(0);
++    expect(app.request("GET", "/coupons/SAVE20").body).toMatchObject({ usedCount: 0 });
++  });
++
++  it("rejects an exhausted coupon", () => {
++    const app = setup();
++    const id = createOrder(app, 10000);
++    createCoupon(app, { usageLimit: 1 });
++    app.db.prepare("UPDATE coupons SET used_count = 1 WHERE code = ?").run("SAVE20");
++    const res = app.request("POST", `/orders/${id}/apply-coupon`, { couponCode: "SAVE20" });
++    expect(res.status).toBe(400);
++    expect(errorCode(res.body)).toBe("COUPON_USAGE_EXHAUSTED");
++  });
++
++  it("rejects an order below the minimum amount", () => {
++    const app = setup();
++    const id = createOrder(app, 1000);
++    createCoupon(app, { minAmountCents: 2000 });
++    const res = app.request("POST", `/orders/${id}/apply-coupon`, { couponCode: "SAVE20" });
++    expect(res.status).toBe(400);
++    expect(errorCode(res.body)).toBe("MINIMUM_NOT_MET");
++  });
++
++  it("checks order errors before coupon errors", () => {
++    const app = setup();
++    const id = createOrder(app, 10000);
++    app.request("POST", `/orders/${id}/cancel`);
++    const res = app.request("POST", `/orders/${id}/apply-coupon`, { couponCode: "NOPE" });
++    expect(errorCode(res.body)).toBe("ORDER_NOT_PENDING");
++  });
++});

@@ -1,0 +1,35 @@
+{
+  "runId": "apply-coupon_L2_codex_r3",
+  "task": "apply-coupon",
+  "spec": "L2",
+  "executor": "codex",
+  "repeat": 3,
+  "model": "deepseek-flash",
+  "startedAt": "2026-10-09T06:04:46.048Z",
+  "wallSec": 493.552,
+  "timeoutSec": 1500,
+  "balanceBefore": 20.77,
+  "balanceAfter": 19.89,
+  "balanceDeltaCny": 0.88,
+  "exitCode": 0,
+  "timedOut": false,
+  "turns": 4,
+  "toolCalls": 20,
+  "toolNames": {
+    "command_execution": 13,
+    "file_change": 7
+  },
+  "askAttempts": 0,
+  "filesRead": 0,
+  "stopReason": "success",
+  "finalText": "Implemented `POST /orders/:id/apply-coupon` end to end.\n\nWhat changed:\n\n- [orderService.ts](/work/src/services/orderService.ts) — new `applyCoupon(id, couponCode)` holding the business rules: coupon must exist, be `ACTIVE`, be within its `validFrom`/`validUntil` window (using the injected clock), meet `minAmountCents`, and have remaining `usageLimit`. FIXED subtracts `value` cents; PERCENT discounts `value`% (floored), capped by `maxDiscountCents` and never below zero. Returns the updated order.\n- [orders.ts](/work/src/routes/orders.ts) — thin route returning HTTP 200 with the updated order; missing `couponCode` is a 400 `INVALID_REQUEST`, unknown order a 404 `ORDER_NOT_FOUND`.\n- [couponRepository.ts](/work/src/repositories/couponRepository.ts) — `consume()` records a `coupon_redemptions` row and increments `used_count` inside a transaction.\n- [orderRepository.ts](/work/src/repositories/orderRepository.ts) — `recordCoupon()` persists `coupon_code`, `discount_cents`, `final_amount_cents`.\n- [app.ts](/work/src/app.ts) — injects the coupon repository into `OrderService`.\n- [README.md](/work/README.md) — documents the endpoint.\n\nError responses for the acceptance cases are HTTP 400 with UPPER_SNAKE codes: `COUPON_NOT_FOUND`, `COUPON_INACTIVE`, `COUPON_EXPIRED`, `COUPON_NOT_YET_VALID`, `ORDER_BELOW_MIN_AMOUNT`, `COUPON_USAGE_LIMIT_REACHED`. Applying to a non-PENDING order is 409 `ORDER_NOT_PENDING`, matching the existing pay/cancel convention.\n\n`npm run build` (tsc) and `npm test` both pass. I also exercised the endpoint with a throwaway script covering valid FIXED/PERCENT, every rejection path, usage-limit counting, and the cap; the script was removed afterward, so the only remaining changes are the source files above plus the README.",
+  "tokens": {
+    "input": 10178,
+    "cacheRead": 420992,
+    "cacheCreate": 0,
+    "output": 10003
+  },
+  "tokensSource": "final",
+  "costCny": 0.1172,
+  "costCnyPeak": 0.1172
+}

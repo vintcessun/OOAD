@@ -1,0 +1,36 @@
+{
+  "runId": "apply-coupon_L2_prompt_r1",
+  "task": "apply-coupon",
+  "spec": "L2",
+  "executor": "prompt",
+  "repeat": 1,
+  "model": "deepseek-flash",
+  "startedAt": "2026-10-09T04:00:31.071Z",
+  "wallSec": 51.932,
+  "balanceBefore": 25.29,
+  "balanceAfter": 25.29,
+  "balanceDeltaCny": 0,
+  "exitCode": 0,
+  "turns": 1,
+  "toolCalls": 0,
+  "toolNames": {},
+  "askAttempts": 0,
+  "filesRead": 0,
+  "stopReason": "stop",
+  "finalText": "e.trim();\n\n    const coupon = this.coupons.findByCode(code);\n    if (!coupon) throw badRequest(\"COUPON_NOT_FOUND\", `coupon ${code} not found`);\n    if (coupon.status !== \"ACTIVE\") {\n      throw badRequest(\"COUPON_NOT_ACTIVE\", `coupon ${code} is ${coupon.status}`);\n    }\n\n    const now = this.clock();\n    const validUntil = Date.parse(coupon.validUntil);\n    if (!Number.isNaN(validUntil) && now.getTime() > validUntil) {\n      throw badRequest(\"COUPON_EXPIRED\", `coupon ${code} expired at ${coupon.validUntil}`);\n    }\n\n    if (order.amountCents < coupon.minAmountCents) {\n      throw badRequest(\n        \"COUPON_MIN_AMOUNT_NOT_MET\",\n        `order amount ${order.amountCents} is below coupon minimum ${coupon.minAmountCents}`,\n      );\n    }\n\n    if (coupon.usageLimit !== null && coupon.usedCount >= coupon.usageLimit) {\n      throw badRequest(\"COUPON_USAGE_LIMIT_REACHED\", `coupon ${code} reached its usage limit`);\n    }\n\n    let discount = coupon.type === \"FIXED\" ? coupon.value : Math.floor((order.amountCents * coupon.value) / 100);\n    if (coupon.maxDiscountCents !== null) discount = Math.min(discount, coupon.maxDiscountCents);\n    discount = Math.max(0, Math.min(discount, order.amountCents));\n    const finalAmountCents = order.amountCents - discount;\n\n    this.orders.applyCoupon(order.id, code, discount, finalAmountCents);\n    this.coupons.incrementUsedCount(code);\n    this.coupons.recordRedemption(order.id, code, discount, now.toISOString());\n\n    return this.get(order.id);\n  }\n}",
+  "filesWritten": [
+    "src/app.ts",
+    "src/repositories/couponRepository.ts",
+    "src/repositories/orderRepository.ts",
+    "src/routes/orders.ts",
+    "src/services/orderService.ts"
+  ],
+  "tokens": {
+    "input": 254,
+    "cacheRead": 26880,
+    "cacheCreate": 0,
+    "output": 13505
+  },
+  "costCny": 0.0548,
+  "costCnyPeak": 0.1096
+}

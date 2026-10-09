@@ -1,0 +1,4 @@
+task_md_intact=1
+public_tests_intact=1
+schema_intact=1
+package_json_intact=1

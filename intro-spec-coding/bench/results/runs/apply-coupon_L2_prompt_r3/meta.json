@@ -1,0 +1,37 @@
+{
+  "runId": "apply-coupon_L2_prompt_r3",
+  "task": "apply-coupon",
+  "spec": "L2",
+  "executor": "prompt",
+  "repeat": 3,
+  "model": "deepseek-flash",
+  "startedAt": "2026-10-09T05:52:43.648Z",
+  "wallSec": 125.389,
+  "timeoutSec": 1500,
+  "balanceBefore": 21.61,
+  "balanceAfter": 21.45,
+  "balanceDeltaCny": 0.16,
+  "exitCode": 0,
+  "turns": 1,
+  "toolCalls": 0,
+  "toolNames": {},
+  "askAttempts": 0,
+  "filesRead": 0,
+  "stopReason": "stop",
+  "finalText": "is below coupon minimum ${coupon.minAmountCents}`,\n      );\n    }\n    if (coupon.usageLimit !== null && coupon.usedCount >= coupon.usageLimit) {\n      throw badRequest(\"COUPON_USAGE_LIMIT_EXCEEDED\", `coupon ${coupon.code} reached its usage limit`);\n    }\n  }\n\n  private discountFor(coupon: Coupon, amountCents: number): number {\n    let discount = coupon.type === \"FIXED\" ? coupon.value : Math.floor((amountCents * coupon.value) / 100);\n    if (coupon.maxDiscountCents !== null) discount = Math.min(discount, coupon.maxDiscountCents);\n    return Math.max(0, Math.min(discount, amountCents));\n  }\n}\n\n=== FILE: src/routes/orders.ts ===\nimport type { Router } from \"../router.ts\";\nimport type { OrderService } from \"../services/orderService.ts\";\nimport { parseId } from \"./params.ts\";\n\nexport function registerOrderRoutes(router: Router, orders: OrderService): void {\n  router.add(\"POST\", \"/orders\", (_, b) => ({ status: 201, body: orders.create(b.customer, b.amountCents) }));\n  router.add(\"GET\", \"/orders\", () => ({ status: 200, body: orders.list() }));\n  router.add(\"GET\", \"/orders/:id\", (p) => ({ status: 200, body: orders.get(parseId(p.id)) }));\n  router.add(\"POST\", \"/orders/:id/pay\", (p) => ({ status: 200, body: orders.pay(parseId(p.id)) }));\n  router.add(\"POST\", \"/orders/:id/cancel\", (p) => ({ status: 200, body: orders.cancel(parseId(p.id)) }));\n  router.add(\"POST\", \"/orders/:id/apply-coupon\", (p, b) => ({\n    status: 200,\n    body: orders.applyCoupon(parseId(p.id), b.couponCode),\n  }));\n}",
+  "filesWritten": [
+    "src/app.ts",
+    "src/repositories/couponRepository.ts",
+    "src/repositories/orderRepository.ts",
+    "src/services/orderService.ts",
+    "src/routes/orders.ts"
+  ],
+  "tokens": {
+    "input": 254,
+    "cacheRead": 26880,
+    "cacheCreate": 0,
+    "output": 28201
+  },
+  "costCny": 0.1136,
+  "costCnyPeak": 0.2272
+}

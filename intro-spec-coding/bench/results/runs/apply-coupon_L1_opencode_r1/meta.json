@@ -1,0 +1,38 @@
+{
+  "runId": "apply-coupon_L1_opencode_r1",
+  "task": "apply-coupon",
+  "spec": "L1",
+  "executor": "opencode",
+  "repeat": 1,
+  "model": "deepseek-flash",
+  "startedAt": "2026-10-09T07:00:29.296Z",
+  "wallSec": 558.838,
+  "timeoutSec": 1500,
+  "balanceBefore": 14.2,
+  "balanceAfter": 13.35,
+  "balanceDeltaCny": 0.85,
+  "exitCode": 0,
+  "timedOut": false,
+  "turns": 22,
+  "toolCalls": 43,
+  "toolNames": {
+    "read": 16,
+    "bash": 16,
+    "webfetch": 2,
+    "edit": 6,
+    "write": 3
+  },
+  "askAttempts": 0,
+  "filesRead": 16,
+  "stopReason": "stop",
+  "finalText": "Implemented `POST /orders/:id/apply-coupon`.\n\nWhat it does:\n- Validates `couponCode`, order existence, `PENDING` status, and no existing coupon.\n- Validates the coupon: exists, `ACTIVE`, within `validFrom`/`validUntil`, order meets `minAmountCents`, and `usageLimit` not exhausted.\n- Computes discount for `FIXED` (value, clamped to order amount) and `PERCENT` (floor of amount×value/100), applying `maxDiscountCents` cap.\n- Updates the order's `discount_cents`, `final_amount_cents`, `coupon_code`, records a `coupon_redemptions` row, and increments `used_count`.\n\nFiles changed: `src/services/orderService.ts:45`, `src/routes/orders.ts:11`, `src/app.ts:29`, `src/repositories/orderRepository.ts:61`, `src/repositories/couponRepository.ts:61`.\n\nError codes: `INVALID_REQUEST` (400); `ORDER_NOT_FOUND`/`COUPON_NOT_FOUND` (404); `ORDER_NOT_PENDING`, `COUPON_ALREADY_APPLIED`, `COUPON_DISABLED`, `COUPON_NOT_YET_VALID`, `COUPON_EXPIRED`, `COUPON_MIN_AMOUNT_NOT_MET`, `COUPON_USAGE_LIMIT_REACHED` (409).\n\n`npm run build` and `npm test` pass. Note: the exact error-code names are inferred from existing conventions since the task spec didn't enumerate them.",
+  "tokens": {
+    "input": 15349,
+    "cacheRead": 503424,
+    "cacheCreate": 0,
+    "output": 14604
+  },
+  "tokensSource": "per-step",
+  "costCny": 0.1677,
+  "costCnyPeak": 0.1677
+}

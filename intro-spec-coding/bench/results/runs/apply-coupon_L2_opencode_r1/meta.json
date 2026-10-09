@@ -1,0 +1,36 @@
+{
+  "runId": "apply-coupon_L2_opencode_r1",
+  "task": "apply-coupon",
+  "spec": "L2",
+  "executor": "opencode",
+  "repeat": 1,
+  "model": "deepseek-flash",
+  "startedAt": "2026-10-09T04:02:15.114Z",
+  "wallSec": 190.654,
+  "balanceBefore": 25.25,
+  "balanceAfter": 25,
+  "balanceDeltaCny": 0.25,
+  "exitCode": 0,
+  "timedOut": false,
+  "turns": 23,
+  "toolCalls": 36,
+  "toolNames": {
+    "read": 19,
+    "bash": 6,
+    "edit": 9,
+    "write": 2
+  },
+  "askAttempts": 0,
+  "filesRead": 19,
+  "stopReason": "stop",
+  "finalText": "Implemented `POST /orders/:id/apply-coupon`.\n\nChanges:\n- `src/services/couponService.ts`: injects `Clock`; `validateForOrder` enforces existence, ACTIVE status, validity window, `minAmountCents`, and usage limit (all 400); `discountFor` computes FIXED/PERCENT discounts capped by `maxDiscountCents` and order amount; `recordRedemption` increments usage.\n- `src/services/orderService.ts`: `applyCoupon(id, code)` validates, updates discount/final amount and coupon code, records redemption, returns the updated order.\n- `src/repositories/orderRepository.ts`: `applyCoupon` persists the order update and inserts a `coupon_redemptions` row.\n- `src/repositories/couponRepository.ts`: `incrementUsedCount`.\n- `src/routes/orders.ts` + `src/app.ts`: route registration and wiring.\n\nBuild and tests pass.",
+  "tokens": {
+    "input": 11275,
+    "cacheRead": 424704,
+    "cacheCreate": 0,
+    "output": 10190
+  },
+  "costCny": 0.0605,
+  "tokensSource": "per-step",
+  "costCnyPeak": 0.1211
+}

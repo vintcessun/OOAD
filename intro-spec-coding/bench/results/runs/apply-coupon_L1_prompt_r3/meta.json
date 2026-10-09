@@ -1,0 +1,37 @@
+{
+  "runId": "apply-coupon_L1_prompt_r3",
+  "task": "apply-coupon",
+  "spec": "L1",
+  "executor": "prompt",
+  "repeat": 3,
+  "model": "deepseek-flash",
+  "startedAt": "2026-10-09T06:16:45.310Z",
+  "wallSec": 42.453,
+  "timeoutSec": 1500,
+  "balanceBefore": 19.39,
+  "balanceAfter": 19.33,
+  "balanceDeltaCny": 0.06,
+  "exitCode": 0,
+  "turns": 1,
+  "toolCalls": 0,
+  "toolNames": {},
+  "askAttempts": 0,
+  "filesRead": 0,
+  "stopReason": "stop",
+  "finalText": " body: orders.cancel(parseId(p.id)) }));\n  router.add(\"POST\", \"/orders/:id/apply-coupon\", (p, b) => ({\n    status: 200,\n    body: orders.applyCoupon(parseId(p.id), b.couponCode),\n  }));\n}\n\n\n=== FILE: src/app.ts ===\nimport { systemClock, type Clock } from \"./clock.ts\";\nimport { openDb, type Db } from \"./db.ts\";\nimport { CouponRepository } from \"./repositories/couponRepository.ts\";\nimport { OrderRepository } from \"./repositories/orderRepository.ts\";\nimport { Router, type HttpResponse } from \"./router.ts\";\nimport { registerCouponRoutes } from \"./routes/coupons.ts\";\nimport { registerOrderRoutes } from \"./routes/orders.ts\";\nimport { CouponService } from \"./services/couponService.ts\";\nimport { OrderService } from \"./services/orderService.ts\";\n\nexport interface App {\n  db: Db;\n  request(method: string, path: string, body?: unknown): HttpResponse;\n}\n\nexport interface AppOptions {\n  db?: Db;\n  clock?: Clock;\n}\n\n/** Wires repositories, services and routes. Tests call app.request(...) in-process. */\nexport function createApp(options: AppOptions = {}): App {\n  const db = options.db ?? openDb();\n  const clock = options.clock ?? systemClock;\n  const router = new Router();\n\n  const orderRepo = new OrderRepository(db);\n  const couponRepo = new CouponRepository(db);\n  registerOrderRoutes(router, new OrderService(orderRepo, couponRepo, clock));\n  registerCouponRoutes(router, new CouponService(couponRepo));\n\n  return { db, request: (method, path, body) => router.handle(method, path, body) };\n}\n",
+  "filesWritten": [
+    "src/repositories/orderRepository.ts",
+    "src/repositories/couponRepository.ts",
+    "src/services/orderService.ts",
+    "src/routes/orders.ts",
+    "src/app.ts"
+  ],
+  "tokens": {
+    "input": 182,
+    "cacheRead": 26880,
+    "cacheCreate": 0,
+    "output": 11632
+  },
+  "costCny": 0.0945,
+  "costCnyPeak": 0.0945
+}

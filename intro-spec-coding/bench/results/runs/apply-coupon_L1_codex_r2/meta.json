@@ -1,0 +1,35 @@
+{
+  "runId": "apply-coupon_L1_codex_r2",
+  "task": "apply-coupon",
+  "spec": "L1",
+  "executor": "codex",
+  "repeat": 2,
+  "model": "deepseek-flash",
+  "startedAt": "2026-10-09T05:39:05.108Z",
+  "wallSec": 449.946,
+  "timeoutSec": 1500,
+  "balanceBefore": 22.54,
+  "balanceAfter": 22.01,
+  "balanceDeltaCny": 0.53,
+  "exitCode": 0,
+  "timedOut": false,
+  "turns": 4,
+  "toolCalls": 21,
+  "toolNames": {
+    "command_execution": 15,
+    "file_change": 6
+  },
+  "askAttempts": 0,
+  "filesRead": 0,
+  "stopReason": "success",
+  "finalText": "Done. `POST /orders/:id/apply-coupon` is implemented and wired end to end; `npm run build` type-checks and the existing tests still pass (5/5). Only `src/` changed — `TASK.md` and `tests/` are untouched.\n\nWhat it does:\n\n- Returns the updated order (200) with `discountCents`, `finalAmountCents` and `couponCode` set.\n- `FIXED` discount is the coupon value; `PERCENT` is `round(amount × value / 100)`.\n- Discount is capped by `maxDiscountCents` and never exceeds the order amount, so `finalAmountCents ≥ 0` (a 99999-cent coupon on a 1000-cent order yields discount 1000 / final 0).\n- On success it writes a `coupon_redemptions` row, increments `used_count`, and updates the order — all in one transaction (`BEGIN IMMEDIATE` / rollback on error).\n- Validations, using the codebase's `UPPER_SNAKE` error convention:\n  - missing/non-string `couponCode` → 400 `INVALID_REQUEST`\n  - unknown order → 404 `ORDER_NOT_FOUND`; unknown coupon → 404 `COUPON_NOT_FOUND`\n  - order not `PENDING` → 409 `ORDER_NOT_PENDING`\n  - order already has a coupon → 409 `ORDER_ALREADY_HAS_COUPON`\n  - coupon `DISABLED` → 409 `COUPON_NOT_ACTIVE`; before `validFrom` → 409 `COUPON_NOT_YET_VALID`; after `validUntil` → 409 `COUPON_EXPIRED`\n  - `usedCount >= usageLimit` → 409 `COUPON_USAGE_LIMIT_REACHED`\n  - `amountCents < minAmountCents` → 409 `ORDER_BELOW_MIN_AMOUNT`\n- Validity is checked against the injected `Clock`, and boundaries are inclusive.\n\nOne thing worth flagging: TASK.md gives no error-code or rounding spec, so I inferred those from the existing schema and conventions (details above). If you have a target contract for the failure codes or the percent-rounding rule, that's the place to adjust — both are one-liners in [orderService.ts](/work/src/services/orderService.ts:60).",
+  "tokens": {
+    "input": 11783,
+    "cacheRead": 409984,
+    "cacheCreate": 0,
+    "output": 13534
+  },
+  "tokensSource": "final",
+  "costCny": 0.0741,
+  "costCnyPeak": 0.1482
+}

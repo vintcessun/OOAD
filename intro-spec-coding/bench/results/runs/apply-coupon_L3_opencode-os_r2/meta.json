@@ -1,0 +1,38 @@
+{
+  "runId": "apply-coupon_L3_opencode-os_r2",
+  "task": "apply-coupon",
+  "spec": "L3",
+  "executor": "opencode-os",
+  "repeat": 2,
+  "model": "deepseek-flash",
+  "startedAt": "2026-10-09T06:51:18.418Z",
+  "wallSec": 391.41,
+  "timeoutSec": 1500,
+  "balanceBefore": 15.83,
+  "balanceAfter": 15.03,
+  "balanceDeltaCny": 0.8,
+  "exitCode": 0,
+  "timedOut": false,
+  "turns": 30,
+  "toolCalls": 47,
+  "toolNames": {
+    "read": 17,
+    "bash": 17,
+    "todowrite": 3,
+    "write": 7,
+    "edit": 3
+  },
+  "askAttempts": 0,
+  "filesRead": 17,
+  "stopReason": "stop",
+  "finalText": "## Implementation Complete\n\n**Change:** `apply-order-coupon` (schema: spec-driven) — 8/8 tasks complete.\n\nPlanning artifacts (all in `openspec/changes/apply-order-coupon/`):\n- `proposal.md`, `specs/order-coupon/spec.md`, `design.md`, `tasks.md` — `openspec validate --strict` passes.\n\nImplementation (existing layering preserved):\n- `src/repositories/redemptionRepository.ts` — one transactional `apply()` doing order update + redemption insert + `used_count` increment, rollback on failure.\n- `src/services/orderService.ts:64` — `applyCoupon()`: normalization, precedence-ordered validation via injected `Clock`, FIXED/PERCENT discount with cap and clamp.\n- `src/routes/orders.ts` — `POST /orders/:id/apply-coupon` (parsing only); `src/app.ts` wiring.\n- `tests/apply-coupon.test.ts` — 23 tests covering AC-01..AC-14, error precedence and rollback.\n\nVerification: `npm run build` clean; `npm test` → 28/28 passed (existing 5 untouched); apply state `all_done`. No schema, TASK.md, or benchmark tests modified; no new dependencies.\n\nLeft as workflow follow-up (not requested): archive via `/opsx-archive`.",
+  "tokens": {
+    "input": 28378,
+    "cacheRead": 984832,
+    "cacheCreate": 0,
+    "output": 19077
+  },
+  "tokensSource": "per-step",
+  "costCny": 0.2488,
+  "costCnyPeak": 0.2488
+}

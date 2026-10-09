@@ -1,0 +1,37 @@
+{
+  "runId": "apply-coupon_L1_claude-os_r1",
+  "task": "apply-coupon",
+  "spec": "L1",
+  "executor": "claude-os",
+  "repeat": 1,
+  "model": "deepseek-flash",
+  "startedAt": "2026-10-09T04:20:17.854Z",
+  "wallSec": 928.504,
+  "balanceBefore": 24.39,
+  "balanceAfter": 24.05,
+  "balanceDeltaCny": 0.34,
+  "exitCode": 124,
+  "timedOut": true,
+  "turns": 82,
+  "toolCalls": 36,
+  "toolNames": {
+    "Read": 2,
+    "Bash": 20,
+    "Skill": 2,
+    "Write": 5,
+    "Edit": 7
+  },
+  "askAttempts": 0,
+  "filesRead": 2,
+  "stopReason": "no-result",
+  "finalText": "All 20 tests pass. Marking tasks complete.",
+  "tokens": {
+    "input": 41794,
+    "cacheRead": 1234304,
+    "cacheCreate": 0,
+    "output": 0
+  },
+  "costCny": 0.0665,
+  "tokensSource": "per-message (timed out; main loop only)",
+  "costCnyPeak": 0.133
+}

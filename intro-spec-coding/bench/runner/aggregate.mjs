@@ -58,7 +58,7 @@ for (const spec of SPECS)
       tokens: mean(cs.map((c) => c.detail.totalTokens).filter((x) => x != null)),
       timeouts: cs.filter((c) => c.detail.timedOut).length,
       unknownCost: cs.filter((c) => c.detail.costCny == null).length,
-      costCny: mean(cs.map((c) => c.detail.costCny ?? NaN).filter((x) => !Number.isNaN(x))),
+      costCny: mean(cs.map((c) => c.detail.costCnyPeak ?? NaN).filter((x) => !Number.isNaN(x))),
       turns: mean(cs.map((c) => c.detail.turns ?? 0)),
       toolCalls: mean(cs.map((c) => c.detail.toolCalls ?? 0)),
       changedLines: mean(cs.map((c) => c.detail.changedCodeLines)),
@@ -90,7 +90,7 @@ for (const c of cells)
   L.push(`| ${c.spec} | ${specScore[c.spec]} | ${EXEC_LABEL[c.executor]} | ${c.n} | ${c.firstPass}/${c.n}（${pct(c.firstPass / c.n)}） | ${c.strict}/${c.n} | ${f1(c.hiddenRate)}% ± ${f1(c.hiddenRateSd)} | ${f1(c.reqMet)}/${c.reqTotal} | ${f1(c.total)} ± ${f1(c.totalSd)} |`);
 L.push(``, `## 表 2  六维得分（均值）`, ``, `| 规格 | 执行方式 | C 正确性/35 | A 符合度/20 | R 鲁棒性/15 | Q 质量/10 | E 效率/10 | S 范围/10 |`, `|---|---|---|---|---|---|---|---|`);
 for (const c of cells) L.push(`| ${c.spec} | ${EXEC_LABEL[c.executor]} | ${f1(c.dims.C)} | ${f1(c.dims.A)} | ${f1(c.dims.R)} | ${f1(c.dims.Q)} | ${f1(c.dims.E)} | ${f1(c.dims.S)} |`);
-L.push(``, `## 表 3  成本与过程（均值）`, ``, `| 规格 | 执行方式 | 耗时 s | 超时（15 min） | Token（含缓存） | 花费 ¥ | 工具调用 | 改动代码行 | 边界测试通过率 |`, `|---|---|---|---|---|---|---|---|---|`);
+L.push(``, `## 表 3  成本与过程（均值）`, ``, `| 规格 | 执行方式 | 耗时 s | 超时 | Token（含缓存） | 花费 ¥（按高峰价） | 工具调用 | 改动代码行 | 边界测试通过率 |`, `|---|---|---|---|---|---|---|---|---|`);
 for (const c of cells) L.push(`| ${c.spec} | ${EXEC_LABEL[c.executor]} | ${f1(c.wallSec)} | ${c.timeouts}/${c.n} | ${Number.isNaN(c.tokens) ? "—" : Math.round(c.tokens).toLocaleString("en")} | ${f2(c.costCny)}${c.unknownCost ? `（${c.unknownCost} 个未知）` : ""} | ${f1(c.toolCalls)} | ${f1(c.changedLines)} | ${f1(c.boundaryRate)}% |`);
 L.push(``, `说明：超时的 run 按「冻结当时的工作区」评分，不重跑。Claude Code 超时时只能累加主循环逐条消息的用量（偏低）；Codex 超时时没有用量数据，记为未知，不计入均值。各工具对「回合」的定义不同，因此不比较回合数。`);
 L.push(``, `## 表 4  失败原因分布（6 种 Agent 执行方式合计，按失败的隐藏测试计数；括号内为占该档全部失败的比例）`, ``);
@@ -117,14 +117,14 @@ for (const spec of SPECS) {
       fpOs: os.filter((c) => c.firstPassSuccess).length / os.length,
       hidNative: m(nat, (c) => c.detail.hiddenWeightedPassRate),
       hidOs: m(os, (c) => c.detail.hiddenWeightedPassRate),
-      costNative: m(nat, (c) => c.detail.costCny), costOs: m(os, (c) => c.detail.costCny),
+      costNative: m(nat, (c) => c.detail.costCnyPeak), costOs: m(os, (c) => c.detail.costCnyPeak),
       timeNative: m(nat, (c) => c.detail.wallSec), timeOs: m(os, (c) => c.detail.wallSec),
     });
   }
 }
 L.push(``, `每档失败测试总数（分母）：${SPECS.map((s) => `${s} ${Object.values(failureBySpec[s]).reduce((a, b) => a + b, 0)} 个，来自 ${runsBySpec[s]} 个 run`).join("；")}。`);
 L.push(``, `## 表 4b  OpenSpec 效应：同一 Agent、同一规格，加与不加 OpenSpec`, ``,
-  `| 规格 | Agent | n | 一次通过 原生 → +OpenSpec | 隐藏测试加权通过率 原生 → +OpenSpec | 花费 ¥ 原生 → +OpenSpec | 耗时 s 原生 → +OpenSpec |`, `|---|---|---|---|---|---|---|`);
+  `| 规格 | Agent | n | 一次通过 原生 → +OpenSpec | 隐藏测试加权通过率 原生 → +OpenSpec | 花费 ¥（高峰价）原生 → +OpenSpec | 耗时 s 原生 → +OpenSpec |`, `|---|---|---|---|---|---|---|`);
 for (const f of fx)
   L.push(`| ${f.spec} | ${AGENT_LABEL[f.agent]} | ${f.nNative}/${f.nOs} | ${pct(f.fpNative)} → ${pct(f.fpOs)} | ${f1(f.hidNative)}% → ${f1(f.hidOs)}%（${f.hidOs - f.hidNative >= 0 ? "+" : ""}${f1(f.hidOs - f.hidNative)}） | ${f2(f.costNative)} → ${f2(f.costOs)} | ${f1(f.timeNative)} → ${f1(f.timeOs)} |`);
 L.push(``, `## 表 4c  规格粒度效应（按执行方式汇总，隐藏测试加权通过率均值 %）`, ``, `| 执行方式 | L1 | L2 | L3 | L3 − L1 |`, `|---|---|---|---|---|`);
@@ -142,8 +142,25 @@ const corr = (() => {
 })();
 L.push(``, `规格质量分与隐藏测试加权通过率的 Pearson 相关系数：r = ${corr.r.toFixed(2)}（n = ${corr.n} 个 run；规格质量分只有 3 个取值，r 主要反映三档之间的差异）。`);
 
+// ---- runs that hit the original 15-minute limit (kept in results/timeouts-15min, re-run under 25 minutes)
+const T15 = join(BENCH, "results", "timeouts-15min");
+const t15 = existsSync(T15)
+  ? readdirSync(T15).filter((d) => existsSync(join(T15, d, "score.json"))).map((d) => JSON.parse(readFileSync(join(T15, d, "score.json"), "utf8")))
+  : [];
+L.push(``, `## 表 4d  敏感性：15 分钟上限下超时的 run（已移出主表，按 25 分钟上限重跑）`, ``);
+if (!t15.length) L.push(`无。`);
+else {
+  L.push(`| run | 15 分钟时冻结的结果：隐藏测试加权通过率 | 重跑（25 分钟）后 | 重跑耗时 s |`, `|---|---|---|---|`);
+  for (const c of t15.sort((a, b) => a.runId.localeCompare(b.runId))) {
+    const re = cards.find((x) => x.runId === c.runId);
+    L.push(`| ${c.runId} | ${c.detail.hiddenWeightedPassRate}% | ${re ? `${re.detail.hiddenWeightedPassRate}%` : "—"} | ${re ? re.detail.wallSec : "—"} |`);
+  }
+  const over = cards.filter((c) => EXECS.includes(c.executor) && c.detail.wallSec > 900);
+  L.push(``, `主表中耗时超过 900 秒（即在原 15 分钟上限下会超时）的 run：${over.length} 个，其中 OpenSpec 组 ${over.filter((c) => c.executor.endsWith("-os")).length} 个。`);
+}
+
 const manual = cards.filter((c) => c.meta.manual);
-L.push(``, `## 表 4d  手工运行（如 Cursor）：同一套规格与隐藏测试，但模型由工具托管、不是 deepseek-flash，只能并列参考`, ``);
+L.push(``, `## 表 4e  手工运行（如 Cursor）：同一套规格与隐藏测试，但模型由工具托管、不是 deepseek-flash，只能并列参考`, ``);
 if (!manual.length) L.push(`暂无数据。`);
 else {
   L.push(`| run | 模型 | 一次通过 | 隐藏测试加权通过率 | 总分 | 耗时 s |`, `|---|---|---|---|---|---|`);
