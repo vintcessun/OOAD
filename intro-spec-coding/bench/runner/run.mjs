@@ -17,7 +17,7 @@ const BENCH = join(dirname(fileURLToPath(import.meta.url)), "..");
 const ROOT = join(BENCH, "..");
 const IMAGE = "spec-bench:1";
 const MODEL = process.env.BENCH_MODEL ?? "deepseek-flash";
-const TIMEOUT_S = 1500; // was 900 for the first 32 runs; raised after DeepSeek output speed dropped ~3x (report §6)
+const TIMEOUT_S = 1500; // was 900 for the first 33 runs (27 kept + 6 moved to results/timeouts-15min); raised after DeepSeek output speed dropped ~3x (report §6)
 const MAX_TURNS = 80;
 
 const [spec, executor, repeat] = process.argv.slice(2);
