@@ -1,0 +1,15 @@
+package com.xmu.rbac.structured.dto;
+
+import org.springframework.data.domain.Page;
+
+import java.util.List;
+import java.util.function.Function;
+
+/** 分页结果。page 从 0 开始。 */
+public record PageResult<T>(List<T> items, long total, int page, int size) {
+
+    public static <E, T> PageResult<T> of(Page<E> page, Function<E, T> mapper) {
+        return new PageResult<>(page.getContent().stream().map(mapper).toList(),
+                page.getTotalElements(), page.getNumber(), page.getSize());
+    }
+}

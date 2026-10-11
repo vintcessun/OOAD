@@ -1,7 +1,7 @@
 package com.xmu.rbac.structured.config;
 
-import com.xmu.rbac.structured.web.ContractRoutes;
-import com.xmu.rbac.structured.web.PermissionInterceptor;
+import com.xmu.rbac.structured.controller.ContractRoutes;
+import com.xmu.rbac.structured.controller.PermissionInterceptor;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.event.EventListener;
@@ -33,7 +33,10 @@ public class WebConfig implements WebMvcConfigurer {
         registry.addInterceptor(interceptor).addPathPatterns("/**").excludePathPatterns("/error");
     }
 
-    /** 启动自检：实现了但契约没声明权限的路由，不允许启动（§4.7「未声明即拒绝」）。 */
+    /**
+     * 启动自检，两个方向都查：实现了但契约没声明权限的路由，契约里有但没实现的接口。
+     * 任何一边不一致都不允许启动。
+     */
     @EventListener
     public void verifyEveryRouteDeclared(ApplicationReadyEvent event) {
         RequestMappingHandlerMapping mapping = event.getApplicationContext()
@@ -55,6 +58,10 @@ public class WebConfig implements WebMvcConfigurer {
         List<String> missing = routes.undeclared(implemented);
         if (!missing.isEmpty()) {
             throw new IllegalStateException("以下路由未在 rbac-api.yaml 中声明 x-required-permission：" + missing);
+        }
+        List<String> unimplemented = routes.unimplemented(implemented);
+        if (!unimplemented.isEmpty()) {
+            throw new IllegalStateException("rbac-api.yaml 中的以下接口没有实现：" + unimplemented);
         }
     }
 }

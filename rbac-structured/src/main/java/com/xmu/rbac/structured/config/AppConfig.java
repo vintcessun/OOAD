@@ -1,11 +1,11 @@
 package com.xmu.rbac.structured.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.xmu.rbac.structured.dao.AssignmentDao;
-import com.xmu.rbac.structured.dao.UserDao;
-import com.xmu.rbac.structured.func.CacheHandle;
-import com.xmu.rbac.structured.web.ContractRoutes;
-import com.xmu.rbac.structured.web.PermissionInterceptor;
+import com.xmu.rbac.structured.controller.ContractRoutes;
+import com.xmu.rbac.structured.controller.PermissionInterceptor;
+import com.xmu.rbac.structured.service.AuditService;
+import com.xmu.rbac.structured.service.AuthenticationService;
+import com.xmu.rbac.structured.service.AuthorizationService;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -18,9 +18,8 @@ import javax.crypto.SecretKey;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
-import java.time.Duration;
 
-/** 装配：把功能层需要的依赖造出来。功能层本身不认识 Spring。 */
+/** 装配：时钟、口令编码器、JWT 密钥、契约路由表与拦截器。 */
 @Configuration
 public class AppConfig {
 
@@ -44,20 +43,14 @@ public class AppConfig {
     }
 
     @Bean
-    public CacheHandle cacheHandle(@Value("${rbac.cache.l1-max-size:100000}") long maxSize,
-                                   @Value("${rbac.cache.l1-ttl:PT10M}") Duration ttl) {
-        return new CaffeineCacheHandle(maxSize, ttl);
-    }
-
-    @Bean
     public ContractRoutes contractRoutes() throws IOException {
         return ContractRoutes.load(new ClassPathResource("openapi/rbac-api.yaml").getInputStream());
     }
 
     @Bean
-    public PermissionInterceptor permissionInterceptor(ContractRoutes routes, SecretKey jwtKey, UserDao userDao,
-                                                       AssignmentDao assignmentDao, CacheHandle cache,
-                                                       ObjectMapper json, Clock clock) {
-        return new PermissionInterceptor(routes, jwtKey, userDao, assignmentDao, cache, json, clock);
+    public PermissionInterceptor permissionInterceptor(ContractRoutes routes, AuthenticationService authentication,
+                                                       AuthorizationService authorization, AuditService audit,
+                                                       ObjectMapper json) {
+        return new PermissionInterceptor(routes, authentication, authorization, audit, json);
     }
 }

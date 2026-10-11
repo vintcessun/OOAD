@@ -45,7 +45,7 @@ services:
       resources:
         limits: { memory: 800M }
 
-  # L2 缓存、会话、失效广播。应用侧接入待完成（02 §4.2），先把服务位置占好
+  # 授权数据缓存（带版本号失效）与登出令牌登记（docs/02-architecture.md §4.2）
   redis:
     image: ${REDIS_IMAGE:-redis:7-alpine}
     command: ["redis-server", "--maxmemory", "128mb", "--maxmemory-policy", "allkeys-lru"]
@@ -63,14 +63,16 @@ services:
     environment:
       DB_HOST: mysql
       DB_PASSWORD: ${DB_PASSWORD:-rbac}
+      REDIS_HOST: redis
       RBAC_JWT_SECRET: ${RBAC_JWT_SECRET:-dev-only-secret-change-me-at-least-32-bytes!!}
+      RBAC_INITIAL_PASSWORD: ${RBAC_INITIAL_PASSWORD:-Init@2026}
       JAVA_OPTS: ${APP_JAVA_OPTS:--Xms256m -Xmx512m -XX:+UseG1GC}
     ports:
       - "8081:8081"
     # 只能用列表形式：docker stack deploy 不接受 condition: service_healthy 这种写法，
     # 会直接报 depends_on: must be a list。MySQL 未就绪时应用启动失败、自动重启，直到连上：
     # 单机 compose 靠 restart，Swarm 靠 deploy.restart_policy（Swarm 忽略 restart 与 depends_on）
-    depends_on: [mysql]
+    depends_on: [mysql, redis]
     restart: on-failure
     deploy:
       replicas: ${APP_REPLICAS:-1}

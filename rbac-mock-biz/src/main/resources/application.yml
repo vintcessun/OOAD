@@ -16,3 +16,8 @@ management:
 # 权限中心地址。容器内由 docker-compose 注入
 rbac:
   center-url: ${RBAC_CENTER_URL:http://localhost:8081/api/v1}
+
+# 演示用的两个功能点在权限中心里的资源编码（导入权限清单后生成：业务系统码:模块序号:功能点序号）
+mock:
+  doc-resource: ${MOCK_DOC_RESOURCE:oa:m01:f02}
+  attendance-resource: ${MOCK_ATTENDANCE_RESOURCE:hr:m04:f01}

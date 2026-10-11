@@ -1,0 +1,17 @@
+# 集成测试连真实的 MySQL 与 Redis（本机用 docker 起在 13306 / 16379，CI 用 services 起在同样的端口）。
+# 用 H2 冒充 MySQL 测不出外键、原生 SQL、SUBSTRING_INDEX 这类真实差异（docs/09-test-plan.md §3）。
+spring:
+  datasource:
+    url: ${TEST_DB_URL:jdbc:mysql://localhost:13306/rbac_test?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false}
+    username: ${TEST_DB_USER:root}
+    password: ${TEST_DB_PASSWORD:root}
+  flyway:
+    # 每个测试前 clean + migrate，得到只含内置数据的干净库
+    clean-disabled: false
+  data:
+    redis:
+      host: ${TEST_REDIS_HOST:localhost}
+      port: ${TEST_REDIS_PORT:16379}
+
+rbac:
+  initial-password: Init@2026

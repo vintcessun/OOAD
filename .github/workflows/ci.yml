@@ -1,4 +1,4 @@
-# 每次 push / PR：编译 + 全部单测 + Jacoco 门槛，再验证镜像能构建（09-test-plan.md §4）
+# 每次 push / PR：编译 + 全部测试（含连真实 MySQL、Redis 的集成测试）+ Jacoco 门槛，再验证镜像能构建（docs/09-test-plan.md §5）
 name: ci
 
 on:
@@ -9,6 +9,22 @@ on:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    # 集成测试连的数据库与缓存，端口与本机开发时一致（rbac-structured/src/test/resources/application-test.yml）
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: rbac_test
+        ports: ['13306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -uroot -proot"
+          --health-interval=5s --health-timeout=3s --health-retries=30
+      redis:
+        image: redis:7-alpine
+        ports: ['16379:6379']
+        options: >-
+          --health-cmd="redis-cli ping" --health-interval=5s --health-timeout=3s --health-retries=20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4

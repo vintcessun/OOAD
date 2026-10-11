@@ -11,9 +11,8 @@
     </parent>
 
     <!--
-      外部模拟系统（OA 公文、HR 考勤），独立进程 :8090。
-      验证权限真实生效：每个接口先经 HTTP 调权限中心 /authz/check，再执行业务（02-architecture.md §3.1）。
-      当前为骨架：路由已按契约建好，业务与鉴权调用待实现。
+      外部模拟业务系统（OA 发文、HR 考勤），独立进程 :8090。
+      验证权限真实生效：每个接口先带着用户令牌调权限中心 /authz/check，允许才执行业务。
     -->
     <artifactId>rbac-mock-biz</artifactId>
     <packaging>jar</packaging>

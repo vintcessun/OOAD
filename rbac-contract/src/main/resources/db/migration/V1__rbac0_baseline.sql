@@ -1,514 +1,359 @@
 -- =============================================================================
--- V1 迭代一 RBAC0 基线
+-- V1 RBAC0 基线（docs/03-database.md）
 --
--- 对应文档：docs/03-database.md §3.1
--- 三种范式实现（rbac-structured / rbac-oo / rbac-functional）共用本 schema。
+-- 本阶段只实现 RBAC0：User — Role — Permission(Resource × Action)。
+-- 不含角色继承、职责分离、基数与时间约束、会话角色（旧版 V2/V3 已移到 docs/archive/sql/，不再执行）。
 --
--- 设计原则（docs/03-database.md §1）：
---   · 一律代理主键；业务唯一键加唯一索引
---   · 关联表用 (a_id, b_id) 联合唯一索引保证幂等指派
---   · 用户/角色逻辑删除，关联表物理删除
---   · 审计日志只插入，不更新不删除
---   · **不使用数据库外键**：高并发写入下产生行锁竞争，引用完整性由应用层显式保证
---     （但索引照常建立）
+-- 设计原则：
+--   · 组织关系与授权关系一律建外键：数据只有万级，外键带来的锁开销可以忽略，
+--     却能挡住「指向不存在的用户/角色/部门」这类脏数据（docs/12-design-log.md #16）。
+--   · 关联表用联合唯一键保证重复提交不产生重复记录。
+--   · 用户逻辑删除（status = DELETED），行保留供审计，用户名不可复用；关联表物理删除。
+--   · 审计日志只插入，不更新不删除。
 -- =============================================================================
 
 SET NAMES utf8mb4;
 
 -- -----------------------------------------------------------------------------
--- 1. 组织架构
+-- 1. 组织：公司 → 部门树
 -- -----------------------------------------------------------------------------
 
--- 部门。来源：市政公司部门信息表（111 行，三层）。
--- 支持多棵树：parent_id = 0 的每个节点是一家公司的根（需求 A-22「多个公司」）。当前数据只有一家。
+-- 公司是多公司隔离的边界（需求「能够应对多个公司」）。
+-- 部门、用户、公司内角色都归属一家公司；部门名只在同一上级下唯一，两家公司都可以有「财务部」。
+CREATE TABLE sys_company (
+    id           BIGINT       NOT NULL AUTO_INCREMENT,
+    company_code VARCHAR(32)  NOT NULL,
+    company_name VARCHAR(128) NOT NULL,
+    created_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_company_code (company_code)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='公司';
+
+-- 部门树。每家公司一个根节点（parent_id 为空）。
+-- path 是物化路径（如 /3/15/27/）：判断「目标部门是否在某部门之下」只需一次前缀比较，不用递归。
 CREATE TABLE sys_department (
     id              BIGINT       NOT NULL AUTO_INCREMENT,
-    dept_name       VARCHAR(128) NOT NULL                COMMENT '部门名称，如「道路工程分公司-财务部」',
-    parent_id       BIGINT       NOT NULL DEFAULT 0      COMMENT '上级部门；0 = 根节点（总公司）',
-    manager_user_id BIGINT       NULL                    COMMENT '部门经理；非唯一，一人可管理多个部门',
-    level           TINYINT      NOT NULL DEFAULT 1      COMMENT '层级 1/2/3，冗余存储避免递归求深度',
-    path            VARCHAR(255) NOT NULL DEFAULT '/'    COMMENT '物化路径，如 /1/13/15/；DEPT_AND_SUB 数据范围用',
+    company_id      BIGINT       NOT NULL,
+    parent_id       BIGINT       NULL                 COMMENT '上级部门；根节点为空',
+    dept_name       VARCHAR(128) NOT NULL             COMMENT '原表名称，如「道路工程分公司-财务部」',
+    path            VARCHAR(255) NOT NULL             COMMENT '物化路径 /祖先id/.../本id/',
+    level           INT          NOT NULL             COMMENT '根为 1',
+    manager_name    VARCHAR(64)  NULL                 COMMENT '部门表登记的负责人姓名（原样保留）',
+    manager_user_id BIGINT       NULL                 COMMENT '负责人对应的用户；只是组织信息，不产生任何管理权限',
     sort_order      INT          NOT NULL DEFAULT 0,
     created_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    deleted_at      DATETIME     NULL,
     PRIMARY KEY (id),
-    UNIQUE KEY uk_dept_name (dept_name),
-    KEY idx_parent  (parent_id),
-    KEY idx_manager (manager_user_id),
-    KEY idx_path    (path)
+    UNIQUE KEY uk_dept_sibling (company_id, parent_id, dept_name),
+    KEY idx_parent (parent_id),
+    KEY idx_path (path),
+    CONSTRAINT fk_dept_company FOREIGN KEY (company_id) REFERENCES sys_company (id),
+    CONSTRAINT fk_dept_parent  FOREIGN KEY (parent_id)  REFERENCES sys_department (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='部门（每家公司一棵树）';
 
--- 岗位 → 角色派生规则。
--- 员工信息表只有「岗位」没有「角色」，两者的映射是我方推断（数据疑点 C-10）。
--- 做成配置表而非硬编码，是为了老师给出不同答案时能低成本调整。
-CREATE TABLE sys_position_role_mapping (
-    id          BIGINT       NOT NULL AUTO_INCREMENT,
-    priority    INT          NOT NULL                COMMENT '匹配优先级，数字小者先匹配；命中即停止',
-    match_type  VARCHAR(32)  NOT NULL                COMMENT 'DEPT_NAME | IS_PROJECT_DEPT_MANAGER | IS_DEPT_MANAGER | POSITION_IN | DEFAULT',
-    match_value VARCHAR(512) NULL                    COMMENT '匹配值；POSITION_IN 为逗号分隔的岗位名，DEPT_NAME 为部门名',
-    role_code   VARCHAR(64)  NOT NULL                COMMENT '命中后派生的角色编码',
-    description VARCHAR(255) NULL,
-    enabled     TINYINT      NOT NULL DEFAULT 1,
-    created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    PRIMARY KEY (id),
-    UNIQUE KEY uk_priority (priority),
-    KEY idx_enabled (enabled)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='岗位→角色派生规则（配置表，非硬编码）';
-
 -- -----------------------------------------------------------------------------
--- 2. 身份
+-- 2. 用户
 -- -----------------------------------------------------------------------------
 
--- 用户。来源：市政公司员工信息表（10000 行）
+-- 一个用户只属于一个部门（department_id）；他能在哪些部门行使权限，由 sys_user_role.scope_dept_id 决定。
 CREATE TABLE sys_user (
-    id               BIGINT       NOT NULL AUTO_INCREMENT,
-    username         VARCHAR(64)  NOT NULL             COMMENT '登录名，形如 SG000001',
-    password_hash    VARCHAR(100) NOT NULL             COMMENT 'BCrypt 哈希（cost>=10），含盐。禁止存明文',
-    real_name        VARCHAR(64)  NULL,
-    department_id    BIGINT       NULL                 COMMENT '所属部门。数据范围判定的依据',
-    position         VARCHAR(32)  NULL                 COMMENT '岗位；仅用于首次导入时派生初始角色，不参与鉴权',
-    -- 手机号属敏感数据（安全需求 S-10）：密文存列，另存脱敏副本供列表展示。
-    -- 列表查询一律返回 phone_masked；明文需 sys:security:data:view 权限且单独记审计。
-    phone_enc        VARBINARY(64) NULL                COMMENT 'AES-256 加密后的手机号',
-    phone_masked     VARCHAR(20)  NULL                 COMMENT '脱敏副本，如 138****5678',
-    email            VARCHAR(128) NULL                 COMMENT '员工表未提供，留空',
-    -- 三态：启用 / 停用 / 删除（需求 A-25，9/29 需求清单）。
-    -- 停用可恢复、保留全部授权；删除是终态，行保留供审计、用户名不可复用。
-    -- 不设自动恢复：权限一律人工分配和回收（S-19）。
-    status           TINYINT      NOT NULL DEFAULT 1   COMMENT '1=ACTIVE 启用 | 0=DISABLED 停用 | 2=DELETED 删除',
-    status_reason    VARCHAR(255) NULL                 COMMENT '停用或删除的原因',
-    -- 临时人员（需求 A-26）：无工号、无电话、可无部门，授权带失效时间，
-    -- 且不得持有系统管理权限（S-16，由应用层校验）。
-    user_type        VARCHAR(16)  NOT NULL DEFAULT 'EMPLOYEE'
-                                                      COMMENT 'EMPLOYEE 正式员工 | TEMPORARY 临时人员 | SYSTEM 系统集成账号',
-    expires_at       DATETIME     NULL                 COMMENT '账号失效时间；TEMPORARY 必填',
-    login_fail_count INT          NOT NULL DEFAULT 0   COMMENT '连续登录失败次数；满 5 次锁定 15 分钟',
-    locked_until     DATETIME     NULL                 COMMENT '锁定截止时间；NULL = 未锁定',
-    must_change_pwd  TINYINT      NOT NULL DEFAULT 0   COMMENT '首次登录强制改密',
-    created_at       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    deleted_at       DATETIME     NULL                 COMMENT '删除时间；与 status = 2 同时写入',
+    id                     BIGINT       NOT NULL AUTO_INCREMENT,
+    company_id             BIGINT       NOT NULL,
+    department_id          BIGINT       NOT NULL,
+    username               VARCHAR(64)  NOT NULL          COMMENT '登录名；正式员工为工号，如 SG000001',
+    password_hash          VARCHAR(100) NOT NULL          COMMENT 'BCrypt',
+    real_name              VARCHAR(64)  NOT NULL,
+    user_type              VARCHAR(16)  NOT NULL DEFAULT 'EMPLOYEE' COMMENT 'EMPLOYEE 正式员工 | TEMPORARY 临时用户 | SYSTEM 业务系统账号',
+    employee_no            VARCHAR(32)  NULL              COMMENT '工号；临时用户没有',
+    phone                  VARCHAR(20)  NULL              COMMENT '电话；临时用户没有',
+    position               VARCHAR(32)  NULL              COMMENT '岗位；只是人事信息，不参与鉴权',
+    status                 VARCHAR(16)  NOT NULL DEFAULT 'ACTIVE' COMMENT 'ACTIVE 启用 | DISABLED 停用 | DELETED 删除',
+    status_reason          VARCHAR(255) NULL,
+    expires_at             DATETIME     NULL              COMMENT '账号到期时间；临时用户必填',
+    login_fail_count       INT          NOT NULL DEFAULT 0,
+    locked_until           DATETIME     NULL,
+    must_change_pwd        TINYINT      NOT NULL DEFAULT 0,
+    token_version          INT          NOT NULL DEFAULT 0 COMMENT '修改口令时加一；令牌中的版本号与它不等即失效',
+    created_at             DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at             DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    deleted_at             DATETIME     NULL,
     PRIMARY KEY (id),
     UNIQUE KEY uk_username (username),
-    KEY idx_status     (status),
-    KEY idx_department (department_id),
-    KEY idx_user_type  (user_type),
-    KEY idx_expires    (expires_at),
-    KEY idx_deleted    (deleted_at)
+    UNIQUE KEY uk_employee_no (employee_no),
+    KEY idx_dept_status (department_id, status),
+    KEY idx_company (company_id),
+    CONSTRAINT fk_user_company FOREIGN KEY (company_id)    REFERENCES sys_company (id),
+    CONSTRAINT fk_user_dept    FOREIGN KEY (department_id) REFERENCES sys_department (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户';
 
--- -----------------------------------------------------------------------------
--- 3. 角色
--- -----------------------------------------------------------------------------
-
-CREATE TABLE sys_role (
-    id          BIGINT       NOT NULL AUTO_INCREMENT,
-    role_code   VARCHAR(64)  NOT NULL              COMMENT '角色编码，创建后不可修改',
-    role_name   VARCHAR(64)  NOT NULL              COMMENT '显示名，可修改',
-    description VARCHAR(255) NULL,
-    status      TINYINT      NOT NULL DEFAULT 1    COMMENT '1=启用 0=禁用',
-    builtin     TINYINT      NOT NULL DEFAULT 0    COMMENT '1=系统内置，不可删除',
-    created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    deleted_at  DATETIME     NULL,
-    PRIMARY KEY (id),
-    UNIQUE KEY uk_role_code (role_code),
-    KEY idx_status (status)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='角色';
+ALTER TABLE sys_department
+    ADD CONSTRAINT fk_dept_manager FOREIGN KEY (manager_user_id) REFERENCES sys_user (id);
 
 -- -----------------------------------------------------------------------------
--- 4. 资源层次：软件系统 → 功能模块 → 功能点
---    对应权限清单的三级结构（18 / 115 / 359）
+-- 3. 资源与权限：业务系统 → 功能模块 → 资源；Permission = Resource × Action
 -- -----------------------------------------------------------------------------
 
+-- 业务系统（多业务系统）。权限清单的 18 个系统 + 权限中心自身（rbac）。
 CREATE TABLE sys_software_system (
     id          BIGINT      NOT NULL AUTO_INCREMENT,
-    system_code VARCHAR(32) NOT NULL               COMMENT '权限码第一段，如 oa / hr / pmis',
-    system_name VARCHAR(64) NOT NULL               COMMENT '如「OA协同办公系统」',
+    system_code VARCHAR(32) NOT NULL COMMENT '权限码第一段',
+    system_name VARCHAR(64) NOT NULL,
     sort_order  INT         NOT NULL DEFAULT 0,
-    created_at  DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at  DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     UNIQUE KEY uk_system_code (system_code)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='软件系统（18 行）';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='业务系统';
 
 CREATE TABLE sys_function_module (
     id          BIGINT      NOT NULL AUTO_INCREMENT,
     system_id   BIGINT      NOT NULL,
-    module_code VARCHAR(32) NOT NULL               COMMENT '权限码第二段，如 doc / attendance',
-    module_name VARCHAR(64) NOT NULL               COMMENT '如「公文管理」',
+    module_code VARCHAR(32) NOT NULL,
+    module_name VARCHAR(64) NOT NULL,
     sort_order  INT         NOT NULL DEFAULT 0,
-    created_at  DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at  DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
-    UNIQUE KEY uk_sys_module (system_id, module_code),
-    KEY idx_system (system_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='功能模块（115 行）';
+    UNIQUE KEY uk_module (system_id, module_code),
+    CONSTRAINT fk_module_system FOREIGN KEY (system_id) REFERENCES sys_software_system (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='功能模块';
 
+-- 资源。resource_type：
+--   BUSINESS 业务功能点（权限清单导入）；
+--   MENU     权限中心自身的管理页面，菜单挂在它上面（「前端菜单也是一种 Resource」）；
+--   API      不对应页面的接口能力，如供业务系统调用的鉴权接口。
 CREATE TABLE sys_resource (
     id            BIGINT       NOT NULL AUTO_INCREMENT,
     module_id     BIGINT       NOT NULL,
-    resource_code VARCHAR(64)  NOT NULL            COMMENT '权限码第三段，如 draft / record',
-    resource_name VARCHAR(128) NOT NULL            COMMENT '如「发文拟稿与审核」',
-    description   VARCHAR(512) NULL                COMMENT '清单的「功能说明」列，原样保留',
+    resource_code VARCHAR(96)  NOT NULL COMMENT '完整编码，如 oa:m01:f02、rbac:user',
+    resource_name VARCHAR(128) NOT NULL,
+    resource_type VARCHAR(16)  NOT NULL DEFAULT 'BUSINESS' COMMENT 'BUSINESS | MENU | API',
+    description   VARCHAR(512) NULL,
     sort_order    INT          NOT NULL DEFAULT 0,
-    created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
-    UNIQUE KEY uk_module_resource (module_id, resource_code),
-    KEY idx_module (module_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='功能点 / 资源（359 行）';
+    UNIQUE KEY uk_resource_code (resource_code),
+    KEY idx_module (module_id),
+    CONSTRAINT fk_resource_module FOREIGN KEY (module_id) REFERENCES sys_function_module (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='资源';
 
--- 操作。词汇表由权限清单的单元格取值归纳得出，共 5 个原子操作。
 CREATE TABLE sys_action (
     id          BIGINT      NOT NULL AUTO_INCREMENT,
     action_code VARCHAR(32) NOT NULL,
     action_name VARCHAR(32) NOT NULL,
-    risk_weight INT         NOT NULL DEFAULT 1     COMMENT '风险权重，用于权限风险评分',
     sort_order  INT         NOT NULL DEFAULT 0,
     PRIMARY KEY (id),
     UNIQUE KEY uk_action_code (action_code)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='操作（5 行，固定词汇表）';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='操作';
 
--- 权限分两类（docs/12-design-log.md #9）：
---   BIZ      业务权限 = 功能点 × 操作，359 × 5 = 1795 行，由导入器从权限清单写入；
---   PLATFORM 权限中心自身的管理权限（system:user:list、authz:check:invoke 等），
---            是 rbac-api.yaml 中 x-required-permission 的取值，由本脚本末尾内置。
---            它们不属于清单里的任何功能点，因此 resource_id / action_id 为空。
+-- 权限 = 资源 × 操作。permission_code = resource_code:action_code，是鉴权时比对的字符串。
 CREATE TABLE sys_permission (
     id              BIGINT       NOT NULL AUTO_INCREMENT,
-    permission_code VARCHAR(128) NOT NULL          COMMENT '判定时直接匹配的字符串；BIZ 为 系统:模块:功能点:操作',
-    perm_type       VARCHAR(16)  NOT NULL DEFAULT 'BIZ' COMMENT 'BIZ 业务权限（导入）| PLATFORM 平台管理权限（内置）',
-    resource_id     BIGINT       NULL              COMMENT 'BIZ 必填；PLATFORM 为空',
-    action_id       BIGINT       NULL              COMMENT 'BIZ 必填；PLATFORM 为空',
-    description     VARCHAR(255) NULL,
-    created_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    resource_id     BIGINT       NOT NULL,
+    action_id       BIGINT       NOT NULL,
+    permission_code VARCHAR(128) NOT NULL,
     PRIMARY KEY (id),
-    UNIQUE KEY uk_permission_code  (permission_code),
-    UNIQUE KEY uk_resource_action  (resource_id, action_id),
-    KEY        idx_resource        (resource_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='权限（BIZ 约 1795 行 + PLATFORM 内置）';
+    UNIQUE KEY uk_permission_code (permission_code),
+    UNIQUE KEY uk_resource_action (resource_id, action_id),
+    CONSTRAINT fk_perm_resource FOREIGN KEY (resource_id) REFERENCES sys_resource (id),
+    CONSTRAINT fk_perm_action   FOREIGN KEY (action_id)   REFERENCES sys_action (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='权限';
 
 -- -----------------------------------------------------------------------------
--- 5. 指派与授予
+-- 4. 角色、角色授权、用户指派
 -- -----------------------------------------------------------------------------
 
+-- company_id 为空 = 全局角色（内置角色与权限清单的五类角色模板），只有超级管理员能修改；
+-- 非空 = 公司内角色，只能指派到本公司的部门。
+CREATE TABLE sys_role (
+    id          BIGINT       NOT NULL AUTO_INCREMENT,
+    company_id  BIGINT       NULL,
+    role_code   VARCHAR(64)  NOT NULL,
+    role_name   VARCHAR(64)  NOT NULL,
+    description VARCHAR(255) NULL,
+    status      VARCHAR(16)  NOT NULL DEFAULT 'ENABLED' COMMENT 'ENABLED | DISABLED',
+    builtin     TINYINT      NOT NULL DEFAULT 0 COMMENT '内置角色不可删除',
+    created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_role_code (role_code),
+    CONSTRAINT fk_role_company FOREIGN KEY (company_id) REFERENCES sys_company (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='角色';
+
+-- self_only：权限清单中「查看本人」「编辑本人」这类取值。RBAC0 只判断能否执行该操作，
+-- 「只限本人记录」随鉴权结果返回给业务系统，由业务系统按记录归属过滤（docs/03-database.md §4.3）。
+CREATE TABLE sys_role_permission (
+    id            BIGINT   NOT NULL AUTO_INCREMENT,
+    role_id       BIGINT   NOT NULL,
+    permission_id BIGINT   NOT NULL,
+    self_only     TINYINT  NOT NULL DEFAULT 0,
+    granted_by    BIGINT   NULL COMMENT '授权人，只用于审计',
+    granted_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_role_perm (role_id, permission_id),
+    KEY idx_permission (permission_id),
+    CONSTRAINT fk_rp_role FOREIGN KEY (role_id)       REFERENCES sys_role (id) ON DELETE CASCADE,
+    CONSTRAINT fk_rp_perm FOREIGN KEY (permission_id) REFERENCES sys_permission (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='角色-权限';
+
+-- 一次指派 = 用户 + 角色 + 适用部门。scope_dept_id 覆盖该部门及其全部下级部门。
+-- 同一用户可以在不同部门持有不同角色，或在多个部门持有同一角色（需求「可以有属于多个部门的权限」）。
+-- granted_by 只是审计属性：撤销授权人自己的角色，不影响他过去授出的指派（需求「不会导致级联删除」）。
 CREATE TABLE sys_user_role (
-    id         BIGINT   NOT NULL AUTO_INCREMENT,
-    user_id    BIGINT   NOT NULL,
-    role_id    BIGINT   NOT NULL,
-    -- 授权部门（需求：属于一个部门，但可以有多个部门的权限）。
-    -- 数据范围 DEPT / DEPT_AND_SUB 以它为基准；0 = 以用户所属部门为基准。
-    -- 用 0 而非 NULL：MySQL 唯一键允许多个 NULL，用 NULL 挡不住重复指派。
-    scope_dept_id  BIGINT   NOT NULL DEFAULT 0     COMMENT '授权部门；0 = 用户所属部门',
-    granted_by     BIGINT   NULL                   COMMENT '授予人，用于审计',
-    granted_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    -- 时间约束（迭代三启用）：到期只在判定中不计入，不删除记录，由管理员人工回收（S-19）
-    effective_from DATETIME NULL                   COMMENT '生效时间；NULL = 立即',
-    expires_at     DATETIME NULL                   COMMENT '失效时间；NULL = 永久',
+    id            BIGINT       NOT NULL AUTO_INCREMENT,
+    user_id       BIGINT       NOT NULL,
+    role_id       BIGINT       NOT NULL,
+    scope_dept_id BIGINT       NOT NULL COMMENT '适用部门（含下级）',
+    granted_by    BIGINT       NULL,
+    granted_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    reason        VARCHAR(255) NULL,
     PRIMARY KEY (id),
-    -- 覆盖索引：判定热路径「按 userId 查直接角色」只走索引前缀，不回表
-    UNIQUE KEY uk_user_role (user_id, role_id, scope_dept_id),
-    -- 必须：缓存失效时反查「持有某角色的全部用户」，缺此索引会全表扫描
-    KEY idx_role (role_id)
+    UNIQUE KEY uk_user_role_scope (user_id, role_id, scope_dept_id),
+    KEY idx_role (role_id),
+    KEY idx_scope (scope_dept_id),
+    CONSTRAINT fk_ur_user  FOREIGN KEY (user_id)       REFERENCES sys_user (id),
+    CONSTRAINT fk_ur_role  FOREIGN KEY (role_id)       REFERENCES sys_role (id),
+    CONSTRAINT fk_ur_scope FOREIGN KEY (scope_dept_id) REFERENCES sys_department (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户-角色指派';
 
-CREATE TABLE sys_role_permission (
+-- -----------------------------------------------------------------------------
+-- 5. 菜单
+-- -----------------------------------------------------------------------------
+
+-- 叶子菜单挂一个 MENU 资源，用户持有「该资源:view」才显示；目录节点（resource_id 为空）
+-- 在至少有一个子菜单可见时显示。隐藏菜单只是界面行为，后端接口仍各自鉴权。
+CREATE TABLE sys_menu (
     id            BIGINT      NOT NULL AUTO_INCREMENT,
-    role_id       BIGINT      NOT NULL,
-    permission_id BIGINT      NOT NULL,
-    -- 数据范围挂在「角色-权限」这条边上，而非挂在角色上：
-    -- 同一角色对不同功能点的范围可以不同（部门经理对考勤是本部门，对公司制度是全部）。
-    -- 迭代一建立并正确导入，迭代二由判定管道阶段 S5b 启用执行。
-    data_scope    VARCHAR(16) NOT NULL DEFAULT 'ALL' COMMENT 'ALL | DEPT_AND_SUB | DEPT | SELF',
-    granted_by    BIGINT      NULL,
-    granted_at    DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    parent_id     BIGINT      NULL,
+    resource_id   BIGINT      NULL,
+    menu_name     VARCHAR(64) NOT NULL,
+    route_path    VARCHAR(128) NULL,
+    component_key VARCHAR(64) NULL,
+    icon          VARCHAR(32) NULL,
+    sort_order    INT         NOT NULL DEFAULT 0,
     PRIMARY KEY (id),
-    -- 覆盖索引：判定热路径「按 roleId 查权限」
-    UNIQUE KEY uk_role_perm  (role_id, permission_id),
-    KEY        idx_permission (permission_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='角色-权限授予（约 1800 行）';
+    KEY idx_parent (parent_id),
+    CONSTRAINT fk_menu_parent   FOREIGN KEY (parent_id)   REFERENCES sys_menu (id),
+    CONSTRAINT fk_menu_resource FOREIGN KEY (resource_id) REFERENCES sys_resource (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='菜单';
 
 -- -----------------------------------------------------------------------------
 -- 6. 审计
 -- -----------------------------------------------------------------------------
 
--- 只插入，不更新不删除。可篡改的审计等于没有审计。
--- actor_name / target_name 冗余存储姓名快照：实体被删除后审计仍须可读。
--- 按 occurred_at 做 RANGE 分区：预期每日千万级，不分区三个月内会拖垮查询。
+-- 一张表记录全部事件：谁(actor) 什么时候(occurred_at) 在哪里(client_ip) 对谁(target)
+-- 做了什么(event_type + detail) 结果如何(result) 为什么(reason)。
+-- 鉴权事件（AUTH_SUCCESS / AUTH_FAILED）另带 permission_code、latency_us、cache_hit，
+-- Dashboard 与权限使用热力图都从这里统计。
 CREATE TABLE sys_audit_log (
-    id          BIGINT       NOT NULL AUTO_INCREMENT,
-    actor_id    BIGINT       NULL                  COMMENT '操作人；系统触发时为 NULL',
-    actor_name  VARCHAR(64)  NULL                  COMMENT '冗余姓名快照',
-    action      VARCHAR(32)  NOT NULL              COMMENT 'LOGIN / ROLE_ASSIGN / AUTH_FAILED / ...',
-    target_type VARCHAR(32)  NULL                  COMMENT 'USER / ROLE / PERMISSION / DEPARTMENT / DOCUMENT',
-    target_id   VARCHAR(64)  NULL,
-    target_name VARCHAR(128) NULL                  COMMENT '冗余名称快照',
-    result      VARCHAR(16)  NOT NULL              COMMENT 'SUCCESS / DENIED / FAILED',
-    reason      VARCHAR(255) NULL                  COMMENT '失败或拒绝的原因码',
-    detail      JSON         NULL                  COMMENT '变更明细，如新增/移除的角色',
-    client_ip   VARCHAR(45)  NULL                  COMMENT '兼容 IPv6',
-    trace_id    VARCHAR(32)  NULL                  COMMENT '与 API 响应的 traceId 对应',
-    -- 防篡改哈希链（安全需求 S-11）：
-    --   row_hash = SHA256(prev_hash || actor_id || action || target_id || result || occurred_at)
-    -- 任何对历史行的修改都会使其后全部行的校验失败。提供链完整性校验接口。
-    prev_hash   CHAR(64)     NULL                  COMMENT '前一行的 row_hash',
-    row_hash    CHAR(64)     NULL                  COMMENT '本行哈希，构成不可篡改链',
-    occurred_at DATETIME(3)  NOT NULL              COMMENT '毫秒精度',
-    PRIMARY KEY (id, occurred_at),
-    KEY idx_actor_time  (actor_id, occurred_at),
-    KEY idx_action_time (action, occurred_at),
-    KEY idx_target      (target_type, target_id),
-    KEY idx_time        (occurred_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='审计日志（只插入）'
-PARTITION BY RANGE (TO_DAYS(occurred_at)) (
-    PARTITION p202609 VALUES LESS THAN (TO_DAYS('2026-10-01')),
-    PARTITION p202610 VALUES LESS THAN (TO_DAYS('2026-11-01')),
-    PARTITION p202611 VALUES LESS THAN (TO_DAYS('2026-12-01')),
-    PARTITION p202612 VALUES LESS THAN (TO_DAYS('2027-01-01')),
-    PARTITION pmax    VALUES LESS THAN MAXVALUE
-);
-
--- 鉴权日志。需求要求记录每一次 AUTH_SUCCESS / AUTH_FAILED。
--- 10,000 QPS 下每天最多约 8.6 亿行，与管理审计差五个数量级，因此单独建表：
---   批量异步插入；不做哈希链（哈希链要求串行计算，与批量并行写入冲突）；
---   保留 30 天，到期 DROP PARTITION。生产环境由运维任务按天滚动建分区，此处先建按月骨架。
-CREATE TABLE sys_authz_log (
-    id              BIGINT       NOT NULL AUTO_INCREMENT,
-    user_id         BIGINT       NOT NULL              COMMENT '被判定的主体',
-    caller_code     VARCHAR(32)  NULL                  COMMENT '调用方系统编码：oa / hr / admin-console',
-    permission_code VARCHAR(128) NOT NULL,
-    target_dept_id  BIGINT       NULL,
-    target_user_id  BIGINT       NULL,
-    allowed         TINYINT      NOT NULL              COMMENT '1 = AUTH_SUCCESS | 0 = AUTH_FAILED',
-    reason          VARCHAR(32)  NULL                  COMMENT '拒绝原因码；超管旁路为 SUPER_ADMIN_BYPASS',
-    cache_hit       TINYINT      NULL                  COMMENT '0 = 未命中 | 1 = L1 | 2 = L2',
-    latency_us      INT          NULL                  COMMENT '判定耗时（微秒）',
-    client_ip       VARCHAR(45)  NULL,
-    trace_id        VARCHAR(32)  NULL,
-    occurred_at     DATETIME(3)  NOT NULL,
-    PRIMARY KEY (id, occurred_at),
-    KEY idx_user_time    (user_id, occurred_at),
-    KEY idx_allowed_time (allowed, occurred_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='鉴权日志（只插入，保留 30 天）'
-PARTITION BY RANGE (TO_DAYS(occurred_at)) (
-    PARTITION p202609 VALUES LESS THAN (TO_DAYS('2026-10-01')),
-    PARTITION p202610 VALUES LESS THAN (TO_DAYS('2026-11-01')),
-    PARTITION p202611 VALUES LESS THAN (TO_DAYS('2026-12-01')),
-    PARTITION p202612 VALUES LESS THAN (TO_DAYS('2027-01-01')),
-    PARTITION pmax    VALUES LESS THAN MAXVALUE
-);
-
--- 鉴权日志的分钟聚合。两个用途：
---   ① 写入积压时，成功记录降级写本表（拒绝记录仍逐条写明细，不丢）；
---   ② 权限使用热力图（OBSV-002）直接读本表，不扫明细。
-CREATE TABLE sys_authz_log_minute (
-    user_id         BIGINT       NOT NULL,
-    permission_code VARCHAR(128) NOT NULL,
-    minute_at       DATETIME     NOT NULL              COMMENT '截断到分钟',
-    success_count   INT          NOT NULL DEFAULT 0,
-    fail_count      INT          NOT NULL DEFAULT 0,
-    PRIMARY KEY (user_id, permission_code, minute_at),
-    KEY idx_minute (minute_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='鉴权日志分钟聚合（热力图数据源）';
-
--- -----------------------------------------------------------------------------
--- 7. 受保护业务桩（属于外部模拟系统 rbac-mock-biz，权限中心不读写；同库只为一键部署）
---    本系统不实现权限清单中的 18 个业务系统，仅取两个功能点作为权限验证载体。
--- -----------------------------------------------------------------------------
-
--- 桩一：OA > 公文管理 > 发文拟稿与审核（oa:doc:draft:*）
--- 选它的理由：清单中普通员工只能「新增」（拟稿）、部门经理才能「审批」，
--- 拟稿与审批的分离是清单本身给出的职责分离场景。
-CREATE TABLE biz_oa_document (
-    id            BIGINT       NOT NULL AUTO_INCREMENT,
-    doc_no        VARCHAR(32)  NOT NULL,
-    title         VARCHAR(255) NOT NULL,
-    content       TEXT         NULL,
-    drafted_by    BIGINT       NOT NULL            COMMENT '拟稿人；审批时校验 != 审批人',
-    owner_dept_id BIGINT       NOT NULL            COMMENT '归属部门，数据范围过滤的依据',
-    status        VARCHAR(16)  NOT NULL DEFAULT 'DRAFT' COMMENT 'DRAFT/SUBMITTED/APPROVED/REJECTED',
-    approved_by   BIGINT       NULL,
-    approved_at   DATETIME     NULL,
-    approve_note  VARCHAR(255) NULL,
-    created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    id              BIGINT        NOT NULL AUTO_INCREMENT,
+    occurred_at     DATETIME(3)   NOT NULL,
+    actor_id        BIGINT        NULL,
+    actor_name      VARCHAR(64)   NULL     COMMENT '用户名快照',
+    client_ip       VARCHAR(45)   NULL,
+    event_type      VARCHAR(32)   NOT NULL COMMENT 'LOGIN / LOGOUT / AUTH_SUCCESS / AUTH_FAILED / ROLE_ASSIGN / ...',
+    target_type     VARCHAR(16)   NULL     COMMENT 'USER / ROLE / MENU / RESOURCE / DEPARTMENT',
+    target_id       VARCHAR(64)   NULL,
+    target_name     VARCHAR(128)  NULL,
+    detail          VARCHAR(1000) NULL,
+    result          VARCHAR(16)   NOT NULL COMMENT 'SUCCESS / DENIED / FAILED',
+    reason          VARCHAR(255)  NULL,
+    permission_code VARCHAR(128)  NULL,
+    latency_us      INT           NULL,
+    cache_hit       TINYINT       NULL,
     PRIMARY KEY (id),
-    UNIQUE KEY uk_doc_no (doc_no),
-    KEY idx_drafted_by  (drafted_by),
-    -- 部门经理查「本部门待审稿件」是最频繁的查询，走此联合索引
-    KEY idx_dept_status (owner_dept_id, status)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='发文稿件（业务桩一）';
-
--- 桩二：人力资源 > 考勤与休假管理 > 考勤管理（hr:attendance:record:*）
--- 选它的理由：清单中普通员工的取值是「查看/编辑本人」，是 SELF 数据范围的验证场景。
-CREATE TABLE biz_hr_attendance (
-    id          BIGINT       NOT NULL AUTO_INCREMENT,
-    user_id     BIGINT       NOT NULL              COMMENT 'SELF 数据范围的判定依据',
-    dept_id     BIGINT       NOT NULL              COMMENT '冗余存部门，避免过滤时联表',
-    attend_date DATE         NOT NULL,
-    check_in    DATETIME     NULL,
-    check_out   DATETIME     NULL,
-    status      VARCHAR(16)  NOT NULL DEFAULT 'NORMAL' COMMENT 'NORMAL/LATE/ABSENT/LEAVE',
-    remark      VARCHAR(255) NULL,
-    created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    PRIMARY KEY (id),
-    -- 两个索引对应两种数据范围：SELF 走 uk_user_date，DEPT/DEPT_AND_SUB 走 idx_dept_date。
-    -- 数据范围的每种取值都需要有索引支撑，否则「部门经理查本部门考勤」会变成全表扫描。
-    UNIQUE KEY uk_user_date (user_id, attend_date),
-    KEY        idx_dept_date (dept_id, attend_date)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='考勤记录（业务桩二）';
-
--- 通用测试记录表。
--- 老师要求「至少两个系统，每个系统 3-4 个功能」用于测试，共 8 个功能点。
--- 为这 8 个功能点各建一张业务表是没有意义的——它们是**测试夹具而非产品**。
--- 因此除两个需要具体演示的功能点（公文、考勤）保留专用表外，
--- 其余 6 个功能点的接口统一落在本表上，用 system_code/module_code/resource_code 区分。
-CREATE TABLE biz_test_record (
-    id            BIGINT       NOT NULL AUTO_INCREMENT,
-    system_code   VARCHAR(32)  NOT NULL            COMMENT 'oa / hr',
-    module_code   VARCHAR(32)  NOT NULL            COMMENT 'doc / attendance',
-    resource_code VARCHAR(64)  NOT NULL            COMMENT 'receive / issue / urge / secrecy / leave / overtime',
-    title         VARCHAR(255) NOT NULL,
-    owner_user_id BIGINT       NOT NULL            COMMENT 'SELF 数据范围的判定依据',
-    owner_dept_id BIGINT       NOT NULL            COMMENT 'DEPT / DEPT_AND_SUB 数据范围的判定依据',
-    status        VARCHAR(16)  NOT NULL DEFAULT 'DRAFT',
-    payload       JSON         NULL                COMMENT '各功能点的差异字段，不为夹具建强 schema',
-    created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    PRIMARY KEY (id),
-    KEY idx_resource   (system_code, module_code, resource_code),
-    KEY idx_owner_user (owner_user_id),
-    KEY idx_owner_dept (owner_dept_id, status)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='通用测试记录（6 个功能点共用的夹具表）';
+    KEY idx_time (occurred_at),
+    KEY idx_event_time (event_type, occurred_at),
+    KEY idx_actor_time (actor_id, occurred_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='审计日志（只插入）';
 
 -- =============================================================================
--- 固定词汇表与内置数据
--- 说明：下列数据是系统的固定词汇，不是导入数据，因此写在迁移脚本里。
---       部门、用户、资源层次、权限、授予关系由导入器从三份 xlsx 写入。
+-- 内置数据：操作词汇、权限中心自身的资源与权限、内置角色、菜单、平台公司与超级管理员。
+-- 部门、员工、18 个业务系统的资源与五类角色模板由导入接口从三份 xlsx 写入。
 -- =============================================================================
 
--- 操作词汇表（由权限清单归纳，括号内为清单中的出现次数）
-INSERT INTO sys_action (action_code, action_name, risk_weight, sort_order) VALUES
-    ('view',    '查看', 1, 1),   -- 878 次
-    ('create',  '新增', 2, 2),   -- 109 次
-    ('edit',    '编辑', 3, 3),   -- 235 次
-    ('export',  '导出', 5, 4),   --  66 次
-    ('approve', '审批', 8, 5);   --  99 次
+INSERT INTO sys_action (action_code, action_name, sort_order) VALUES
+    ('view',    '查看', 1),
+    ('create',  '新增', 2),
+    ('edit',    '编辑', 3),
+    ('approve', '审批', 4),
+    ('export',  '导出', 5),
+    ('delete',  '删除', 6),
+    ('assign',  '分配', 7),
+    ('revoke',  '回收', 8),
+    ('import',  '导入', 9),
+    ('invoke',  '调用', 10),
+    ('explain', '解释', 11);
 
--- 内置角色：SUPER_ADMIN 来自 9/29 需求清单；其后 5 个取自权限清单的列；最后 2 个为我方增设的系统级角色。
--- 增设理由见 docs/01-srs.md §4.1.2：若「配置权限」「配置约束」「审计监督」全部
--- 归于系统管理员，一个角色权力过大，且无法演示 RBAC2 的职责分离。
-INSERT INTO sys_role (role_code, role_name, description, builtin) VALUES
-    ('SUPER_ADMIN',     '超级管理员', '9/29 需求清单：越过权限引擎。判定时在账号状态校验之后直接放行，每次放行都审计；人数上限 3（V3 基数约束）', 1),
-    ('SYS_ADMIN',       '系统管理员', '权限清单列 1；对全部 359 个功能点拥有全部操作（显式授予，走正常判定）', 1),
-    ('COMPANY_LEADER',  '公司领导',   '权限清单列 2；对全部功能点至少有查看权限', 1),
-    ('DEPT_MANAGER',    '部门经理',   '权限清单列 3；297 个功能点有权限，数据范围为本部门', 1),
-    ('PROJECT_MANAGER', '项目经理',   '权限清单列 4；161 个功能点有权限，「项目」即项目经理部', 1),
-    ('EMPLOYEE',        '普通员工',   '权限清单列 5；67 个功能点有权限，其中 6 个为本人范围', 1),
-    ('SEC_ADMIN',       '安全管理员', '我方增设；管理角色继承与约束规则', 1),
-    ('AUDITOR',         '审计员',     '我方增设；只读访问审计日志与监控，无任何配置权限', 1);
+INSERT INTO sys_software_system (id, system_code, system_name, sort_order) VALUES
+    (1, 'rbac', '权限中心', 0);
 
--- 岗位 → 角色派生规则。
--- ⚠️ 这套映射是我方推断的（数据疑点 C-10）：员工表有「岗位」但没有「角色」列。
---    若老师另有既定映射，只需 UPDATE 本表后重跑派生，无需改代码。
--- ⚠️ 派生必须在「绑定部门经理」之后执行：优先级 2、3 依赖 manager_user_id 已填好。
-INSERT INTO sys_position_role_mapping (priority, match_type, match_value, role_code, description) VALUES
-    (1, 'DEPT_NAME',                '公司领导',                                       'COMPANY_LEADER',
-        '部门为「公司领导」的 10 人：董事长、总经理、副总经理、总工程师、总会计师等'),
-    (2, 'IS_PROJECT_DEPT_MANAGER',  '项目经理部',                                     'PROJECT_MANAGER',
-        '担任「第 N 项目经理部」经理者。依赖 sys_department.manager_user_id'),
-    (3, 'IS_DEPT_MANAGER',          NULL,                                             'DEPT_MANAGER',
-        '担任任一部门经理者。依赖 sys_department.manager_user_id'),
-    (4, 'POSITION_IN',              '部长,副部长,主任,副主任,经理,副经理',              'DEPT_MANAGER',
-        '岗位名在列表中，但未在部门表中登记为经理者'),
-    (5, 'DEFAULT',                  NULL,                                             'EMPLOYEE',
-        '兜底：主管、专员、干事、薪酬专员、招聘专员等');
+INSERT INTO sys_function_module (id, system_id, module_code, module_name, sort_order) VALUES
+    (1, 1, 'admin', '系统管理', 1),
+    (2, 1, 'authz', '鉴权服务', 2);
 
--- 根部门占位。导入器会以此为根挂接 111 个部门；若导入表中已含「总公司」则跳过。
-INSERT INTO sys_department (id, dept_name, parent_id, level, path, sort_order) VALUES
-    (1, '总公司', 0, 1, '/1/', 0);
+INSERT INTO sys_resource (id, module_id, resource_code, resource_name, resource_type, sort_order) VALUES
+    (1,  1, 'rbac:dashboard',  'Dashboard',      'MENU', 1),
+    (2,  1, 'rbac:user',       '用户管理',        'MENU', 2),
+    (3,  1, 'rbac:role',       '角色管理',        'MENU', 3),
+    (4,  1, 'rbac:permission', '权限管理',        'MENU', 4),
+    (5,  1, 'rbac:menu',       '菜单管理',        'MENU', 5),
+    (6,  1, 'rbac:audit',      '审计日志',        'MENU', 6),
+    (7,  1, 'rbac:org',        '组织管理',        'MENU', 7),
+    (8,  1, 'rbac:assignment', '用户角色指派',    'API',  8),
+    (9,  1, 'rbac:grant',      '角色权限授予',    'API',  9),
+    (10, 2, 'rbac:authz',      '鉴权接口',        'API',  10),
+    (11, 1, 'rbac:heatmap',    '权限使用热力图',  'MENU', 11),
+    (12, 1, 'rbac:explain',    '权限解释',        'MENU', 12);
 
--- 运维账号。SYS_ADMIN 不派生给任何真实员工——系统管理员是运维角色而非业务岗位。
--- 初始口令为 'Admin@123' 的 BCrypt 哈希，must_change_pwd=1 强制首次登录修改。
-INSERT INTO sys_user (username, password_hash, real_name, user_type, status, must_change_pwd) VALUES
-    ('admin', '$2a$10$QML7HXgspyFoS7XwRrS1meN2EnGnUOGtXCLQteHHodYiCZQIFb/Jm', '系统管理员', 'EMPLOYEE', 1, 1);
+-- 权限中心自身的权限，取值与 rbac-api.yaml 的 x-required-permission 一一对应。
+INSERT INTO sys_permission (resource_id, action_id, permission_code)
+SELECT r.id, a.id, CONCAT(r.resource_code, ':', a.action_code)
+FROM sys_resource r JOIN sys_action a ON
+     (r.resource_code = 'rbac:dashboard'  AND a.action_code = 'view')
+  OR (r.resource_code = 'rbac:user'       AND a.action_code IN ('view', 'create', 'edit', 'delete'))
+  OR (r.resource_code = 'rbac:role'       AND a.action_code IN ('view', 'create', 'edit', 'delete'))
+  OR (r.resource_code = 'rbac:permission' AND a.action_code IN ('view', 'create'))
+  OR (r.resource_code = 'rbac:menu'       AND a.action_code IN ('view', 'create', 'edit', 'delete'))
+  OR (r.resource_code = 'rbac:audit'      AND a.action_code = 'view')
+  OR (r.resource_code = 'rbac:org'        AND a.action_code IN ('view', 'import'))
+  OR (r.resource_code = 'rbac:assignment' AND a.action_code IN ('assign', 'revoke'))
+  OR (r.resource_code = 'rbac:grant'      AND a.action_code IN ('assign', 'revoke'))
+  OR (r.resource_code = 'rbac:authz'      AND a.action_code IN ('invoke', 'explain'))
+  OR (r.resource_code = 'rbac:heatmap'    AND a.action_code = 'view')
+  OR (r.resource_code = 'rbac:explain'    AND a.action_code = 'view');
 
--- 超级管理员账号。日常管理用 admin（SYS_ADMIN，走正常判定），root 只在必要时使用。
--- 初始口令同上，must_change_pwd=1。
-INSERT INTO sys_user (username, password_hash, real_name, user_type, status, must_change_pwd) VALUES
-    ('root', '$2a$10$QML7HXgspyFoS7XwRrS1meN2EnGnUOGtXCLQteHHodYiCZQIFb/Jm', '超级管理员', 'EMPLOYEE', 1, 1);
-
--- HR 系统集成账号。user_type=SYSTEM，仅用于调用 /sync/users 同步人员数据。
--- 口令为随机生成、未记录的强口令（哈希不对应任何已知口令），部署时由运维重置；该账号不得登录管理台。
-INSERT INTO sys_user (username, password_hash, real_name, user_type, status, must_change_pwd) VALUES
-    ('svc_hr_sync', '$2a$10$W/IcEPO40KWvHtZ5Fo4O9eNOUqvw8gmWhsNBx8c93HpsJ9awvTmoq', 'HR系统集成账号', 'SYSTEM', 1, 0);
-
-INSERT INTO sys_user_role (user_id, role_id)
-SELECT u.id, r.id FROM sys_user u, sys_role r
-WHERE u.username = 'admin' AND r.role_code = 'SYS_ADMIN';
-
-INSERT INTO sys_user_role (user_id, role_id)
-SELECT u.id, r.id FROM sys_user u, sys_role r
-WHERE u.username = 'root' AND r.role_code = 'SUPER_ADMIN';
-
--- -----------------------------------------------------------------------------
--- 平台管理权限（PLATFORM）与内置角色的授予
--- 取值与 rbac-api.yaml 的 x-required-permission 一一对应（'@self' 除外）；
--- 契约新增接口时须同步在此追加，否则持有者无法调用该接口。
--- 业务权限（oa:doc:draft:*、hr:attendance:record:* 等）不在此列，由导入器写入。
--- 职责划分（SRS §4.1.2）：
---   SYS_ADMIN 日常管理，除「角色继承、约束、审计查询」外的全部平台权限——继承与约束归安全管理员，
---             审计查询归审计员（审计员监督系统管理员，二者 SSD 互斥）；
---   SEC_ADMIN 角色继承与约束，以及配置时必须看到的角色、权限列表；
---   AUDITOR   只读：审计日志、监控面板，无任何配置权限。
--- SUPER_ADMIN 不需要任何授予：判定管道 S1b 直接放行。
--- -----------------------------------------------------------------------------
-INSERT INTO sys_permission (permission_code, perm_type, description) VALUES
-    ('authz:check:invoke',           'PLATFORM', '调用权限判定接口（业务系统接入）'),
-    ('authz:explain:invoke',         'PLATFORM', '判定解释'),
-    ('system:user:list',             'PLATFORM', '查看用户'),
-    ('system:user:create',           'PLATFORM', '新增用户'),
-    ('system:user:update',           'PLATFORM', '修改用户、启用停用'),
-    ('system:user:delete',           'PLATFORM', '删除用户'),
-    ('system:role:list',             'PLATFORM', '查看角色'),
-    ('system:role:create',           'PLATFORM', '新增角色'),
-    ('system:role:update',           'PLATFORM', '修改角色'),
-    ('system:role:delete',           'PLATFORM', '删除角色'),
-    ('system:role:assign',           'PLATFORM', '为用户分配角色（含批量）'),
-    ('system:role:revoke',           'PLATFORM', '撤销用户角色'),
-    ('system:perm:list',             'PLATFORM', '查看权限、资源、操作'),
-    ('system:perm:grant',            'PLATFORM', '为角色授予权限'),
-    ('system:perm:revoke',           'PLATFORM', '撤销角色权限'),
-    ('system:org:view',              'PLATFORM', '查看组织架构'),
-    ('system:org:manage',            'PLATFORM', '维护组织架构、导入'),
-    ('system:hier:view',             'PLATFORM', '查看角色继承'),
-    ('system:hier:manage',           'PLATFORM', '维护角色继承'),
-    ('system:constraint:manage',     'PLATFORM', '维护约束'),
-    ('audit:log:list',               'PLATFORM', '查询审计日志'),
-    ('obsv:dashboard:view',          'PLATFORM', '查看监控面板与缓存统计'),
-    ('sys:org:sync:manage',          'PLATFORM', 'HR 人员同步'),
-    ('sys:security:data:view',       'PLATFORM', '查看敏感数据明文'),
-    ('sys:security:password:view',   'PLATFORM', '查看口令策略'),
-    ('sys:security:password:edit',   'PLATFORM', '修改口令策略'),
-    ('sys:account:user:impersonate', 'PLATFORM', '以他人身份只读查看');
+-- 内置角色：
+--   SUPER_ADMIN  越过权限引擎（判定时账号有效即放行），没有也不需要任何授权记录；
+--   RBAC_ADMIN   权限管理员：权限中心的全部管理权限，管理范围由指派的适用部门决定；
+--   AUDITOR      审计员：只读审计、Dashboard、热力图。
+INSERT INTO sys_role (id, role_code, role_name, description, builtin) VALUES
+    (1, 'SUPER_ADMIN', '超级管理员', '越过权限引擎；账号必须有效', 1),
+    (2, 'RBAC_ADMIN',  '权限管理员', '管理指派部门及其下级部门的用户、角色指派', 1),
+    (3, 'AUDITOR',     '审计员',     '只读：审计日志、Dashboard、热力图', 1);
 
 INSERT INTO sys_role_permission (role_id, permission_id)
-SELECT r.id, p.id FROM sys_role r, sys_permission p
-WHERE r.role_code = 'SYS_ADMIN' AND p.perm_type = 'PLATFORM'
-  AND p.permission_code NOT IN ('system:hier:manage', 'system:constraint:manage', 'audit:log:list');
+SELECT 2, p.id FROM sys_permission p WHERE p.permission_code LIKE 'rbac:%'
+  AND p.permission_code NOT IN ('rbac:org:import', 'rbac:permission:create');
 
 INSERT INTO sys_role_permission (role_id, permission_id)
-SELECT r.id, p.id FROM sys_role r, sys_permission p
-WHERE r.role_code = 'SEC_ADMIN'
-  AND p.permission_code IN ('system:hier:view', 'system:hier:manage', 'system:constraint:manage',
-                            'system:role:list', 'system:perm:list');
+SELECT 3, p.id FROM sys_permission p
+WHERE p.permission_code IN ('rbac:audit:view', 'rbac:dashboard:view', 'rbac:heatmap:view');
 
-INSERT INTO sys_role_permission (role_id, permission_id)
-SELECT r.id, p.id FROM sys_role r, sys_permission p
-WHERE r.role_code = 'AUDITOR'
-  AND p.permission_code IN ('audit:log:list', 'obsv:dashboard:view');
+-- 菜单（需求「系统管理」菜单树 + Dashboard、组织管理、两项创新功能）
+INSERT INTO sys_menu (id, parent_id, resource_id, menu_name, route_path, component_key, icon, sort_order) VALUES
+    (1,  NULL, 1,    'Dashboard',      '/dashboard',   'Dashboard',   'odometer', 1),
+    (2,  NULL, NULL, '系统管理',        NULL,           NULL,          'setting',  2),
+    (3,  2,    2,    '用户管理',        '/users',       'UserList',    'user',     1),
+    (4,  2,    3,    '角色管理',        '/roles',       'RoleList',    'avatar',   2),
+    (5,  2,    4,    '权限管理',        '/permissions', 'Permission',  'key',      3),
+    (6,  2,    5,    '菜单管理',        '/menus',       'MenuList',    'menu',     4),
+    (7,  2,    6,    '审计日志',        '/audit-logs',  'AuditLog',    'document', 5),
+    (8,  2,    7,    '组织管理',        '/org',         'OrgTree',     'office',   6),
+    (9,  NULL, 12,   '权限解释',        '/explain',     'Explain',     'search',   3),
+    (10, NULL, 11,   '权限使用热力图',  '/heatmap',     'Heatmap',     'grid',     4);
+
+-- 平台运维：超级管理员所在的公司与部门。业务公司由导入接口创建。
+INSERT INTO sys_company (id, company_code, company_name) VALUES (1, 'PLATFORM', '平台运维');
+INSERT INTO sys_department (id, company_id, parent_id, dept_name, path, level) VALUES
+    (1, 1, NULL, '平台运维部', '/1/', 1);
+
+-- 超级管理员。初始口令 Admin@123（BCrypt），首次登录必须修改。
+INSERT INTO sys_user (id, company_id, department_id, username, password_hash, real_name, user_type, must_change_pwd) VALUES
+    (1, 1, 1, 'root', '$2a$10$QML7HXgspyFoS7XwRrS1meN2EnGnUOGtXCLQteHHodYiCZQIFb/Jm', '超级管理员', 'SYSTEM', 1);
+
+INSERT INTO sys_user_role (user_id, role_id, scope_dept_id, reason) VALUES (1, 1, 1, '系统初始化');

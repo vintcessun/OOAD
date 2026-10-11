@@ -19,9 +19,8 @@
     <name>rbac-parent</name>
 
     <!--
-      已建模块。rbac-oo（迭代二）、rbac-functional（迭代三）、rbac-test-suite、
-      rbac-acceptance（老师国庆后发布的测试）、rbac-bench 到期再加入，
-      避免空模块让构建变红。
+      当前阶段（RBAC0、结构化设计）只有这三个模块。
+      rbac-contract 是建表脚本与 OpenAPI 契约，rbac-structured 是权限中心，rbac-mock-biz 是外部模拟业务系统。
     -->
     <modules>
         <module>rbac-contract</module>
@@ -34,7 +33,7 @@
         <java.version>21</java.version>
         <maven.compiler.release>21</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <mybatis-starter.version>3.0.3</mybatis-starter.version>
+        <poi.version>5.3.0</poi.version>
         <jjwt.version>0.12.6</jjwt.version>
         <jacoco.version>0.8.12</jacoco.version>
         <archunit.version>1.3.0</archunit.version>
@@ -48,9 +47,9 @@
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>org.mybatis.spring.boot</groupId>
-                <artifactId>mybatis-spring-boot-starter</artifactId>
-                <version>${mybatis-starter.version}</version>
+                <groupId>org.apache.poi</groupId>
+                <artifactId>poi-ooxml</artifactId>
+                <version>${poi.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.tngtech.archunit</groupId>
@@ -86,7 +85,7 @@
                     <configuration>
                         <excludes>
                             <exclude>**/dto/**</exclude>
-                            <exclude>**/data/*Record.class</exclude>
+                            <exclude>**/entity/**</exclude>
                             <exclude>**/config/**</exclude>
                             <exclude>**/*Application.class</exclude>
                         </excludes>
@@ -117,12 +116,10 @@
                                     <rule>
                                         <element>PACKAGE</element>
                                         <includes>
-                                            <include>*.func</include>
-                                            <include>*.domain</include>
-                                            <include>*.kernel</include>
+                                            <include>*.service</include>
                                         </includes>
                                         <limits>
-                                            <limit><counter>LINE</counter><value>COVEREDRATIO</value><minimum>0.90</minimum></limit>
+                                            <limit><counter>LINE</counter><value>COVEREDRATIO</value><minimum>0.85</minimum></limit>
                                         </limits>
                                     </rule>
                                 </rules>

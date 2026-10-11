@@ -10,7 +10,7 @@
         <version>0.1.0-SNAPSHOT</version>
     </parent>
 
-    <!-- 实现一：结构化（面向功能）。Controller = Spring MVC，Service = 静态函数，Mapper = MyBatis。见 docs/06-detail-structured.md -->
+    <!-- 权限中心：结构化（面向功能）设计。Controller = Spring MVC，Service = 无状态处理过程，Mapper = Spring Data JPA / Redis。见 docs/06-detail-structured.md -->
     <artifactId>rbac-structured</artifactId>
     <packaging>jar</packaging>
 
@@ -29,8 +29,18 @@
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.mybatis.spring.boot</groupId>
-            <artifactId>mybatis-spring-boot-starter</artifactId>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+        <!-- 令牌吊销与权限缓存（docs/02-architecture.md §4.2） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+        </dependency>
+        <!-- 读取三份 xlsx -->
+        <dependency>
+            <groupId>org.apache.poi</groupId>
+            <artifactId>poi-ooxml</artifactId>
         </dependency>
         <dependency>
             <groupId>com.mysql</groupId>
@@ -45,11 +55,6 @@
         <dependency>
             <groupId>org.flywaydb</groupId>
             <artifactId>flyway-mysql</artifactId>
-        </dependency>
-        <!-- L1 本地缓存。L2 Redis 与失效广播见 docs/02-architecture.md §4.2，待接入 -->
-        <dependency>
-            <groupId>com.github.ben-manes.caffeine</groupId>
-            <artifactId>caffeine</artifactId>
         </dependency>
         <!-- 只用 BCrypt，不引入整个 Spring Security：鉴权由本系统自己的判定内核完成 -->
         <dependency>
@@ -81,7 +86,7 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
-        <!-- 架构适应度函数：把「内核不依赖框架」「依赖方向单向」写成会失败的测试（02 §2.4） -->
+        <!-- 架构适应度函数：把 Controller → Service → Mapper 的依赖方向写成会失败的测试 -->
         <dependency>
             <groupId>com.tngtech.archunit</groupId>
             <artifactId>archunit-junit5</artifactId>
