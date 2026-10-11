@@ -16,6 +16,9 @@
 
 ## 导入
 
-导入规则见 [`../docs/03-database.md`](../docs/03-database.md) §5，需求编号 `RBAC-REQ-ORG-005`。
+文件通过接口上传导入（不从本目录自动读取），步骤见 [`../docs/13-deployment.md`](../docs/13-deployment.md) §4.5，演示请求见 [`../deploy/rbac-demo.http`](../deploy/rbac-demo.http)：
 
-导入会产出**异常报告**，列出数据疑点（见 `../docs/01-srs.md` 附录 C）。该报告是检查时的展示材料之一。
+1. `POST /imports/permissions`：功能权限清单；
+2. `POST /imports/organization?companyCode=SZ&companyName=市政公司`：部门信息表 + 员工信息表。
+
+导入规则与真实数据的导入结果见 [`../docs/03-database.md`](../docs/03-database.md) §5。导入返回的报告列出无法处理的行（异常清单），检查时可作为展示材料。导入**不分配任何角色**，之后用批量授权人工分配。

@@ -1,10 +1,12 @@
 # 编译、打包与部署手册
 
-**版本 0.2 · 2026 年 10 月 9 日**（0.1 · 10 月 1 日）
+**版本 0.3 · 2026 年 10 月 11 日**（0.1 · 10 月 1 日；0.2 · 10 月 9 日）
 
 > 写给组内每个人：十月底个人验收会问到部署过程，每个人都要能讲清楚「代码怎么变成服务器上跑着的服务」。
 >
 > 0.2 按老师的**实验二《熟悉服务器环境》**改写：用华为云 SWR 代替自建镜像仓库，第 4 节的每一步都和实验二一一对应（4 节开头有对照表）。实验二部署的是老师的 `productdemojpa`，本文部署的是我们自己的 RBAC 服务，流程相同。
+>
+> 0.3 跟随代码改为 RBAC0 基线：Redis 成为必需依赖（`REDIS_HOST`）；新增环境变量 `RBAC_INITIAL_PASSWORD`；V1 建表脚本已重写，跑过旧 V1–V3 的库必须删库重建（§4.5）；部署后多了「导入三份 xlsx → 人工批量授权」的初始化步骤（§4.5）。
 >
 > **服务器的 IP、登录口令、数据库口令一律不写进仓库**（仓库是公开的）。组内在群精华消息里查，或各自记在本机被忽略的 `deploy/*.local.md` 里。
 
@@ -61,7 +63,7 @@ flowchart LR
 | ② `./mvnw verify` | 编译 → 跑全部单元测试 → 生成 Jacoco 报告 → 检查覆盖率门槛 → 打 jar | **任何一步失败都不会产出 jar**，也就不会有镜像。没测过的代码进不了服务器 |
 | ③ `docker build` | 把 jar 和 JRE 装进一个镜像 | 镜像里带着运行环境。部署服务器不用装 JDK，只要有 docker |
 | ④ `docker push` | 推到华为云 SWR | 两台部署服务器从同一个地方拿镜像，版本一致 |
-| ⑤ `docker stack deploy` | manager 把服务按标签分派到两台部署服务器，各自从 SWR 拉镜像启动 | 应用启动时 Flyway 自动建表（V1→V2→V3）。实验二要手动 `source` 两个 SQL 文件，我们不需要 |
+| ⑤ `docker stack deploy` | manager 把服务按标签分派到两台部署服务器，各自从 SWR 拉镜像启动 | 应用启动时 Flyway 自动执行 V1 建表与内置数据。实验二要手动 `source` 两个 SQL 文件，我们不需要 |
 
 **为什么编译和部署分开**：2G 内存的机器，编译（Maven + 测试）和运行（MySQL + 两个 JVM）同时进行会互相抢内存，部署服务器可能被 OOM 杀掉进程。分开之后，编译服务器随便折腾，部署服务器只跑服务。
 
@@ -83,7 +85,7 @@ flowchart LR
 
 这些上限写在 `docker-compose.yml` 的 `deploy.resources.limits` 和 `JAVA_OPTS` 里。**不设上限的后果**：JVM 默认堆是物理内存的 1/4，但 MySQL 默认 buffer pool 是 128M 起步、随连接数增长；三个进程互不知道对方存在，总和超过 2G 时 Linux 会随机杀一个，现象是「服务莫名其妙挂了」。
 
-**与需求的差距要如实说明**：需求给的是 6–8 台一般性能的服务器、集群 10,000 QPS（`02-architecture.md` §6）。课程环境只有 1 台应用节点、且是 2 核 2G，**测不出这个指标**。在这套环境上压测只用于验证正确性和观察趋势（单节点吞吐、缓存命中率、P95/P99），10,000 QPS 按节点数推算，并在报告中写明推算依据。
+**要如实说明的一点**：RBAC0 需求没有性能指标，只要求用 3 台服务器、其中一台部署数据库。这套部署是三节点、不是高可用：数据节点和应用节点各只有一个，任何一台故障服务都不可用（`02-architecture.md` §6）。
 
 ---
 
@@ -97,7 +99,7 @@ flowchart LR
 | 4.2 编译、打镜像、推 SWR | 三、3–5 | `deploy/build.sh push` |
 | 4.3 组建 Swarm、打标签 | 四、1–3 | `deploy/stack.sh init` / `label` |
 | 4.4 部署 | 四、4 | `deploy/stack.sh up` |
-| 4.5 建库、初始数据、改口令 | 四、5 | **不需要**：Flyway 建表；口令首次部署时由 `.env` 设定 |
+| 4.5 建库、改口令、导入数据 | 四、5 | 建库建表**不需要**手动执行：Flyway 建表，口令由 `.env` 设定；部署后用接口导入三份 xlsx 并人工批量授权 |
 | 4.6 用 httpclient 调接口 | 五 | `deploy/rbac-demo.http` |
 
 ### 4.1 服务器初始化（每台一次）
@@ -132,7 +134,7 @@ bash deploy/build.sh push
 
 `build.sh` 依次执行 `./mvnw verify`，打两个镜像（标签为当前提交的短哈希和 `latest`），再 push 到 SWR。对应实验二的 `docker tag` 与 `docker push`。
 
-服务器拉不到 Docker Hub 时，在 `.env` 里把 `MYSQL_IMAGE`、`REDIS_IMAGE`、`BASE_IMAGE` 换成 SWR 上的镜像。老师实验二用的 MySQL 镜像是 9.2 版。本项目已用 MySQL 9.2 实测：3 个迁移脚本全部成功，只有一条「Flyway 未测试过 9.2」的警告。
+服务器拉不到 Docker Hub 时，在 `.env` 里把 `MYSQL_IMAGE`、`REDIS_IMAGE`、`BASE_IMAGE` 换成 SWR 上的镜像。老师实验二用的 MySQL 镜像是 9.2 版。10 月 9 日用 MySQL 9.2 实测过旧版迁移脚本，只有一条「Flyway 未测试过 9.2」的警告；重写后的 V1 在 MySQL 8.0 上测过（集成测试与本机部署），换 9.2 前先在测试库上跑一次。
 
 ### 4.3 组建 Swarm、打标签（package-server，一次）
 
@@ -157,7 +159,7 @@ bash deploy/stack.sh label <数据节点主机名> <应用节点主机名>   # �
 
 ```bash
 TAG=<build.sh 打出的短哈希> bash deploy/stack.sh up     # 不写 TAG 则部署 latest
-bash deploy/stack.sh ps                                # 4 个服务都应为 1/1，看每个任务在哪台机器上
+bash deploy/stack.sh ps                                # 4 个服务都应为 1/1，看每个任务在哪台机器上（Redis 是必需的，不再只是占位）
 bash deploy/stack.sh logs                              # rbac-structured 的日志
 ```
 
@@ -178,7 +180,7 @@ bash deploy/stack.sh logs                              # rbac-structured 的日�
 | 实验二 | 本项目 |
 |---|---|
 | 进 MySQL 容器 `source /sql/database.sql` 建库、建用户 | MySQL 镜像按 `MYSQL_DATABASE`、`MYSQL_USER`、`MYSQL_PASSWORD` 在**首次启动**时自动建库、建用户 |
-| `source /sql/product.sql` 导入表和数据 | 应用启动时 Flyway 依次执行 V1→V2→V3 |
+| `source /sql/product.sql` 导入表和数据 | 应用启动时 Flyway 执行 `V1__rbac0_baseline.sql`：建表，并写入操作词汇、权限中心自身的权限、三个内置角色、菜单和超级管理员 `root` |
 | `SET PASSWORD ... = PASSWORD('...')` 改口令 | 口令首次部署时由 `.env` 决定。⚠️ 实验指导里的 `PASSWORD()` 函数从 MySQL 8 起已删除，要改用 `ALTER USER 'rbac'@'%' IDENTIFIED BY '新口令';` |
 
 **`MYSQL_ROOT_PASSWORD`、`DB_PASSWORD` 只在数据卷为空时生效。** 已经部署过再改 `.env` 不会改变数据库里的口令，只会让应用连不上库。要改口令，二选一：
@@ -186,22 +188,49 @@ bash deploy/stack.sh logs                              # rbac-structured 的日�
 - 进容器用 `ALTER USER` 改；
 - 清库重来：`stack.sh down`，在 mysql-server 上执行 `docker volume rm rbac_mysql-data`，再 `up`。
 
-**系统账号**：`admin` 与 `root` 的初始口令都是 `Admin@123`，登录返回 `mustChangePwd=true`。部署后立即用 `rbac-demo.http` 的第 11 个请求改掉。（「未改密前拒绝其他操作」尚未实现。）
+**跑过旧版脚本的库必须删库重建。** 10 月 11 日 V1 按 RBAC0 需求重写，旧的 V2、V3 已移出迁移目录。旧库里 `flyway_schema_history` 记的是旧脚本，应用启动会报 `Migration checksum mismatch` 或表已存在。课程环境还没有正式数据，直接清库：
+
+```bash
+bash deploy/stack.sh down
+# 在 mysql-server 上：
+docker volume rm rbac_mysql-data
+# 回到 package-server：
+bash deploy/stack.sh up
+```
+
+本机单机部署对应 `docker compose down -v`。
+
+**新增的环境变量**（模板见 `deploy/env.example`）：
+
+| 变量 | 用途 |
+|---|---|
+| `REDIS_HOST` | 编排文件里已设为 `redis`。Redis 存授权缓存和已登出令牌，是必需依赖 |
+| `RBAC_INITIAL_PASSWORD` | 导入的员工、未指定口令的新用户使用的初始口令（默认 `Init@2026`），首次登录必须修改 |
+
+**部署后的初始化**（按顺序；`deploy/rbac-demo.http` 里有对应请求）：
+
+1. 用 `root` / `Admin@123` 登录。返回 `mustChangePwd=true`，此时除查看本人、登出、改口令之外的接口都返回 403；
+2. `POST /auth/password` 改掉初始口令，用新口令重新登录（旧令牌已失效）；
+3. `POST /imports/permissions` 上传《应用软件功能权限清单》：建立 18 个业务系统、115 个模块、359 个资源、1,795 个权限和五类角色模板（3,190 条角色权限）；
+4. `POST /imports/organization?companyCode=SZ&companyName=市政公司` 上传《部门信息表》（字段名 `departments`）与《员工信息表》（字段名 `employees`）：建立 111 个部门、10,000 名员工；
+5. 查看两份导入报告里的异常清单（例如重名的部门负责人），人工核对；
+6. 用 `POST /assignments/batch` **人工**分配角色，例如给全公司分配 `EMPLOYEE`（`targetType=COMPANY`），再给各部门负责人分配 `DEPT_MANAGER`。
+
+**导入不分配任何角色**：整个系统的权限都由人工分配和回收，岗位不等于系统角色。部门负责人关联只是组织信息，不产生管理权限。三份 xlsx 含真实人员信息，**不进仓库、不进镜像**，只在导入时从本机上传。
 
 ### 4.6 验证：用 httpclient 调接口（实验二第五部分）
 
 用 IntelliJ IDEA 打开 `deploy/rbac-demo.http`，把 `@host` 改成任一节点的公网 IP。Swarm 的路由网格让每个节点的 8081 都能访问到服务。然后从上到下逐个运行，每个请求的预期结果写在它上方。请求依次是：
 
-- 健康检查；
-- 口令错误；
-- 登录，取得令牌和 24 个平台权限；
-- 允许、拒绝、超级管理员旁路三种鉴权结果；
-- 不带令牌返回 401；
-- 未声明的接口返回 403；
-- 调用模拟业务系统；
-- 修改口令。
-
-这些请求 10 月 9 日在 MySQL 9.2 上逐条跑过，结果与标注一致。
+- 健康检查、口令错误；
+- `root` 登录，未改口令前访问管理接口被拒绝，改口令后重新登录；
+- 导入功能权限清单与组织人员（上传文件的路径改成本机的 xlsx）；
+- 按公司批量分配普通员工角色；
+- 鉴权：本部门允许、其他分公司 `OUT_OF_DATA_SCOPE`、没有的权限 `MISSING_PERMISSION`；
+- 权限解释；
+- 回收该员工的角色后再鉴权，下一次请求就被拒绝；
+- 不带令牌 401、未声明的接口 403、登出后旧令牌 401；
+- 调用模拟业务系统。
 
 ### 4.7 只有一台机器时（本地开发、检查现场演示）
 
@@ -221,7 +250,7 @@ docker compose up -d --build
 | 只从 `main` 发布；发布前 `git pull`，不在服务器上改代码 | 服务器上改的代码不在仓库里，下次发布就被覆盖，而且没人知道改过 |
 | 镜像标签 = 提交短哈希（`build.sh` 自动打） | 服务器上跑的是哪个版本，`docker service ls` 一眼可见，能对应到具体提交 |
 | 每次检查前打 git 标签：`check-1`、`check-2`、`check-3` | 检查时提交的 Jacoco 报告、详细设计与代码能对上同一个版本 |
-| **已部署过的迁移脚本（V1、V2、V3）不得再改**，改表一律新增 `V4__xxx.sql` | Flyway 会校验已执行脚本的校验和，改了已执行的脚本，应用直接启动失败（`Validate failed: Migration checksum mismatch`）。首次部署之前可以改，之后不行 |
+| **正式部署之后，迁移脚本不得再改**，改表一律新增 `V2__xxx.sql` | Flyway 会校验已执行脚本的校验和，改了已执行的脚本，应用直接启动失败（`Validate failed: Migration checksum mismatch`）。10 月 11 日重写 V1 时还没有正式数据，所以采用删库重建（§4.5）；有正式数据之后不能再这样做 |
 | `.env` 不入库；仓库里只有 `deploy/env.example` 模板 | 口令与 JWT 密钥进了 Git 历史就等于公开 |
 | JDK、Maven 版本写死在 `pom.xml`（`java.version=21`）与 `.mvn/wrapper`（3.9.9） | 组员本机、编译服务器、镜像三处版本一致，不会出现「我这能编译」 |
 
@@ -240,12 +269,15 @@ docker compose up -d --build
 | 删掉并重建了挂载目录，容器里看不到新文件 | 运行中的容器仍挂着已被删除的旧目录（同名、不同 inode） | `docker service update --force <服务>` 重建容器。以后先停服务再动目录（实验二遇到过） |
 | 加入 Swarm 失败 | 用了旧的 join token，或安全组没开 2377 | 在 manager 上 `docker swarm join-token worker` 重新取；检查 4.1 的端口 |
 | 日志里有 `MySQL 9.2 is newer than this version of Flyway` | Flyway 10.10 只正式测试到 MySQL 8.1 | 只是警告，实测 9.2 建表正常 |
-| `Migration checksum mismatch` | 改了已执行过的迁移脚本 | 见第 5 节；开发环境可 `docker volume rm rbac_mysql-data` 清库重来，**生产不行** |
+| `Migration checksum mismatch`，或启动时报表已存在 | 改了已执行过的迁移脚本；或库里还是 10 月 11 日之前的旧 V1–V3 | 见 §4.5、第 5 节；开发与课程环境 `docker volume rm rbac_mysql-data` 清库重来，**有正式数据后不行** |
+| 日志报连不上 Redis，或所有请求 401「令牌已注销」 | Redis 没起来。令牌注销查询失败时按「已注销」处理 | `stack.sh ps` 看 redis 服务；确认 `REDIS_HOST=redis` |
+| 登录后除了改口令都返回 403「首次登录请先修改口令」 | 初始口令账号必须先改口令 | 调 `POST /auth/password`，再用新口令登录 |
 | `Unsupported Database: MySQL 8.0` | 缺 `flyway-mysql` 依赖（Flyway 10 起拆包） | 已在 `rbac-structured/pom.xml` 加上 |
 | 容器被杀，`dmesg` 里有 `Out of memory` | 内存超限 | 检查 `JAVA_OPTS` 与第 3 节的上限；不要在部署服务器上跑 Maven |
 | `docker pull` 极慢或超时 | 直连 Docker Hub | `.env` 里把 `MYSQL_IMAGE` 等换成 SWR 上的镜像（4.2） |
 | Maven 下载依赖很慢 | 没用华为镜像 | 所有 `mvn` / `./mvnw` 命令都带 `-s deploy/maven-settings-huawei.xml` |
-| 接口返回 403「接口未在契约中声明权限」 | 访问了契约里没有、或尚未实现的路由 | 所有接口都受权限控制（`02-architecture.md` §4.7），这是预期行为 |
+| 接口返回 403「接口未在契约中声明权限」 | 访问了契约里没有的路由 | 所有接口都受权限控制（`02-architecture.md` §4.7），这是预期行为 |
+| 应用拒绝启动，日志说「rbac-api.yaml 中的以下接口没有实现」或「未声明 x-required-permission」 | 契约与代码不一致 | 启动时双向核对，改代码或契约使两边一致 |
 
 ---
 
@@ -256,7 +288,9 @@ docker compose up -d --build
 | 为什么用 3 台而不是 1 台？ | 编译与运行分开，避免 2G 内存互相挤占；数据与应用分开，应用可以横向扩展而数据库不动 |
 | jar 和镜像是什么关系？ | jar 是编译产物，只含我们的代码和依赖；镜像 = jar + JRE + 启动命令，是可以直接运行的单元 |
 | 为什么部署服务器不装 JDK？ | JRE 在镜像里。部署服务器只要有 docker，换机器不用重新配环境 |
-| 数据库表是谁建的？ | 应用启动时 Flyway 按 V1→V2→V3 顺序执行，并在 `flyway_schema_history` 记录执行过哪些，重启不会重复执行 |
+| 数据库表是谁建的？ | 应用启动时 Flyway 执行 V1，并在 `flyway_schema_history` 记录执行过哪些，重启不会重复执行 |
+| 一万名员工是怎么进系统的？ | 部署后超级管理员调导入接口上传 xlsx；导入不分配角色，之后人工批量授权 |
+| 三台服务器是高可用吗？ | 不是。数据节点、应用节点各一个，任何一台故障服务都不可用；需求只要求三台、其中一台放数据库 |
 | 为什么 `-Xmx512m`？ | 2G 的机器上不封顶，JVM 与 MySQL 会一起把内存吃满，被系统随机杀进程 |
 | Swarm 怎么知道把 MySQL 放在哪台？ | 节点标签 `rbac.role`（实验二是 `mysql=yes`）+ 编排文件里的 `placement.constraints` |
 | 改了代码怎么上线？ | push → package-server `build.sh push` → `stack.sh up`，Swarm 逐个替换容器 |

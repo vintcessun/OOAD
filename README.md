@@ -1,35 +1,33 @@
-# 基于 RBAC 模型的高负载大并发权限管理系统
+# 基于 RBAC 模型的权限管理系统
 
 > 厦门大学《面向对象分析与设计》(OOAD) 2026 秋季学期课程设计
 > 与《软件工程》《JavaEE 平台技术》共用同一选题与分组
 
-本仓库存放本组课程设计的**全部文档、模型与代码**。三次检查前需要提交的「详细设计 + Jacoco 测试报告」均从本仓库导出。
+本仓库存放本组课程设计的**全部文档、模型与代码**。每次检查前需要提交的「详细设计 + Jacoco 测试报告」均从本仓库导出。
 
 ---
 
 ## 一、这个项目在做什么
 
-为一家**市政工程公司**实现**统一授权中心（Authorization Center）**：该公司的 18 个业务系统不自己管权限，而是把「某用户能否对某资源做某操作」这个问题交给本系统回答。
+为一家**市政公司**实现**统一授权中心**：公司的 18 个业务系统不自己管权限，而是把「某用户能否对某部门的数据做某操作」交给本系统判定。
 
-系统建立在课程提供的三份**真实数据**之上：
+**当前阶段（第一次检查）**按课程的 RBAC0 需求清单实现：
 
-| 数据 | 规模 |
+- 权限模型只做 **RBAC0**：User — Role — Permission（= Resource × Action），不做角色继承与约束；
+- 用**面向功能的结构化设计**，技术栈 Spring MVC + JPA + MySQL + Redis，分层只用 Controller + Service + Mapper；
+- 登录、鉴权两个场景；一个用户属于一个部门，但可以在多个部门有权限；临时用户；按分公司 / 部门 / 员工批量授权；多公司；超级管理员越过权限引擎；管理员只能管理自身及以下层级；权限修改后下一次访问即生效。
+
+系统建立在课程提供的三份**真实数据**之上，已全量导入核对：
+
+| 数据 | 导入结果 |
 |---|---|
-| 部门信息表 | **111 个部门**，三层（总公司 → 9 分公司 + 10 职能部门 → 子部门）；表结构支持多家公司 |
-| 员工信息表 | **10,000 名员工**，含分公司、部门、岗位 |
-| 应用软件功能权限清单 | **18 个软件系统 / 115 个功能模块 / 359 个功能点 × 5 个角色** |
+| 部门信息表 | 111 个部门（总公司 → 9 个分公司 + 职能部门 → 下级部门），全部建成 |
+| 员工信息表 | 10,000 名员工，全部按「分公司 + 部门」唯一定位到部门 |
+| 应用软件功能权限清单 | 18 个业务系统 / 115 个功能模块 / 359 个资源；1,795 个权限（资源 × 五类操作）；五类角色共 3,190 条角色权限 |
 
-展开后约 **1,795 条原子权限**、**1,800 条角色授予**。系统不实现那 18 个业务系统，只从清单中选取两个模块共 8 个功能点，做成两个**外部模拟系统**来验证权限真实生效。
+外部模拟业务系统 `rbac-mock-biz` 取清单中的两个功能点（发文拟稿与审核、考勤管理），每次操作带着用户令牌调用权限中心，验证权限在业务系统里真实生效。
 
-系统按 RBAC 标准模型（ANSI/INCITS 359）分三个迭代逐级增强：
-
-| 迭代 | 模型 | 核心能力 |
-|---|---|---|
-| 迭代一 | RBAC0 | 用户 → 角色 → 权限的基本授权 |
-| 迭代二 | RBAC1 | RBAC0 + 角色继承（层级角色） |
-| 迭代三 | RBAC2/3 | RBAC1 + 约束（SSD、DSD、基数、先决条件角色、时间约束） |
-
-并且用**三种设计范式**分别实现同一套需求，用于横向对比：**结构化（面向功能）设计 / 面向对象设计 / 函数式设计**。
+需求与实现的逐条对照、尚未完成的事项见 [`docs/14-rbac0-gap.md`](docs/14-rbac0-gap.md)。
 
 ---
 
@@ -39,25 +37,22 @@
 
 | 时间 | 分数 | 内容要求 | 本仓库对应交付物 |
 |---|---|---|---|
-| **10/27 – 10/29** | 20 | 前端界面设计、API 设计、数据库设计；用**结构化**方式实现 **RBAC0** 后端 | [`docs/01-srs.md`](docs/01-srs.md)、[`docs/02-architecture.md`](docs/02-architecture.md)、[`docs/03-database.md`](docs/03-database.md)、[`docs/04-api.md`](docs/04-api.md)、[`docs/05-ui.md`](docs/05-ui.md)、[`docs/06-detail-structured.md`](docs/06-detail-structured.md) |
-| **11/24 – 11/26** | 30 | 分别用**结构化和面向对象**实现 **RBAC1** 后端 + 部分前端 | 上述文档增补 + [`docs/07-detail-oo.md`](docs/07-detail-oo.md) |
-| **12/22 – 12/24** | 20 | 分别用结构化和面向对象实现 **RBAC2/3** 后端 + 前端；**部分功能采用函数式设计** | + [`docs/08-detail-functional.md`](docs/08-detail-functional.md)、[`docs/10-paradigm-comparison.md`](docs/10-paradigm-comparison.md) |
+| **10/27 – 10/29** | 20 | 前端界面设计、API 设计、数据库设计；用**结构化**方式实现 **RBAC0** 后端 | [`01`](docs/01-srs.md) 需求、[`02`](docs/02-architecture.md) 概要设计、[`03`](docs/03-database.md) 数据库、[`04`](docs/04-api.md) API、[`05`](docs/05-ui.md) 界面、[`06`](docs/06-detail-structured.md) **详细设计**、[`09`](docs/09-test-plan.md) 测试与 Jacoco |
+| 11/24 – 11/26 | 30 | 课程介绍中为 RBAC1、结构化与面向对象两种实现 + 部分前端 | 届时以老师当期需求清单为准 |
+| 12/22 – 12/24 | 20 | 课程介绍中为 RBAC2/3 + 前端，部分功能函数式 | 同上 |
 | 考勤 | −10 | 缺勤超 1/3 −10；超 1/4 −5；超 1/5 −2 | — |
 
-**每次检查前必须提交：详细设计文档 + Jacoco 测试报告**（无法提供报告则提供代码）。见 [`docs/09-test-plan.md`](docs/09-test-plan.md)。
-
-**组内进度目标**：10 月底交付**可自动测试、可部署的后端**（`mvn verify` 一条命令跑完测试，`docker compose up` 一条命令部署）。老师国庆后发布测试，之后以通过这些测试为准。11 月底检查要能回答**耦合与内聚的理由、结构化设计的理由、设计问题与改正的理由**。
+**每次检查前必须提交：详细设计文档 + Jacoco 测试报告**（无法提供报告则提供代码）。
 
 ### 检查方式：无领导小组面试
 
-分**个人陈述**与**自由讨论**两阶段。个人陈述阶段，每位同学依次陈述文档中的**一个设计**，必须讲清楚：
+分**个人陈述**与**自由讨论**两阶段。个人陈述阶段，每位同学依次陈述文档中的**一个设计**，讲清：
 
 1. 这个设计的**需求是什么，存在什么问题**
 2. 采用**何种设计方法，采用的理由**是什么
 3. 展示**实现效果**
 
-> **本仓库所有设计章节都按这个结构撰写**，见 [`docs/11-defense.md`](docs/11-defense.md) 的讲稿模板。
-> 成绩 = 个人表现 50% + 小组整体表现 50%。
+六个设计点与讲稿模板见 [`docs/11-defense.md`](docs/11-defense.md)。成绩 = 个人表现 50% + 小组整体表现 50%。
 
 ---
 
@@ -65,23 +60,22 @@
 
 | 文档 | 内容 | 主要用于 |
 |---|---|---|
-| [`00-charter.md`](docs/00-charter.md) | 项目章程、工作分解、里程碑、完成定义(DoD)、协作规范 | 全程 |
-| [`01-srs.md`](docs/01-srs.md) | **需求规格说明书**（领域模型、用例总图、用例表、性能需求、**数据疑点附录 C**） | 检查一 ★ |
-| [`02-architecture.md`](docs/02-architecture.md) | **概要设计**：质量属性与取舍、分层架构、三范式模块划分、授权内核、缓存与失效、部署 | 检查一 ★ |
-| [`03-database.md`](docs/03-database.md) | **数据库设计**：ER 图、表结构、索引、**三份 xlsx 的导入设计** | 检查一 ★ |
-| [`04-api.md`](docs/04-api.md) | **API 设计**：统一响应、错误码、全部接口契约 | 检查一 ★ |
-| [`05-ui.md`](docs/05-ui.md) | **前端界面设计**：信息架构、页面清单、线框图、交互约定 | 检查一 ★ |
-| [`06-detail-structured.md`](docs/06-detail-structured.md) | **详细设计 · 结构化（面向功能）** | 检查一 ★ |
-| [`07-detail-oo.md`](docs/07-detail-oo.md) | 详细设计 · 面向对象 | 检查二 |
-| [`08-detail-functional.md`](docs/08-detail-functional.md) | 详细设计 · 函数式 | 检查三 |
-| [`09-test-plan.md`](docs/09-test-plan.md) | 测试计划、Jacoco 覆盖率门槛、压测方案 | 全程 ★ |
-| [`10-paradigm-comparison.md`](docs/10-paradigm-comparison.md) | **三种范式对比分析**（本项目的差异化亮点） | 检查三 ★ |
-| [`11-defense.md`](docs/11-defense.md) | 六个设计点与个人陈述讲稿模板 | 每次检查前 ★ |
-| [`12-design-log.md`](docs/12-design-log.md) | **设计问题与改正记录**：发现了什么问题、为什么错、怎么改 | 检查二 ★ |
-| [`13-deployment.md`](docs/13-deployment.md) | **编译、打包与部署手册**：3 台华为云服务器的分工、每一步命令与原因、验收常见问题 | 个人验收 ★ |
-| [`diagrams/`](diagrams/) | StarUML 模型源文件 (.mdj) 与导出图 | 全程 |
-| [`rbac-contract/`](rbac-contract/) | **已落地的契约产物**：Flyway 建表脚本、OpenAPI 规范 | 全程 ★ |
-| [`data/raw/`](data/raw/) | 课程提供的三份原始 xlsx（**含真实人员信息，不入库**，需自行下载） | 全程 |
+| [`00-charter.md`](docs/00-charter.md) | 项目章程、设计点分工、里程碑、完成定义 | 全程 |
+| [`01-srs.md`](docs/01-srs.md) | **需求规格说明书**：领域模型、需求总表、用例、数据疑点 | 检查一 ★ |
+| [`02-architecture.md`](docs/02-architecture.md) | **概要设计**：质量属性与取舍、三层架构、判定、缓存与失效、认证、部署 | 检查一 ★ |
+| [`03-database.md`](docs/03-database.md) | **数据库设计**：ER 图、表结构、多公司与作用域、三份 xlsx 的导入规则与真实结果 | 检查一 ★ |
+| [`04-api.md`](docs/04-api.md) | **API 设计**：约定、错误码、45 个接口与所需权限 | 检查一 ★ |
+| [`05-ui.md`](docs/05-ui.md) | **前端界面设计**：页面结构、线框图、Dashboard 统计口径 | 检查一 ★ |
+| [`06-detail-structured.md`](docs/06-detail-structured.md) | **详细设计 · 结构化**：功能层次图、数据流图、数据字典、处理规约、耦合与内聚 | 检查一 ★ |
+| [`09-test-plan.md`](docs/09-test-plan.md) | 测试策略、T01–T22 验收用例与追溯、Jacoco | 检查一 ★ |
+| [`11-defense.md`](docs/11-defense.md) | 六个设计点与个人陈述讲稿模板、高频追问 | 每次检查前 ★ |
+| [`12-design-log.md`](docs/12-design-log.md) | **设计问题与改正记录**（#15–#29 为本次按审查整改） | 检查二 ★ |
+| [`13-deployment.md`](docs/13-deployment.md) | 编译、打包与 Swarm 部署手册，部署后的初始化步骤 | 个人验收 ★ |
+| [`14-rbac0-gap.md`](docs/14-rbac0-gap.md) | RBAC0 需求逐条对照、审查问题的处理、遗留事项 | 检查一 ★ |
+| [`07`](docs/07-detail-oo.md) / [`08`](docs/08-detail-functional.md) / [`10`](docs/10-paradigm-comparison.md) | 面向对象、函数式、范式对比的早期骨架（**当前阶段不实现**） | 后续检查 |
+| [`archive/sql/`](docs/archive/sql/) | 旧版 V1–V3 迁移脚本（含 RBAC1/2/3，已不执行） | 参考 |
+| [`rbac-contract/`](rbac-contract/) | Flyway 建表脚本与 OpenAPI 契约（数据库与接口的唯一来源） | 全程 ★ |
+| [`data/raw/`](data/raw/) | 课程提供的三份原始 xlsx（**含真实人员信息，不入库**，需自行下载） | 导入 |
 | [`intro-spec-coding/`](intro-spec-coding/) | **导论题目 1**（与 RBAC 无关）：Spec Coding 调研报告、PPT 文字稿、选型指南，以及对照实验工程与数据 | 导论 |
 
 ---
@@ -90,48 +84,35 @@
 
 | 层 | 选型 | 说明 |
 |---|---|---|
-| 语言 | **Java 21**（服务器装 21.0.2） | Jacoco 是课程提交门槛，必须 JVM 系 |
-| 构建 | **Maven 3.9.9** 多模块，仓库自带 `./mvnw` | 三种范式各成一个模块，见下；依赖走华为云镜像 |
-| 后端框架 | Spring Boot 3.3 | 与《JavaEE 平台技术》课程一致 |
-| 持久化 | 结构化：MyBatis；面向对象：Spring Data JPA；迁移：Flyway | 见 `02-architecture.md` §2.3 |
+| 语言 | Java 21 | Jacoco 是课程提交门槛 |
+| 构建 | Maven 3.9.9 多模块，仓库自带 `./mvnw` | 依赖走华为云镜像 |
+| 后端 | Spring Boot 3.3（Spring MVC） | |
+| 持久化 | **Spring Data JPA** + Flyway | 课程规定 JPA，不使用 MyBatis |
+| 数据库 | MySQL 8.0 | 组织与授权关系建外键 |
+| 缓存 | Redis 7 | 授权数据缓存（全局版本号失效）、已注销令牌 |
+| 认证 | JWT（只证明身份，不带权限）+ BCrypt | |
+| 数据导入 | Apache POI | 三份 xlsx，产出异常清单 |
+| 测试 | JUnit 5 + MockMvc + ArchUnit + **Jacoco** | 集成测试连真实 MySQL 与 Redis |
 | 部署 | Docker + Docker Swarm，华为云 3 台 2 核 2G | 见 [`13-deployment.md`](docs/13-deployment.md) |
-| 数据库 | MySQL 8.0 | |
-| 缓存 | Redis / Caffeine 两级 | 支撑「高负载大并发」的性能需求 |
-| 前端 | Vue 3 + TypeScript + Element Plus | 单套前端，通过切换 baseURL 对接不同范式后端 |
-| 数据导入 | Apache POI | 解析三份 xlsx，产出导入异常报告 |
-| 测试 | JUnit 5 + Mockito + **Jacoco** | 覆盖率门槛见测试计划 |
-| 压测 | JMeter / wrk | 验证 §性能需求 的 QPS 与 P99 指标 |
-| 建模 | **StarUML** | 课程指定，源文件存 `diagrams/` |
+| 前端（设计） | Vue 3 + TypeScript + Element Plus + ECharts | 界面设计见 `05-ui.md`，**Vue 工程尚未实现** |
 
-### 已落地的契约产物
-
-文档不是空谈——下列两份文件已存在，是数据库与接口的**单一事实来源**，与文档不一致时以文件为准：
-
-| 文件 | 内容 |
-|---|---|
-| [`rbac-contract/.../db/migration/V1__rbac0_baseline.sql`](rbac-contract/src/main/resources/db/migration/V1__rbac0_baseline.sql) | 迭代一 17 张表（含鉴权日志两张）+ 操作词汇表 + 8 个内置角色（含超级管理员）+ 27 条平台管理权限及其授予 + 岗位→角色配置表及其 5 条规则 |
-| [`V2__rbac1_hierarchy.sql`](rbac-contract/src/main/resources/db/migration/V2__rbac1_hierarchy.sql) | 迭代二：角色继承、菜单、导入任务与异常明细 |
-| [`V3__rbac2_constraints.sql`](rbac-contract/src/main/resources/db/migration/V3__rbac2_constraints.sql) | 迭代三：约束体系、会话、角色可用时段；含 7 条演示约束（覆盖三类基数约束） |
-| [`openapi/rbac-api.yaml`](rbac-contract/src/main/resources/openapi/rbac-api.yaml) | 66 个操作（**每个都声明了所需权限**）、45 个 schema、55 个错误码。两种范式实现必须满足同一份契约 |
-
-三个 SQL 脚本按迭代编号，本身就清晰展示了数据模型随 RBAC0 → RBAC1 → RBAC2/3 的演进，可直接作为答辩材料。
-
-### 「分别用结构化和面向对象实现」的工程结构
+### 工程结构
 
 ```
 rbac-parent/
-├── rbac-contract/      公共契约：DTO、错误码、OpenAPI 规范（两种实现共用，保证可比性）
-├── rbac-structured/    结构化（面向功能）实现：过程 + 记录 + MyBatis，不使用多态
-├── rbac-oo/            面向对象实现：领域模型 + GRASP + 设计模式
-├── rbac-functional/    函数式授权内核：不可变数据 + 纯函数组合
-├── rbac-test-suite/    契约一致性测试集：同一套用例对三种实现分别执行
-├── rbac-acceptance/    老师发布的验收测试（原样保存，单独运行）
-├── rbac-acceptance-adapter/  验收测试与我方契约之间的格式转换（仅在接口形态不同时存在）
-├── rbac-mock-biz/      两个外部模拟系统（OA 公文、HR 考勤），经 HTTP 调用权限中心
-└── rbac-bench/         压测与对比基准
+├── rbac-contract/     Flyway 建表脚本 V1（RBAC0 基线）与 OpenAPI 契约 rbac-api.yaml
+├── rbac-structured/   权限中心（:8081），结构化设计
+│   └── src/main/java/com/xmu/rbac/structured/
+│       ├── controller/   Spring MVC 控制器、按契约统一鉴权的拦截器、统一响应与异常处理
+│       ├── service/      处理过程：认证、权限判定、用户 / 角色 / 授权管理、批量、导入、审计、统计
+│       ├── mapper/       Spring Data JPA 接口；Redis 访问（授权缓存、已注销令牌）
+│       ├── entity/       与表一一对应的记录（只有字段，没有方法）
+│       ├── dto/          请求、响应与过程间传递的数据（record）
+│       └── config/       装配
+└── rbac-mock-biz/     外部模拟业务系统（:8090）：带用户令牌调用 /authz/check，允许才执行
 ```
 
-两种实现**共用同一份数据库 schema 与同一份 API 契约**，因此同一套集成测试和同一套前端可以同时验证两者 —— 这既是范式对比的实验基础，也是 Jacoco 报告的统一出口。
+依赖方向、包结构、「不用 MyBatis」「实体没有方法」「Service 无状态」由 `ArchitectureTest` 检查，违反即构建失败。
 
 ---
 
@@ -141,56 +122,55 @@ rbac-parent/
 git clone https://github.com/vintcessun/OOAD.git
 cd OOAD
 
-# 构建：编译 + 48 个单测 + Jacoco 门槛。只需装 JDK 21，Maven 由 ./mvnw 自动下载
+# 测试用的 MySQL 与 Redis（端口与 application-test.yml 一致）
+docker run -d --name rbac-test-mysql -p 13306:3306 -e MYSQL_ROOT_PASSWORD=root \
+  -e MYSQL_DATABASE=rbac_test mysql:8.0 --character-set-server=utf8mb4
+docker run -d --name rbac-test-redis -p 16379:6379 redis:7-alpine
+
+# 构建：编译 + 59 个测试 + Jacoco 门槛（只需装 JDK 21，Maven 由 ./mvnw 下载）
 ./mvnw -s deploy/maven-settings-huawei.xml verify          # Windows 用 mvnw.cmd
 # Jacoco 报告：rbac-structured/target/site/jacoco/index.html
 
-# 部署：MySQL + Redis + 权限中心 + 外部模拟系统，一条命令
+# 部署：MySQL + Redis + 权限中心 + 外部模拟系统
 docker compose up -d --build
 curl http://localhost:8081/api/v1/actuator/health          # {"status":"UP"}
-
-# 登录（admin / root 初始口令 Admin@123，登录后用 /auth/change-password 修改）
-curl -X POST http://localhost:8081/api/v1/auth/login \
-     -H 'Content-Type: application/json' -d '{"username":"admin","password":"Admin@123"}'
 ```
 
-服务器上的编译、打包、部署全过程见 [`docs/13-deployment.md`](docs/13-deployment.md)。
+部署后的初始化（详见 [`13-deployment.md`](docs/13-deployment.md)，可直接按 [`deploy/rbac-demo.http`](deploy/rbac-demo.http) 顺序执行）：
 
-### 代码进度
+1. `root` / `Admin@123` 登录，**先修改口令**（改之前其他接口都返回 40304）；
+2. `POST /imports/permissions` 上传功能权限清单；
+3. `POST /imports/organization?companyCode=SZ&companyName=市政公司` 上传部门表与员工表；
+4. 核对导入报告中的异常清单；
+5. 用 `POST /assignments/batch` **人工**分配角色（导入不分配任何角色），例如全公司分配普通员工。
+
+### 当前进度
 
 | 模块 | 状态 |
 |---|---|
-| `rbac-contract` | ✅ 建表脚本 V1–V3、OpenAPI 契约，打成 jar 供各实现共用 |
-| `rbac-structured` | 🟡 **骨架可运行**：判定内核（主体校验、超管旁路、缓存、匹配）、登录与锁定、改口令、`/authz/check`、`/auth/me`；**所有接口受控的拦截器**与启动自检。其余 38 个迭代一接口待实现 |
-| `rbac-mock-biz` | 🟡 路由已建，业务与鉴权调用待实现 |
-| `rbac-oo` / `rbac-functional` / `rbac-test-suite` / `rbac-acceptance` / `rbac-bench` | ⬜ 到期再加入 `pom.xml` 的 `<modules>`，避免空模块让构建变红 |
-
-新接口的写法照着 `AuthorizationController` → `AuthorizationFunctions` → `AssignmentDao` 三层走：Controller 只做参数转换，逻辑全在 `func` 包的静态函数里，SQL 全在 `dao` 包。**接口路径必须与 `rbac-api.yaml` 逐字一致**，否则启动自检会拒绝启动。
+| `rbac-contract` | ✅ RBAC0 基线 V1；45 个接口的 OpenAPI 契约 |
+| `rbac-structured` | ✅ 45 个接口全部实现；T01–T22 验收用例通过；59 个测试，行覆盖率 97%、分支 82% |
+| `rbac-mock-biz` | ✅ 发文拟稿 / 审批、考勤（只限本人）调用权限中心 |
+| 前端 | ❌ 只有界面设计 |
+| 三台服务器部署 | 🟡 编排沿用实验二；新版本待重新部署（旧库需删库重建） |
 
 ### 组员请先做三件事
 
-1. **通读 [`docs/11-defense.md`](docs/11-defense.md)** —— 检查是无领导小组面试，每人要讲**文档中的一个设计**，并讲清「需求是什么 / 存在什么问题 / 为什么这么设计 / 效果如何」。先了解这六个设计点各自在讲什么。
-2. **看 [`docs/01-srs.md`](docs/01-srs.md) 附录 C** —— 老师给的三份数据里我们发现了 12 处疑点（中英文混用、空单元格、同名经理、岗位没有对应角色等），以及 22 个架构级待确认问题；附录 E 是 9/29 需求清单的逐条对照。**答疑课要问的就是这些。**
+1. **通读 [`docs/11-defense.md`](docs/11-defense.md)** —— 检查是无领导小组面试，每人要讲**文档中的一个设计**。先了解六个设计点各自在讲什么。
+2. **读 [`docs/14-rbac0-gap.md`](docs/14-rbac0-gap.md)** —— 需求逐条对照，以及还没做完的事（前端、部署）。
 3. **把三份 xlsx 放进 `data/raw/`** —— 它们不入库（含一万条真实姓名和手机号），需要自己从课程网站下载。
-
-### 岗位→角色映射先用配置表
-
-员工表只有「岗位」没有「角色」，两者的映射是我们推断的。已做成配置表 `sys_position_role_mapping`（见 `V1__rbac0_baseline.sql`），5 条规则按优先级匹配。**老师若给出不同答案，只需 UPDATE 这张表后重跑派生，不改一行代码。**
 
 ### 有异议的地方
 
-文档里的每一条决策都写了理由。**如果不同意，直接改文档并说明新理由**，不要私下按自己的想法实现——三份实现必须行为等价，不一致会让整个对比实验失效。
+文档里的每一条决策都写了理由。**如果不同意，直接改文档并说明新理由**，再改代码；凡是改了设计，就在 [`12-design-log.md`](docs/12-design-log.md) 追加一条。
 
 ---
 
 ## 六、参考资料
 
-1. Craig Larman. *Applying UML and Patterns*, 3rd ed. （GRASP、用例驱动开发）
-2. Alistair Cockburn. *Writing Effective Use Cases*. （用例表格式）
-3. Martin Fowler. *UML Distilled*, 3rd ed.
-4. Vaughn Vernon. *Implementing Domain-Driven Design*.
-5. Neal Ford. *Functional Thinking*.
-6. Erich Gamma et al. *设计模式：可复用面向对象软件的基础*.
-7. ANSI/INCITS 359-2012, *Role Based Access Control*.
-8. 邱明.《支付模块需求规格说明书》(PayReqSPEC) —— 本项目需求文档的格式范本。
-9. 邱明.《面向对象分析与设计》课件 1–4（软件设计概述、需求分析、结构化软件设计、软件体系结构），2026 秋季学期。——设计文档的评价标准（耦合、内聚、DFD 规则、用例级别、架构视图）逐条对照这套课件。
+1. Craig Larman. *Applying UML and Patterns*, 3rd ed.
+2. Alistair Cockburn. *Writing Effective Use Cases*.
+3. Edward Yourdon, Larry Constantine. *Structured Design*.（变换分析、事务分析、耦合与内聚）
+4. ANSI/INCITS 359-2012, *Role Based Access Control*.
+5. 《支付模块需求规格说明书》(PayReqSPEC) —— 本项目需求文档的格式范本。
+6. 《面向对象分析与设计》课件 1–4（软件设计概述、需求分析、结构化软件设计、软件体系结构），2026 秋季学期。

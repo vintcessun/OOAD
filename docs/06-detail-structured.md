@@ -1,778 +1,481 @@
-# 详细设计说明书 · 结构化（面向功能）实现
+# 详细设计说明书 · 结构化（面向功能）设计
 
-**版本 0.2 · 2026 年 10 月 1 日** · 模块：`rbac-structured` · 对应迭代一（RBAC0）
-
-> 0.2 按邱明课件 3「结构化软件设计」复查：数据流图改为遵守课件的画法规则（不画控制、父子图平衡、数据流全部命名），耦合与内聚分析改为对照已落地的代码逐条给出，新增变换分析、事务分析、按决策设计与深模块检查。复查中发现的问题记入 `12-design-log.md` #11–#13。
-
-> 课程《成绩计算办法》写作「面向功能」，《课程介绍》写作「结构化」，本文档视为同一范式，统一称**结构化设计（面向功能）**。
->
-> 本文档是第一次检查（10/27–10/29）的主要提交物之一。
+> 对应模块：[`rbac-structured`](../rbac-structured/)。本阶段只做 RBAC0，只用结构化（面向功能）方法设计。
+> 写法依照课件 3「结构化软件设计」：先做功能分解与数据流图，再由数据流图导出模块结构，最后给出数据字典与每个加工的处理规约。
 
 ---
 
-## 1. 范式定义与准入标准
+## 1. 结构化设计在本项目里的含义
 
-在动手之前必须先明确：什么样的代码才算「结构化」。否则最常见的结果是写出一堆 `XxxService` 类，内部仍然是面向对象的思路，与 `rbac-oo` 模块的差异只剩包名——那样三范式对比就没有任何意义。
+结构化设计按**功能**分解系统：系统是一组对数据进行加工的过程，数据在过程之间流动。它与面向对象的区别不在「Java 里有没有类」，而在**用什么组织设计**：
 
-### 1.1 结构化设计的本质
-
-结构化设计的核心是**功能分解（Functional Decomposition）**：
-
-```
-自顶向下：把一个大功能反复拆成子功能，直到每个子功能足够简单可直接编码
-数据与过程分离：数据是被动的记录，过程是主动的加工者
-模块间通过参数传递数据，而非通过对象状态
-```
-
-与面向对象的根本区别：
-
-| 维度 | 结构化 | 面向对象 |
+| | 结构化（本项目） | 面向对象（本阶段不采用） |
 |---|---|---|
-| 分解依据 | **功能**（做什么） | **数据与职责**（谁负责） |
-| 数据与行为 | 分离 | 封装在一起 |
-| 复用手段 | 函数调用 | 继承与组合 |
-| 应对变化 | 修改函数内部 / 增加分支 | 增加子类 / 新实现 |
-| 主要图示 | 数据流图 DFD、结构图 SC | 类图、时序图 |
+| 分解依据 | 功能：认证、判定、分配、回收…… | 对象：User、Role 各自负责自己的行为 |
+| 数据与处理 | 分离：实体只是记录，判断写在处理过程里 | 封装在一起：`user.canDo(p)` |
+| 复用方式 | 调用公共过程 | 继承、多态 |
+| 设计文档 | 数据流图、功能层次图、数据字典、处理规约 | 类图、顺序图、状态图 |
 
-### 1.2 本模块的准入标准
+落到代码上的准入标准（由 [`ArchitectureTest`](../rbac-structured/src/test/java/com/xmu/rbac/structured/ArchitectureTest.java) 自动检查，违反即构建失败）：
 
-| # | 要求 | 违反示例 |
-|---|---|---|
-| 1 | 数据类型是**贫血**的 `record`，只有字段与访问器 | `User.hasPermission(code)` ← 行为跑到数据里了 |
-| 2 | 逻辑全在**无状态静态函数**中，组织为 `XxxFunctions` | `class UserService { private User current; }` ← 有状态 |
-| 3 | **禁止继承与多态**（实现 contract 接口除外） | `abstract class AbstractConstraintChecker` ← 多态 |
-| 4 | 分支分派用 `switch` / `if-else` | 策略模式、访问者模式 ← 以多态为基础 |
-| 5 | 模块划分依据是功能分解，用**结构图**表达 | 按「实体」建包 ← 那是 OO 的划分方式 |
-| 6 | 函数参数显式传递所需数据，不依赖隐式上下文 | 从 ThreadLocal 里掏数据 |
+1. 只有 Controller、Service、Mapper 三层（外加 entity、dto、config 三个辅助包），依赖只能向下；Controller 不能直接访问 Mapper。
+2. **实体是数据结构**：只有公有字段，没有任何方法；实体之间不建对象关联，只存外键 id。
+3. **Service 是无状态的处理过程**：字段只能是注入的依赖或常量（final）；不用继承组织业务逻辑。
+4. 持久化只用 JPA，不出现 MyBatis。
 
-> 第 3、4 条是最重要的。**结构化范式在面对「新增一类约束」时必须修改 switch 语句，这是它的固有局限，不是我们实现得不好。** 我们要如实地呈现这个局限，并在 `10-paradigm-comparison.md` 中把它作为对比结论的证据。刻意用多态去「优化」结构化实现，反而破坏了实验的有效性。
-
----
+Spring MVC 与 JPA 仍然要求写 Controller 类、实体类和 Mapper 接口——这是框架的要求，不是设计方法。设计依据是下面的功能分解与数据流。
 
 ## 2. 功能分解
 
-### 2.1 顶层数据流图（DFD Level 0，上下文图）
+### 2.1 功能层次图
 
-0 级图只画系统边界：外部实体与系统之间的数据流。数据存储属于系统内部，放到 1 级图再展开。
+```
+RBAC 权限中心
+├── 1.0 认证管理
+│   ├── 1.1 登录（账号校验、口令比对、失败计数与锁定）
+│   ├── 1.2 令牌校验（签名与有效期、是否已登出、账号当前状态、令牌版本）
+│   ├── 1.3 令牌签发
+│   ├── 1.4 登出
+│   └── 1.5 修改口令
+├── 3.0 权限判定
+│   ├── 3.1 校验主体状态
+│   ├── 3.2 读取授权数据（缓存 / 数据库）
+│   ├── 3.3 超级管理员旁路
+│   ├── 3.4 找出含目标权限的授权
+│   ├── 3.5 作用域判定（逐条授权）
+│   └── 3.6 鉴权与解释接口（确定「谁能查谁」后调用 3.1–3.5）
+├── 4.0 用户管理（列表与搜索、详情、新增、修改、启用停用删除、批量状态）
+├── 5.0 授权管理
+│   ├── 5.1 查询指派
+│   ├── 5.2 人工分配
+│   ├── 5.3 人工回收
+│   ├── 5.4 批量分配（分公司 / 部门 / 员工）
+│   └── 5.5 批量回收
+├── 角色与资源管理（角色增删改、角色授权与回收、资源 / 操作 / 权限、菜单）
+├── 6.0 审计与监控（操作审计、鉴权事件、审计查询、Dashboard、权限热力图）
+├── 8.0 数据导入（功能权限清单、部门与员工）
+└── 展示支持（动态菜单、权限解释、组织浏览）
+```
+
+编号 1.0、3.0…… 与代码中 Service 的注释、下文数据流图的加工编号一致（2.0、7.0 的编号沿用旧版文档，分别对应用户管理并入 4.0、统计并入 6.0 之前的划分，不再单独出现）。
+
+### 2.2 顶层数据流图（上下文图）
 
 ```mermaid
 flowchart LR
-    USER([用户<br/>含管理员])
-    ADMIN([系统管理员])
-    BIZ([业务系统])
-    HR([HR 系统])
-    XLSX([课程数据文件<br/>三份 xlsx])
-
-    P0((权限管理系统))
-
-    USER -->|登录凭据| P0
-    P0 -->|令牌与有效权限| USER
-    ADMIN -->|配置请求| P0
-    P0 -->|配置结果| ADMIN
-    P0 -->|导入异常报告| ADMIN
-    BIZ -->|判定请求| P0
-    P0 -->|判定结果| BIZ
-    HR -->|人员变更| P0
-    P0 -->|同步结果| HR
-    XLSX -->|部门、员工与权限清单数据| P0
+    A[管理员] -- 管理请求<br/>(用户/角色/指派/菜单) --> S((RBAC 权限中心))
+    S -- 管理结果、审计日志、统计 --> A
+    U[员工] -- 登录凭据 --> S
+    S -- 令牌、菜单、本人权限 --> U
+    B[业务系统] -- 鉴权请求<br/>(用户, 权限码, 目标部门) --> S
+    S -- 判定结论 --> B
+    F[(三份 xlsx)] -- 组织、人员、权限清单 --> S
 ```
 
-### 2.2 一层分解（DFD Level 1）
+外部实体：管理员、员工、业务系统（含外部模拟系统 `rbac-mock-biz`）、数据文件。
+
+### 2.3 一层数据流图
 
 ```mermaid
 flowchart TB
-    USER([用户])
-    ADMIN([系统管理员])
-    BIZ([业务系统])
-    HR([HR 系统])
-    XLSX([课程数据文件])
+    U[员工] -- 登录凭据 --> P1((1.0 认证))
+    P1 -- 令牌 --> U
+    P1 -- 登录事件 --> P6
+    D1[(D1 用户)] -- 账号记录 --> P1
+    P1 -- 失败计数 --> D1
+    D5[(D5 已注销令牌)] <-- 令牌编号 --> P1
 
-    P1((1.0<br/>身份认证))
-    P2((2.0<br/>权限配置))
-    P3((3.0<br/>授权判定))
-    P4((4.0<br/>审计记录))
-    P5((5.0<br/>组织架构管理))
-    P6((6.0<br/>基础数据导入))
+    B[业务系统] -- 鉴权请求 --> P3((3.0 权限判定))
+    P3 -- 判定结论 --> B
+    D1 -- 账号状态 --> P3
+    D2[(D2 指派)] -- 指派 --> P3
+    D3[(D3 角色权限)] -- 角色权限 --> P3
+    D4[(D4 部门)] -- 部门路径 --> P3
+    D6[(D6 授权缓存)] <-- 授权数据 --> P3
+    P3 -- 鉴权事件 --> P6
 
-    D1[(D1 用户)]
-    D2[(D2 角色)]
-    D3[(D3 权限)]
-    D4[(D4 用户角色)]
-    D5[(D5 角色权限)]
-    D6[(D6 审计日志)]
-    D7[(D7 部门)]
-    D8[(D8 鉴权日志)]
+    A[管理员] -- 用户维护请求 --> P4((4.0 用户管理))
+    P4 -- 用户记录 --> D1
+    A -- 分配 / 回收请求 --> P5((5.0 授权管理))
+    P5 -- 管理范围判定请求 --> P3
+    P3 -- 管理范围结论 --> P5
+    P5 -- 指派 --> D2
+    P5 -- 版本号 +1 --> D6
+    P4 -- 操作事件 --> P6((6.0 审计与监控))
+    P5 -- 操作事件 --> P6
+    P6 -- 审计记录 --> D7[(D7 审计日志)]
+    D7 -- 鉴权事件 --> P6
+    P6 -- 审计、统计 --> A
 
-    USER -->|登录凭据| P1
-    P1 -->|令牌与有效权限| USER
-    ADMIN -->|权限配置请求| P2
-    P2 -->|配置结果| ADMIN
-    ADMIN -->|组织维护请求| P5
-    P5 -->|配置结果| ADMIN
-    HR -->|人员变更| P5
-    P5 -->|同步结果| HR
-    BIZ -->|判定请求| P3
-    P3 -->|判定结果| BIZ
-    XLSX -->|部门、员工与权限清单数据| P6
-    P6 -->|导入异常报告| ADMIN
-
-    D1 -->|用户记录| P1
-    P1 -->|登录失败计数| D1
-    P1 -->|用户 ID| P3
-    P3 -->|有效权限集| P1
-    D2 -->|角色记录| P2
-    P2 -->|角色记录| D2
-    D3 -->|权限记录| P2
-    P2 -->|指派记录| D4
-    P2 -->|授予记录| D5
-    D1 -->|用户状态| P3
-    D4 -->|直接角色| P3
-    D5 -->|角色权限码| P3
-    P3 -->|鉴权记录| D8
-    D7 -->|部门记录| P5
-    P5 -->|部门记录| D7
-    P5 -->|用户记录| D1
-    P6 -->|部门记录| D7
-    P6 -->|员工记录| D1
-    P6 -->|资源与权限记录| D3
-    P6 -->|初始授予记录| D5
-    P6 -->|派生指派记录| D4
-    P1 -->|审计事件| P4
-    P2 -->|审计事件| P4
-    P5 -->|审计事件| P4
-    P4 -->|审计记录| D6
+    F[(xlsx)] -- 组织、人员、权限清单 --> P8((8.0 数据导入))
+    P8 -- 部门 --> D4
+    P8 -- 用户 --> D1
+    P8 -- 资源、权限、角色模板 --> D3
 ```
 
-**父子图平衡检查**（课件 3：子图边界数据流必须与父图一致）：
+平衡检查：上下文图的五条输入流（登录凭据、鉴权请求、管理请求、xlsx、令牌请求）与输出流（令牌、判定结论、管理结果与审计、统计）在一层图里都有对应。角色、资源、菜单的维护与 4.0、5.0 同构（读写 D3、写审计），图中省略以保持可读。
 
-| 0 级图的数据流 | 1 级图中的对应 |
-|---|---|
-| 登录凭据 / 令牌与有效权限 | 用户 ↔ 1.0 |
-| 配置请求 | = 权限配置请求（→ 2.0）+ 组织维护请求（→ 5.0），组成见 §2.5 数据字典 |
-| 配置结果 | 2.0 → 管理员、5.0 → 管理员 |
-| 导入异常报告 | 6.0 → 管理员 |
-| 判定请求 / 判定结果 | 业务系统 ↔ 3.0 |
-| 人员变更 / 同步结果 | HR 系统 ↔ 5.0 |
-| 部门、员工与权限清单数据 | 课程数据文件 → 6.0 |
-
-0.1 版的 1 级图漏了「用户」和「HR 系统」两个外部实体，却多出一个 0 级图里没有的 xlsx 数据源，两级不平衡；现已补齐（`12-design-log.md` #11）。
-
-> 加工 **6.0 基础数据导入**是一次性的，但它是系统能够运行的前提，且工作量不小（三份 xlsx、约 12 类校验、异常报告），因此在 DFD 中显式建模，而不是当作「初始化脚本」隐去。D7 部门到 3.0 的数据流（数据范围过滤）在迭代二加入，本图按迭代一绘制。
-
-### 2.3 授权判定的功能分解（DFD Level 2，加工 3.0）
+### 2.4 二层数据流图：3.0 权限判定
 
 ```mermaid
 flowchart LR
-    IN([业务系统]) -->|判定请求| P31((3.1<br/>校验主体))
-    D1[(D1 用户)] -->|用户记录| P31
-    P31 -->|主体校验结果| P37((3.7<br/>生成判定结果))
-    P31 -->|有效用户 ID| P32((3.2<br/>识别超级管理员))
-    D4[(D4 用户角色)] -->|直接角色| P32
-    P32 -->|超管标记| P37
-    P31 -->|有效用户 ID| P33((3.3<br/>加载直接角色))
-    D4 -->|直接角色| P33
-    P33 -->|直接角色 ID 集| P34((3.4<br/>汇总角色权限))
-    D5[(D5 角色权限)] -->|角色权限码| P34
-    P34 -->|有效权限集| P35((3.5<br/>写入缓存))
-    P35 -->|有效权限集| C[(C 权限缓存)]
-    C -->|有效权限集| P36((3.6<br/>匹配权限码))
-    IN -->|资源与操作| P36
-    P36 -->|匹配结果| P37
-    P37 -->|判定结果| OUT([业务系统])
-    P37 -.->|鉴权记录| D8[(D8 鉴权日志)]
+    IN[鉴权请求<br/>userId, 权限码, 目标部门] --> P31((3.1 校验主体))
+    D1[(D1 用户)] -- 账号状态 --> P31
+    P31 -- 有效主体 --> P32((3.2 读取授权数据))
+    D6[(D6 授权缓存)] -- 授权集 --> P32
+    D2[(D2 指派)] -- 指派 --> P32
+    D3[(D3 角色权限)] -- 权限码 --> P32
+    P32 -- 授权集 --> D6
+    P32 -- 授权集 --> P33((3.3 超管旁路))
+    P33 -- 授权集 --> P34((3.4 匹配权限码))
+    P34 -- 候选授权 --> P35((3.5 作用域判定))
+    D4[(D4 部门)] -- 目标部门路径 --> P35
+    P31 -- 拒绝结论 --> OUT
+    P33 -- 旁路结论 --> OUT
+    P34 -- 拒绝结论 --> OUT
+    P35 -- 判定结论 --> OUT[判定结论]
 ```
 
-这张图只描述**数据怎样被加工**，不描述**先做哪步、什么条件下跳过**——课件 3 明确要求 DFD 不画执行顺序、决策条件和循环。0.1 版在「查缓存」处画了「命中 / 未命中」两个分支，那是控制流，已删除（#11）。「缓存命中时不执行 3.3–3.5」「主体无效时直接出结果」这类控制决策，由 §2.4 的结构图表达。
-
-3.7 到 D8 为虚线：鉴权日志在迭代一尚未实现（`09-test-plan.md` §0）。
-
-### 2.4 结构图（Structure Chart）
-
-结构图表达模块的**调用层次与参数传递**，是结构化设计的核心图示。下图按**已落地的代码**绘制，模块名即函数名：
-
-```
-                     authorize(subject, resource, action, now, userDao, assignmentDao, cache)
-                                                   │
-       ┌────────────────────┬──────────────────────┼──────────────────────┬──────────────────┐
-       │ 输入分支            │                      │ 输入分支              │ 变换中心          │ 输出分支
-       ▼                    ▼                      ▼                      ▼                  ▼
- resolveSubject     subjectDenyReason        isSuperAdmin          getUserPermissions   contains     AuthzResult
- (subject, dao)     (UserRecord, now)        (cache, dao, id)      (cache, id)          (set, code)  .allow/.deny/.bypass
-   ↓ UserRecord       ↓ 拒绝原因               ↓ 布尔                ↓ 权限集 或 null      ↓ 布尔
-       │                                           │                      │ 未命中时
-       ▼                                           ▼                      ▼
- findById / findByUsername                  holdsSuperAdmin       findEnabledRoleIdsByUser(id) → unionRolePermissions(dao, ids)
-                                                                   → putUserPermissions(cache, id, set)
-```
-
-#### 2.4.1 变换分析：从 DFD 3.0 到结构图
-
-加工 3.0 是典型的**变换型**数据流：一端流入判定请求，经过一连串加工，另一端流出判定结果。按变换分析的步骤：
-
-| 步骤 | 在 3.0 上的结果 |
-|---|---|
-| ① 划定输入流（传入分支） | 判定请求 → 3.1 校验主体 → 有效用户 ID → 3.2 / 3.3 / 3.4 / 3.5 → 有效权限集。这一段在把外部数据**整理成内部可用的形式** |
-| ② 找出变换中心 | **3.6 匹配权限码**：输入是整理好的有效权限集与权限码，输出是一个布尔。系统的核心计算只有这一处 |
-| ③ 划定输出流（传出分支） | 3.7 生成判定结果 → 判定结果、鉴权记录 |
-| ④ 映射为结构图 | 顶层 `authorize` 是总控；左侧是输入分支（`resolveSubject`、`subjectDenyReason`、`isSuperAdmin`、`getUserPermissions` 及其下层）；中间是变换中心 `contains`；右侧是输出分支 `AuthzResult` 的三个工厂方法 |
-
-变换中心只有一行集合查找，输入分支却占了绝大部分代码——这说明判定的成本几乎全在「备齐数据」上，也正是缓存要放在输入分支（3.5）的原因。
-
-#### 2.4.2 事务分析：权限拦截器
-
-每个 HTTP 请求进入系统时，拦截器先看契约里这个接口声明了什么，再分派到三条完全不同的处理路径。这是**事务型**数据流：一个事务中心按事务类型分派。
-
-```
-                     PermissionInterceptor.preHandle(request)
-                                   │
-                     事务中心：按契约声明分派（ContractRoutes.find）
-          ┌───────────────┬────────┴─────────┬────────────────────┬──────────────────┐
-          ▼               ▼                  ▼                    ▼                  ▼
-   未声明 → 拒绝      security: []        @self               具体权限码          （无令牌/令牌无效）
-   403 / 10003       直接放行       subjectDenyReason     AuthorizationFunctions   401 / 10002
-                                    （只校验本人可用）       .authorize
-```
-
-五条路径互不相关，各自独立，新增一类声明（例如迭代三的会话级接口）只需在事务中心加一个分支。代价是事务中心本身是一个 `if` 链——结构化范式下分派只能这样写（§1.2 第 4 条）。
-
-#### 2.4.3 耦合分析（按课件 3 的六类，对照代码逐条给出）
-
-| 耦合类型（强 → 弱） | 本模块是否存在 | 具体位置 | 处理与理由 |
-|---|---|---|---|
-| 内容耦合 | 无 | — | 任何函数都不访问其他函数的内部实现；Java 也没有 goto |
-| **公共耦合** | **存在，两处** | ① **数据库表**：`AuthenticationFunctions` 与 `AuthorizationFunctions` 都经 `UserDao` 读 `sys_user`；② **缓存**：同一个 `CacheHandle` 被 `authorize`、`effectivePermissions` 以及将来的失效函数共同读写 | 这两处是系统本身的需求（数据要持久、判定要缓存），无法消除，只能限制：表只经本模块的 DAO 访问，禁止跨模块直接读别人的表（`02-architecture.md` §2.3）；缓存不是静态全局变量，而是经接口、以**参数**传入——对比课件中 `Mall.GLOBAL` 这类所有模块直接改的全局对象，谁在用缓存在函数签名上一目了然。0.1 版写「无公共耦合」是错的（#12） |
-| 控制耦合 | 无 | 逐一检查过：没有任何参数是「告诉被调函数走哪个分支」的布尔或枚举 | `login` 返回错误码、由调用方决定提示语，这是被调方**返回**状态，不是调用方**传入**控制标志，不属于控制耦合 |
-| **标记耦合** | **存在** | `subjectDenyReason(UserRecord u, now)` 只用了记录 13 个字段中的 `status`、`deletedAt`、`expiresAt` | **有意接受**。这个函数同时被登录和鉴权两处调用；若改为三个标量参数，两个调用点都要拆字段，以后账号可用性再加一个条件（例如锁定），所有调用点都得改。接受标记耦合，换来「账号是否可用」的规则只写在一处。0.1 版把 `loadEffectivePermissions(userId)` 列为标记耦合，是术语误用——它只传一个 ID，是数据耦合（#12） |
-| 数据耦合 | 主体 | `contains(set, code)`、`buildPermissionCode(resource, action)`、`parseUserId(key, token)`、`unionRolePermissions(dao, roleIds)` | 只传完成功能所需的简单数据 |
-| 非直接耦合 | 存在 | 外部模拟系统与权限中心只通过 HTTP 契约交互；权限变更事件（`02-architecture.md` §2.3）将经事件总线，发布者不认识订阅者 | 最弱的耦合，用在跨进程边界上 |
-
-> 结构图与耦合分析是结构化设计**特有的**分析工具。答辩时展示这张图 + 耦合分析表，比展示一堆类图更能证明「我们确实是用结构化方法做的设计」。**如实承认公共耦合与标记耦合、并讲清为什么接受**，比声称「全部是数据耦合」更经得起追问。
-
-### 2.5 数据字典（加工 3.0 的数据流）
-
-需求层面的数据项定义见 SRS §3；这里只列 3.0 内部流动的数据。记法：`=` 由…组成，`+` 与，`[ | ]` 选一，`{ }` 重复，`( )` 可选。
-
-| 数据流 | 组成 |
-|---|---|
-| 判定请求 | 主体标识 + 资源 + 操作 + (上下文) |
-| 主体标识 | [ `user_` + 用户 ID \| 用户名 ] |
-| 主体校验结果 | 用户 ID + (拒绝原因) |
-| 拒绝原因 | [ SUBJECT_INVALID \| SUBJECT_DISABLED \| SUBJECT_DELETED \| SUBJECT_EXPIRED \| MISSING_PERMISSION ] |
-| 超管标记 | 布尔 |
-| 直接角色 ID 集 | { 角色 ID } |
-| 有效权限集 | { 权限码 } |
-| 权限码 | 资源 + `:` + 操作，如 `oa:doc:draft:approve` |
-| 匹配结果 | 布尔 |
-| 判定结果 | 是否允许 + (原因) + 所需权限码 + 是否命中缓存 + 耗时（微秒） |
-| 配置请求（0 级） | 权限配置请求 + 组织维护请求 |
-
----
+按课件的画法规则，图中只画数据怎样被加工，不画「命中 / 未命中」这类控制分支：缓存是数据存储，3.2 既读它也写它；「什么时候跳过查库」由结构图与处理规约表达。
 
 ## 3. 模块结构
 
+### 3.1 从数据流图到模块
+
+3.0 是**变换型**：输入流（鉴权请求 → 有效主体）、变换中心（3.2–3.5，得出结论）、输出流（判定结论 → 审计）。按变换分析，顶层模块 `decide` 依次调用输入、变换、输出三部分：
+
 ```
-rbac-structured/src/main/java/com/xmu/rbac/structured/
-├── data/                        【数据定义层】贫血记录，无任何行为
-│   ├── UserRecord.java
-│   ├── RoleRecord.java
-│   ├── PermissionRecord.java
-│   ├── UserRoleRecord.java
-│   ├── RolePermissionRecord.java
-│   ├── AuditRecord.java
-│   └── AuthzContext.java
-├── func/                        【功能层】全部为静态函数，按功能而非实体分包
-│   ├── AuthenticationFunctions.java     1.0 身份认证
-│   ├── UserAdminFunctions.java          2.1 用户配置
-│   ├── RoleAdminFunctions.java          2.2 角色配置
-│   ├── PermissionAdminFunctions.java    2.3 权限配置
-│   ├── AssignmentFunctions.java         2.4 指派与授予
-│   ├── AuthorizationFunctions.java      3.0 授权判定 ★核心
-│   ├── PermissionSetFunctions.java      3.4 权限集合运算
-│   ├── ClosureFunctions.java            3.3 传递闭包（角色继承与部门树共用，迭代二）
-│   ├── OrgFunctions.java                5.0 组织架构
-│   ├── ImportFunctions.java             6.0 xlsx 数据导入
-│   ├── CacheFunctions.java              3.2/3.5 缓存读写
-│   └── AuditFunctions.java              4.0 审计记录
-├── dao/                         【数据访问层】纯 SQL 执行，返回记录
-│   ├── UserDao.java
-│   ├── RoleDao.java
-│   ├── PermissionDao.java
-│   ├── AssignmentDao.java
-│   ├── DepartmentDao.java
-│   └── AuditDao.java
-└── web/                         【接入层】只做参数转换与结果包装，不含业务逻辑
-    ├── AuthController.java
-    ├── UserController.java
-    ├── RoleController.java
-    ├── PermissionController.java
-    ├── AuthorizationController.java
-    ├── DepartmentController.java
-    ├── OaDocumentController.java
-    └── AttendanceController.java
+                           AuthorizationService.decide
+          ┌──────────────┬───────────────┼────────────────┬──────────────────┐
+   3.1 subjectDenyReason  3.2 loadGrants  3.3 holdsSuperAdmin  3.4 匹配       3.5 covers
+          │                     │                                              │
+     UserMapper          GrantCacheMapper                               DepartmentMapper
+                         UserRoleMapper
 ```
 
-> **代码已落地（2026-10-01）**：`data`、`func`、`dao`、`web` 四个包按本节结构建立，另有 `config` 包负责装配（不计覆盖率）。与下文草图的差别：`authorize()` 多一个 `now` 参数（时间由调用方传入，测试可固定时钟）；主体既可是 `user_<id>` 也可是用户名；主体校验拆成 `AuthenticationFunctions.subjectDenyReason()`，一次返回停用、删除、过期三种原因。缓存句柄 `CacheHandle` 是 `func` 包里的接口，当前实现只有 L1。
+拦截器是**事务型**：按请求的路由（事务类型）分派到不同的处理——免登录、`@self`、按权限码判定。
 
-> **注意包的划分依据**：`func` 包下不是 `UserFunctions / RoleFunctions / PermissionFunctions` 这种按实体划分，而是按**功能**划分——`AssignmentFunctions` 同时处理用户-角色与角色-权限两种指派，因为它们是同一类功能（建立关联关系）。这正是结构化与面向对象在模块划分上的分歧点。
+### 3.2 三层与包
 
----
+| 层 | 包 | 职责 | 不允许 |
+|---|---|---|---|
+| Controller | `controller` | HTTP 参数转换、调用 Service、包装统一响应；拦截器统一认证与权限检查 | 业务判断；访问 Mapper |
+| Service | `service` | 处理过程：认证、判定、管理范围、分配回收、导入、统计 | 依赖 Controller；保存请求间状态 |
+| Mapper | `mapper` | 数据存取：Spring Data JPA 接口（`UserMapper` 等 13 个）与两个 Redis 访问类 | 业务规则 |
+| — | `entity` | 与表一一对应的记录（只有字段） | 方法、对象关联 |
+| — | `dto` | 请求、响应与过程之间传递的数据（record） | 依赖上面三层 |
+| — | `config` | 装配：时钟、口令编码器、JWT 密钥、契约路由表、拦截器 | |
 
-## 4. 核心模块详细设计
+数据与处理分离的一个例子：判断账号是否有效不是 `user.isActive()`，而是处理过程 `AuthorizationService.subjectDenyReason(User, now)`——登录（1.1）、令牌校验（1.2）、判定（3.1）三个过程共用它。
 
-### 4.1 数据定义
+### 3.3 模块清单
 
-```java
-package com.xmu.rbac.structured.data;
+| Service | 加工 | 主要过程 |
+|---|---|---|
+| `AuthenticationService` | 1.0 | `login`、`authenticate`、`logout`、`changePassword` |
+| `TokenService` | 1.3 | `issue`、`parse` |
+| `AuthorizationService` | 3.1–3.5 | `decide`、`loadGrants`、`invalidateAfterCommit`、`scopeOf`、`requireInScope` |
+| `AuthzQueryService` | 3.6 | `check`（含「谁能查谁」） |
+| `UserManagementService` | 4.0 | `list`、`detail`、`create`、`update`、`changeStatus`、`delete`、`batchStatus` |
+| `AssignmentService` | 5.0 | `assign`、`revoke`、`batchAssign`、`batchRevoke`、`checkOne` |
+| `RoleManagementService` | 角色管理 | `list`、`detail`、`users`、`create`、`update`、`delete`、`grant`、`ungrant` |
+| `CatalogService`、`MenuService`、`OrgService` | 资源、菜单、组织 | 查询与维护；`myMenus` 动态菜单 |
+| `AuditService`、`DashboardService` | 6.0 | `record`、`recordDecision`、`search`；`metrics`、`heatmap` |
+| `ImportService` | 8.0 | `importPermissions`、`importOrganization` |
 
-/** 用户记录。贫血：只有数据，没有任何业务方法。 */
-public record UserRecord(
-        Long id,
-        String username,
-        String passwordHash,
-        String realName,
-        Long departmentId,       // 数据范围判定依据
-        String position,         // 岗位，仅首次导入时派生角色用
-        int status,              // 1=启用 0=停用 2=删除
-        int loginFailCount,
-        LocalDateTime lockedUntil,
-        LocalDateTime deletedAt
-) {}
+### 3.4 耦合与内聚
 
-/** 授权判定的上下文。在各加工之间传递，等价于结构图中模块间流动的数据。 */
-public record AuthzContext(
-        Long subjectId,
-        String resource,
-        String action,
-        String permissionCode,          // 由 resource + action 拼成，形如 oa:doc:draft:approve
-        Long subjectDeptId,             // 迭代二数据范围用
-        Long targetDeptId,              // 来自请求的 context，迭代一恒为 null
-        Long targetUserId,              // 同上
-        Set<Long> directRoleIds,
-        Set<String> effectivePermissions,
-        boolean cacheHit,
-        long startNanos
-) {}
-```
+按课件的分类，对照代码如实列出：
 
-注意 `UserRecord` **没有** `isEnabled()`、`isLocked()` 这类方法。判断状态是**功能层**的事：
+| 耦合 | 位置 | 处理 |
+|---|---|---|
+| 数据耦合（主要形式） | `decide(userId, permissionCode, targetDeptId, explain)` 只传需要的简单数据 | — |
+| 标记耦合 | `subjectDenyReason(User, now)` 传整条用户记录，只用 status、expiresAt | 接受：三个调用者手里本来就是整条记录，拆成字段反而让调用点变长 |
+| 控制耦合 | `decide(..., explain)` 的布尔参数决定是否收集判定依据 | 接受：只影响输出的附加信息，不改变判定路径；拆成两个函数会复制整个判定流程，正是审查报告要避免的「两套逻辑」 |
+| 公共耦合 | 多个过程读写同一张 `sys_user_role`、同一个授权缓存 | 无法避免（共享数据库是系统的本质）。限制手段：缓存只有 `AuthorizationService` 读写；写指派的只有 `AssignmentService` 与导入 |
+| 内容耦合 | 无 | — |
 
-```java
-// func/AuthenticationFunctions.java
-public static boolean isEnabled(UserRecord u) {
-    return u != null && u.status() == 1 && u.deletedAt() == null;
-}
-```
+| 模块 | 内聚 | 说明 |
+|---|---|---|
+| `AuthorizationService.decide` | 功能内聚 | 所有步骤都为得出一个判定结论 |
+| `AssignmentService` | 顺序内聚 | 校验 → 去重 → 写入 → 失效 → 审计，前一步的输出是后一步的输入 |
+| `AuthenticationService` | 通信内聚 | 登录、令牌校验、登出、改口令都围绕同一条用户记录 |
+| `DashboardService` | 通信内聚 | 十一项指标都读审计日志 |
+| `AppConfig` | 时间内聚 | 启动时一次性装配，属于框架要求的配置，不含业务 |
 
-> 这种写法在 OO 视角下是「贫血模型反模式」。但在结构化范式下它是**正确的**——数据与过程本就应当分离。这个差异会在 `10-paradigm-comparison.md` 中作为核心对比点：同一个判断，OO 放在 `User` 类里（信息专家原则），结构化放在函数里（数据过程分离原则），两者各自内部自洽。
+## 4. 数据字典
 
-### 4.2 授权判定主函数
+### 4.1 数据流
 
-```java
-package com.xmu.rbac.structured.func;
+| 名称 | 组成 | 说明 |
+|---|---|---|
+| 登录凭据 | 用户名 + 口令 | |
+| 令牌 | JWT = 令牌编号 + 用户 id + 用户名 + 令牌版本 + 签发时间 + 到期时间 | 不含权限 |
+| 鉴权请求 | (用户 id \| 用户名)? + (权限码 \| 资源编码 + 操作编码) + 目标部门 id? | 主体为空 = 调用者本人；目标部门为空 = 不涉及具体部门 |
+| 权限码 | 资源编码 + ":" + 操作编码 | 如 `oa:m01:f02:approve` |
+| 授权行（GrantRow） | 权限码 + 指派 id + 角色 id + 角色编码 + 角色名 + 适用部门 id + 适用部门名 + 适用部门路径 + 适用部门所属公司 + 只限本人 | 判定的最小依据 |
+| 授权集（GrantSet） | {指派}（启用中的角色） + {授权行} | 缓存的单位 |
+| 判定结论（Decision） | 允许 + 原因码 + 用户 + 权限码 + 目标部门 + 依据的授权行? + 只限本人 + 是否命中缓存 + 耗时 + 判定依据? | 原因码见 [04 §3.2](04-api.md) |
+| 管理范围（Scope） | 全部 \| {适用部门路径} | 某用户持有某权限的部门范围 |
+| 批量授权请求 | 目标类型 + {目标 id} + 含下级? + 角色 id + 适用部门 id? + 原因 + 模式 | 目标类型 ∈ {COMPANY, DEPARTMENT, USER}；模式 ∈ {ATOMIC, PARTIAL} |
+| 批量结果 | 模式 + 已写入 + 请求人数 + 成功 + 重复 + 失败 + {(用户 id, 原因)} | |
+| 审计记录 | 时间 + 操作人 + IP + 事件类型 + 对象类型 + 对象 id + 对象名 + 明细 + 结果 + 原因 (+ 权限码 + 耗时 + 命中缓存) | 七要素 |
 
-public final class AuthorizationFunctions {
+### 4.2 数据存储
 
-    private AuthorizationFunctions() {}   // 纯函数集合，禁止实例化
+| 编号 | 名称 | 实现 | 组成 |
+|---|---|---|---|
+| D1 | 用户 | `sys_user` | 见 [03 §3.2](03-database.md) |
+| D2 | 指派 | `sys_user_role` | 用户 + 角色 + 适用部门 + 授权人 + 时间 + 原因 |
+| D3 | 角色权限 | `sys_role`、`sys_role_permission`、`sys_permission`、`sys_resource`、`sys_action` | |
+| D4 | 部门 | `sys_company`、`sys_department` | 部门 + 物化路径 |
+| D5 | 已注销令牌 | Redis `rbac:revoked:<令牌编号>`，到原有效期自动删除 | |
+| D6 | 授权缓存 | Redis `rbac:grants:version` + `rbac:grants:v<版本>:u<用户 id>` → 授权集 JSON，TTL 10 分钟 | |
+| D7 | 审计日志 | `sys_audit_log` | 审计记录 |
 
-    /**
-     * 授权判定主函数。对应结构图顶层模块、DFD 加工 3.0。
-     * 严格按 3.1 → 3.2 → 3.3 → 3.4 → 3.5 → 3.6 的顺序调用子模块。
-     */
-    public static AuthzResult authorize(String subject,
-                                        String resource,
-                                        String action,
-                                        UserDao userDao,
-                                        AssignmentDao assignmentDao,
-                                        CacheHandle cache) {
-        long start = System.nanoTime();
-        String permissionCode = buildPermissionCode(resource, action);
+### 4.3 数据元素
 
-        // ---- 3.1 校验主体 ----
-        Long userId = parseSubjectId(subject);
-        if (userId == null) {
-            return AuthzResult.deny("SUBJECT_INVALID", permissionCode, elapsed(start));
-        }
-        UserRecord user = userDao.findById(userId);
-        if (!AuthenticationFunctions.isEnabled(user)) {
-            return AuthzResult.deny("SUBJECT_DISABLED", permissionCode, elapsed(start));
-        }
-
-        // ---- 3.1（续）超级管理员旁路 ----
-        // 需求「越过权限引擎」。排在状态校验之后：停用的超管照样被拒。
-        // 放行时带原因码，审计里能看出这是旁路而非命中某条权限。见 02-architecture.md §4.1 S1b
-        if (CacheFunctions.isSuperAdmin(cache, assignmentDao, userId)) {
-            return AuthzResult.bypass("SUPER_ADMIN_BYPASS", permissionCode, elapsed(start));
-        }
-
-        // ---- 3.2 查缓存 ----
-        Set<String> effective = CacheFunctions.getUserPermissions(cache, userId);
-        boolean cacheHit = (effective != null);
-
-        if (!cacheHit) {
-            // ---- 3.3 加载直接角色 ----
-            Set<Long> roleIds = assignmentDao.findEnabledRoleIdsByUser(userId);
-
-            // 迭代二在此处插入：roleIds = HierarchyFunctions.expandClosure(roleIds, ...);
-
-            // ---- 3.4 汇总角色权限 ----
-            effective = PermissionSetFunctions.unionRolePermissions(assignmentDao, roleIds);
-
-            // ---- 3.5 写入缓存 ----
-            CacheFunctions.putUserPermissions(cache, userId, effective);
-        }
-
-        // ---- 3.6 匹配权限码 ----
-        boolean allowed = PermissionSetFunctions.contains(effective, permissionCode);
-
-        // ---- 3.7 数据范围过滤（迭代二插入） ----
-        // if (allowed) { allowed = ScopeFunctions.check(userDao, userId, permissionCode, ctx); }
-
-        // ---- 3.8 约束校验（迭代三插入） ----
-        // if (allowed) { allowed = ConstraintFunctions.checkAll(...); }
-
-        return allowed
-                ? AuthzResult.allow(cacheHit, elapsed(start))
-                : AuthzResult.deny("MISSING_PERMISSION", permissionCode, elapsed(start));
-    }
-
-    static String buildPermissionCode(String resource, String action) {
-        return resource + ":" + action;
-    }
-
-    static Long parseSubjectId(String subject) {
-        try {
-            return Long.parseLong(subject.startsWith("user_") ? subject.substring(5) : subject);
-        } catch (NumberFormatException e) {
-            return null;
-        }
-    }
-
-    static long elapsed(long startNanos) {
-        return (System.nanoTime() - startNanos) / 1000;   // 微秒
-    }
-}
-```
-
-**设计说明**
-
-| 项 | 说明 |
+| 名称 | 取值 |
 |---|---|
-| 依赖传递方式 | DAO 与缓存句柄**作为参数传入**，而非通过字段注入。这保证函数是无状态的、可独立测试的（测试时传入内存实现即可，无需 Mock 框架） |
-| 短路返回 | 用提前 `return` 表达短路，而非异常。异常在结构化范式中属于「非局部跳转」，会破坏结构图的调用层次 |
-| 迭代扩展点 | 注释标出了迭代二、三的插入位置。**注意：扩展意味着修改这个函数本身**——这正是结构化范式的固有代价，将在对比分析中如实记录 |
-| 圈复杂度 | 当前为 6。迭代三加入约束校验后预计升至 10 以上，接近可维护性阈值——这个数字本身就是对比数据 |
+| 账号状态 | ACTIVE 启用 \| DISABLED 停用 \| DELETED 删除 |
+| 用户类型 | EMPLOYEE 正式员工 \| TEMPORARY 临时用户（无工号电话，必须有到期时间）\| SYSTEM 系统账号 |
+| 角色状态 | ENABLED \| DISABLED |
+| 资源类型 | BUSINESS \| MENU \| API |
+| 部门路径 | "/" + {祖先 id + "/"} + 本部门 id + "/"；A 覆盖 B ⇔ B 的路径以 A 的路径开头 |
 
-### 4.3 权限集合运算
+## 5. 处理规约
 
-```java
-public final class PermissionSetFunctions {
+用结构化伪代码描述。每个加工都写明输入、处理、输出、异常与事务边界。
 
-    private PermissionSetFunctions() {}
+### 5.1 认证（1.0）
 
-    /** 3.4 汇总：多个角色的权限并集。 */
-    public static Set<String> unionRolePermissions(AssignmentDao dao, Set<Long> roleIds) {
-        if (roleIds == null || roleIds.isEmpty()) {
-            return Collections.emptySet();
-        }
-        // 一次批量查询，避免 N+1
-        List<String> codes = dao.findPermissionCodesByRoleIds(roleIds);
-        return new HashSet<>(codes);
-    }
+**1.1 登录** `login(用户名, 口令, IP) → 令牌`
 
-    /** 3.6 匹配：O(1) 集合查找。 */
-    public static boolean contains(Set<String> effective, String permissionCode) {
-        return effective != null && effective.contains(permissionCode);
-    }
-}
+```
+1. 按用户名取用户；不存在或已删除 → 仍做一次哈希比对（使响应时间相近），记 LOGIN FAILED，返回 40102
+2. 锁定期内 → 记 LOGIN FAILED，返回 40103（不比对口令、不加计数）
+3. 口令不符 → 在数据库里原子地「失败计数 + 1，满 5 次同时写锁定时间、计数清零」；记 LOGIN FAILED；返回 40102
+4. 口令正确但账号停用或到期 → 记 LOGIN FAILED，返回 40104
+5. 失败计数非零 → 清零
+6. 签发令牌（含用户当前的令牌版本）；记 LOGIN SUCCESS
 ```
 
-> `contains` 是整个系统调用频率最高的一行代码。用 `HashSet` 而非 `List` 是性能需求 P99 < 50ms 的直接来源：`List.contains` 是 O(n)，一个拥有 200 条权限的用户，每秒万次判定会产生每秒两百万次字符串比较。
+失败计数用一条 `UPDATE … SET login_fail_count = login_fail_count + 1` 完成：先读再写会让并发的失败请求读到同一个旧值，计数少算（[12 #27](12-design-log.md)）。
 
-### 4.4 为用户分配角色
+**1.2 令牌校验**（每个请求，在拦截器中）
 
-```java
-public final class AssignmentFunctions {
-
-    private AssignmentFunctions() {}
-
-    public static AssignResult assignRolesToUser(Long userId,
-                                                 List<Long> roleIds,
-                                                 Long operatorId,
-                                                 UserDao userDao,
-                                                 RoleDao roleDao,
-                                                 AssignmentDao assignmentDao,
-                                                 CacheHandle cache,
-                                                 AuditSink audit) {
-        // 1. 校验目标用户
-        UserRecord user = userDao.findById(userId);
-        if (!AuthenticationFunctions.isEnabled(user)) {
-            return AssignResult.fail(ErrorCode.USER_DISABLED);
-        }
-
-        // 2. 校验角色存在且启用
-        List<RoleRecord> roles = roleDao.findByIds(roleIds);
-        if (roles.size() != roleIds.size()) {
-            return AssignResult.fail(ErrorCode.ROLE_NOT_FOUND);
-        }
-        for (RoleRecord r : roles) {
-            if (r.status() != 1) {
-                return AssignResult.fail(ErrorCode.ROLE_DISABLED);
-            }
-        }
-
-        // 3. 迭代三在此插入约束校验：
-        //    ConstraintCheckResult cr = ConstraintFunctions.checkAssignment(...);
-        //    if (!cr.passed()) return AssignResult.fail(cr.errorCode(), cr.detail());
-
-        // 4. 计算变更前的有效权限（用于返回 diff）
-        Set<String> before = loadEffectivePermissions(userId, assignmentDao);
-
-        // 5. 幂等写入
-        Set<Long> existing = assignmentDao.findRoleIdsByUser(userId);
-        List<Long> toInsert = roleIds.stream().filter(id -> !existing.contains(id)).toList();
-        if (!toInsert.isEmpty()) {
-            assignmentDao.insertUserRoles(userId, toInsert, operatorId);
-        }
-
-        // 6. 失效缓存（事务提交后由调用方触发，见 §4.5）
-        CacheFunctions.invalidateUser(cache, userId);
-
-        // 7. 审计
-        AuditFunctions.record(audit, operatorId, "ROLE_ASSIGN", "USER", userId,
-                              toInsert.isEmpty() ? "SUCCESS_NOOP" : "SUCCESS", null);
-
-        // 8. 返回权限变更 diff
-        Set<String> after = loadEffectivePermissions(userId, assignmentDao);
-        return AssignResult.ok(toInsert, diffAdded(before, after), diffRemoved(before, after));
-    }
-}
+```
+1. 校验签名与有效期 → 失败 40101
+2. 令牌编号在 D5 中（已登出）→ 40101；查询 D5 失败 → 按已注销处理
+3. 取用户；账号无效（3.1）→ 40101       （停用、删除、到期在下一次请求生效）
+4. 令牌版本 ≠ 用户当前令牌版本（改过口令）→ 40101
+5. 用户须改口令，且路由不是「查看本人 / 登出 / 改口令」→ 40304
 ```
 
-### 4.5 缓存失效的事务边界
+**1.4 登出**：把令牌编号写入 D5，存活时间 = 令牌剩余有效期；记 LOGOUT。
 
-结构化范式下没有领域事件机制，缓存失效由**接入层在事务提交后显式调用**：
+**1.5 修改口令**：校验旧口令与口令策略（≥ 8 位，含大写、小写、数字、特殊字符，不同于旧口令）→ 写新哈希，清除「须改口令」，**令牌版本 + 1**（此前签发的令牌全部作废）→ 记审计。
 
-```java
-// web/RoleController.java
-@PostMapping("/users/{userId}/roles")
-public ApiResponse<AssignResult> assign(@PathVariable Long userId,
-                                        @RequestBody AssignRequest req) {
-    AssignResult result = txTemplate.execute(status ->
-            AssignmentFunctions.assignRolesToUser(userId, req.roleIds(), currentUserId(),
-                                                  userDao, roleDao, assignmentDao,
-                                                  cache, auditSink));
-    // ★ 事务已提交，此时才失效缓存
-    if (result.success()) {
-        CacheFunctions.invalidateUser(cache, userId);   // 删本地 L1 + Redis L2
-        CacheFunctions.broadcastInvalidation(redis, List.of(userId));
-        // ↑ 向 rbac:invalidate 发布消息并 INCR rbac:perm:version，
-        //   让其他实例清掉各自的 L1。见 02-architecture.md §4.2.1
-    }
-    return ApiResponse.ok(result);
-}
+### 5.2 权限判定（3.0）
+
+#### 5.2.1 主流程 `decide(用户 id, 权限码, 目标部门?, 是否解释) → 判定结论`
+
+```
+3.1 取用户；不存在 → SUBJECT_NOT_FOUND；已删除 → SUBJECT_DELETED；
+    非启用 → SUBJECT_DISABLED；到期 → SUBJECT_EXPIRED                          （拒绝，结束）
+3.2 授权集 ← loadGrants(用户 id)                                              （见 5.2.2）
+3.3 IF 授权集的指派中有 SUPER_ADMIN → 允许，SUPER_ADMIN_BYPASS               （结束）
+3.4 候选 ← 授权集中权限码 = 目标权限码 的授权行
+    IF 候选为空 → 拒绝，MISSING_PERMISSION                                      （结束）
+3.5 IF 目标部门为空 → 允许，ROLE_GRANTED，依据 = 候选中优先不限本人的一条      （结束）
+    目标路径 ← D4 中目标部门的路径；不存在 → 拒绝，TARGET_DEPT_NOT_FOUND
+    覆盖 ← 候选中 目标路径以「适用部门路径」开头 的授权行
+    IF 覆盖为空 → 拒绝，OUT_OF_DATA_SCOPE
+    ELSE 允许，ROLE_GRANTED；只限本人 ← 覆盖中每一条都只限本人
+解释模式下，每一步把依据追加到判定依据列表。
 ```
 
-> **这是结构化实现的一个真实痛点，必须在答辩中如实说明。** `02-architecture.md` §4.2 规定「事件在事务提交后发布」。面向对象实现用观察者模式 + Spring 的 `@TransactionalEventListener(AFTER_COMMIT)` 可以声明式地保证这一点；而结构化实现没有事件机制，只能靠**每个调用点手动记得在事务外再调一次失效**。
->
-> 这意味着：新增任何一个修改权限的接口，开发者都必须记得加这两行代码（本地失效 + 跨实例广播），编译器不会提醒；漏掉第二行在单实例测试中完全发现不了。**这是一个由范式带来的、可量化的可维护性风险**，将作为对比分析的重要证据（见 `10-paradigm-comparison.md`）。
+作用域必须**逐条**跟着授权行判断（3.5），不能先把权限码并成一个集合、再把适用部门并成另一个集合分别判断：用户在 B 部门有「审批」（经角色 X）、在 A 部门有「查看」（经角色 Y），分别判断会得出「在 A 部门审批」——这样的授权实际不存在（T07b，[12 #23](12-design-log.md)）。
 
----
+超级管理员旁路排在主体校验之后：停用的超级管理员同样被拒绝（T11）。
 
-## 5. 模块内聚性分析
+#### 5.2.2 授权数据与缓存 `loadGrants(用户 id) → (授权集, 是否命中)`
 
-按课件 3 的七级内聚（偶然 < 逻辑 < 时间 < 过程 < 通信 < 顺序 < 功能），对照**已实现的代码**逐个评估。0.1 版的表是按规划写的，列了三个还不存在的模块、漏了四个已存在的模块（#12），现分成两张表。
+```
+1. 版本 ← D6 当前版本号；Redis 不可用 → 版本 = 空（本次不用缓存）
+2. IF 版本非空 AND D6 有 (版本, 用户) → 返回（命中）
+3. 指派 ← D2 中该用户的指派，只留启用中的角色
+   授权行 ← D2 ⋈ 角色(启用) ⋈ D3 ⋈ D4（一条查询）
+4. IF 版本非空 → 写 D6 (版本, 用户)，TTL 10 分钟
+5. 返回（未命中）
+```
 
-**已实现**
+**失效**：任何改变授权数据的事务（分配、回收、批量、角色权限增删、角色启用停用、导入权限清单）在**提交之后**把版本号加一。
 
-| 模块 | 内聚类型 | 判断依据 |
-|---|---|---|
-| `PermissionSetFunctions` | 功能内聚 | 只做权限集合的汇总与匹配 |
-| `CacheFunctions` | 功能内聚 | 只做缓存读写与失效 |
-| `TokenFunctions` | 功能内聚 | 只做令牌的签发与解析 |
-| `AuthorizationFunctions` | 功能内聚 | `authorize` 与 `effectivePermissions` 都服务于「求有效权限并判定」这一个功能 |
-| `AuthenticationFunctions` | **通信内聚** ⚠️ | 登录、改口令、口令策略、账号可用性四个函数围绕同一份用户凭据与状态数据，但功能彼此独立。其中 `subjectDenyReason` 还被授权判定调用——授权模块因此依赖了一个也装着登录逻辑的模块 |
-| `ContractRoutes` | 功能内聚 | 只做契约路由表的加载与查询 |
-| `PermissionInterceptor` | 顺序内聚 | 取路由 → 解析令牌 → 判定 → 写拒绝响应，前一步的输出是后一步的输入 |
-| `AuthController` | 通信内聚 | 四个接口围绕同一个用户会话 |
-| `config.AppConfig` | **时间内聚** ⚠️ | 各个 `@Bean` 方法之间没有业务关联，只是都在启动时执行——课件中「应用启动初始化」的反例正是这一类 |
+为什么版本号能保证「下一次访问生效」：版本号在查库**之前**读取。若某个请求读了旧版本号、又在变更提交前查到了旧数据，它写回的是旧版本的键；变更提交后版本号已经变了，之后的请求读新键、未命中、查库得到新数据。逐个删键做不到这一点——删除之后，那个正在查旧数据的请求还会把旧数据写回去。验证：T12（单实例撤销）、T13（改角色权限影响多个用户）、T22（另起一个副本，撤销后它的下一次请求即被拒绝）。
 
-两处 ⚠️ 的处理：
+用户状态（停用、删除、到期）不进缓存，每次都查 D1。
 
-- `AppConfig` 的时间内聚**接受**。装配代码天然只因「启动时要做」而聚在一起；它被限制在 `config` 包里、不含任何业务逻辑、不计入覆盖率。把它拆开只会产生一堆只有一个方法的类（课件 3：拆分应让整体复杂度下降）。
-- `AuthenticationFunctions` **计划在迭代二拆分**。按课件 3「合并还是分开」的标准：口令相关的规则随安全策略变化，账号可用性规则随账号状态模型变化（9/20 和 9/29 各改过一次三态），两者变化原因不同；而且拆出 `SubjectFunctions.subjectDenyReason` 之后，授权模块就不再依赖登录逻辑。见 #13。
+#### 5.2.3 鉴权与解释接口：谁能查谁 `check(调用者, 请求, 是否解释)`
 
-**规划中**（尚未实现，内聚类型为设计意图）
+```
+1. 权限码 ← 请求的 permission，或 resource + ":" + action；都没有 → 40001
+2. IF 未指定主体，或主体就是调用者 → 主体 = 调用者
+   ELSE
+     需要 ← 解释 ? rbac:authz:explain : rbac:authz:invoke
+     IF 调用者在任何部门都没有「需要」→ 记 DENIED，403          （先拒绝，再透露主体是否存在）
+     IF 主体不存在 → 判定（结论为 SUBJECT_NOT_FOUND）
+     IF decide(调用者, 需要, 主体所在部门) 拒绝 → 记 DENIED，403
+3. 结论 ← decide(主体, 权限码, 目标部门, 是否解释)
+4. 记 AUTH_SUCCESS / AUTH_FAILED（操作人 = 主体；调用者不是本人时写进明细）
+5. 返回结论（拒绝也是 200）
+```
 
-| 模块 | 预期内聚类型 |
+check 与 explain 调用同一个 `decide`，不存在两套判定逻辑（T20：七组输入的结论逐一相同）。
+
+### 5.3 用户管理（4.0）
+
+管理范围的统一规则：**操作者对目标用户所在部门持有相应权限**（`requireInScope`，即 `decide(操作者, 权限, 目标部门)`）。
+
+| 过程 | 处理 |
 |---|---|
-| `AssignmentFunctions` | 顺序内聚：校验 → 写入 → 失效 → 审计，前后相继 |
-| `AuditFunctions` | 功能内聚 |
-| `UserAdminFunctions` | 通信内聚：各函数操作同一张用户表，功能相互独立 ⚠️ 可接受 |
+| 列表 `list` | 范围 ← `scopeOf(操作者, rbac:user:view)`；查询条件加「部门 ∈ 范围内的部门」（子查询 `path LIKE '<适用部门路径>%'`）；默认不含已删除 |
+| 详情 `detail` | 本人直接可看；看别人 → `requireInScope(rbac:user:view, 其部门)`。返回基本信息、指派、有效权限（每条带来源角色与适用部门） |
+| 新增 `create` | 类型校验（临时用户无工号电话、必须有到期时间；正式员工必须有工号）→ `requireInScope(rbac:user:create, 目标部门)` → 用户名、工号查重 → 口令为空则用初始口令并要求首次修改 → 写入、审计 |
+| 修改 `update` | 未删除 → `requireInScope(rbac:user:edit, 当前部门)`；目标是超级管理员而操作者不是 → 403；调部门：同公司、调入部门也须在范围内 |
+| 状态 `applyStatus` | 返回失败原因而不抛异常，供单个与批量共用：已删除 → ALREADY_DELETED；对象是自己 → CANNOT_CHANGE_SELF；不在范围 → OUT_OF_MANAGE_SCOPE；对象是超级管理员而操作者不是 → TARGET_IS_SUPER_ADMIN；否则写状态、审计 |
+| 批量状态 `batchStatus` | 逐个 `applyStatus`，通过的执行，失败逐人列出（状态变更彼此独立，不做整批原子） |
 
-### 5.1 按功能设计与按决策设计
+删除是逻辑删除：行保留，用户名不可复用；指派保留供审计，但账号无效使判定一律拒绝。
 
-课件 3 对比了两种划分模块的依据：**按功能设计**（按输入、处理、输出等步骤拆分）和**按决策设计**（每个模块封装一个可能变化的设计决策，即信息隐藏）。判断标准是：「未来哪些选择会变化？变化时希望影响几个模块？」
+### 5.4 分配与回收（5.2、5.3）
 
-本模块整体是按功能分解的（§2），但在函数一级有意识地隐藏了以下决策：
+**5.2 分配** `assign(操作者, 用户, 角色, 适用部门?, 原因)`，校验由 `checkOne` 完成（批量共用）：
 
-| 可能变化的设计决策 | 隐藏在哪里 | 变化时要改几处 |
+```
+1. 用户已删除 → SUBJECT_DELETED；角色停用 → ROLE_DISABLED
+2. 适用部门 ← 给定值，或用户所属部门；不存在 → SCOPE_DEPT_NOT_FOUND
+3. 适用部门与用户不同公司 → CROSS_COMPANY
+4. 角色是公司内角色且不属于适用部门的公司 → ROLE_COMPANY_MISMATCH
+5. 操作者是超级管理员 → 通过
+6. 角色是 SUPER_ADMIN → SUPER_ADMIN_ONLY
+7. 用户所在部门或适用部门不在 scopeOf(操作者, rbac:assignment:assign) 内 → OUT_OF_MANAGE_SCOPE
+8. 角色的权限中有任何一个，操作者没有覆盖适用部门的授权行 → PRIVILEGE_ESCALATION
+   （同一适用部门只算一次）
+9. 已有相同（用户, 角色, 适用部门）→ 409
+10. 写指派（授权人、时间、原因）；提交后缓存版本 + 1；记 ROLE_ASSIGN SUCCESS
+失败时记 ROLE_ASSIGN DENIED 与原因码，返回对应的 403 / 409 / 400。
+```
+
+第 8 条是「授权上界」：管理员只能授出自己在该部门拥有的权限，防止给下属（或自己）授予超出自己的权限、再借那个账号越过管理边界（T10）。
+
+**5.3 回收** `revoke(操作者, 用户, 指派 id, 原因)`
+
+```
+1. 指派存在且属于该用户
+2. 角色是 SUPER_ADMIN 而操作者不是超级管理员 → SUPER_ADMIN_ONLY
+3. 用户所在部门或指派的适用部门不在操作者的 rbac:assignment:revoke 范围 → OUT_OF_MANAGE_SCOPE
+4. 删除这一条指派
+5. 若回收的是 SUPER_ADMIN 且已没有有效的超级管理员 → 409，事务回滚
+6. 提交后缓存版本 + 1；记 ROLE_REVOKE
+```
+
+只删这一条：被回收者过去授给别人的指派不受影响。`granted_by` 只是审计属性，不是授权依赖——这就是需求「移除管理员权限，不会导致分配的权限级联删除」（T14）。
+
+### 5.5 批量分配与回收（5.4、5.5）
+
+```
+batchAssign(操作者, 请求):
+1. 校验模式、角色、适用部门
+2. 展开目标为用户集合：
+     COMPANY    → 公司根部门子树内未删除的用户
+     DEPARTMENT → 本部门，或（含下级时）子树内未删除的用户
+     USER       → 指定的用户；不存在 → NOT_FOUND，已删除 → SUBJECT_DELETED，列入失败
+3. 准备一次：操作者的授权集、管理范围、角色的权限码
+4. FOR 每个用户：checkOne（与单个分配同一个过程）→ 通过或列入失败
+5. 已持有相同指派的 → 计入 duplicated，跳过
+6. IF 模式 = ATOMIC 且有失败 → 不写入，记 DENIED，返回 committed = false 与失败清单
+7. 每 1,000 人一条 INSERT … SELECT 写入；提交后缓存版本 + 1；记一条批量审计
+```
+
+一个关键设计问题：一千人里有三人不合规，应该全部失败还是部分成功？默认 ATOMIC（完整预校验后执行），避免管理员误以为全体已授权；需要部分成功时显式选 PARTIAL，逐人返回原因（T16）。批量回收的展开与校验相同；适用部门为空时回收该角色的全部指派。
+
+### 5.6 角色管理
+
+角色修改影响所有持有者，因此按**公司级**管理（`requireCompanyLevel`）：全局角色只有超级管理员能改；公司内角色要求操作者在该公司根部门持有相应权限。
+
+| 过程 | 规则 |
+|---|---|
+| 新增 | 编码格式与查重；全局角色仅超级管理员 |
+| 修改 | 超级管理员角色不能停用；启用停用变化时缓存版本 + 1 |
+| 删除 | 内置角色不能删；还有指派 → 409（不能借删除角色悄悄回收别人的权限）；角色权限随外键级联删除 |
+| 授权 `grant` | 超级管理员角色不接受授权；每个权限操作者都必须在公司根部门持有（授权上界）；已有的跳过；每条记 PERMISSION_ASSIGN |
+| 回收 `ungrant` | 删除后缓存版本 + 1，持有该角色的所有用户下一次请求即失去该权限；记 PERMISSION_REVOKE |
+| 列表 | 全局角色 + 操作者有 `rbac:role:view` 的公司的公司内角色，附用户数（去重）与权限数 |
+
+### 5.7 菜单与组织
+
+- 动态菜单 `myMenus`：自下而上组装菜单树，叶子菜单显示当且仅当 `decide(用户, 菜单资源:view)` 允许；目录在至少有一个可见子菜单时显示。同一资源只判定一次。
+- 菜单维护：只能挂 `MENU` 类型资源；移动菜单前检查不会成环；有子菜单不能删。
+- 组织树：只返回 `rbac:org:view` 范围内的部门，以及通往它们的祖先节点。
+
+### 5.8 数据导入（8.0）
+
+规则见 [03 §5](03-database.md)。处理要点：整个导入在一个事务内；任何一行无法唯一确定就列入异常清单、不写入，不做「取第一个同名」的猜测；不分配任何角色；初始口令只算一次哈希。
+
+### 5.9 审计与统计（6.0）
+
+- `record` 与 `recordDecision` 使用**独立事务**（`REQUIRES_NEW`）：业务操作因拒绝或失败回滚时，审计记录照样留下。
+- Dashboard 十一项指标、热力图的统计口径见 [05 §3.1](05-ui.md)，全部从审计日志中的真实事件统计。
+
+## 6. 模块接口规约
+
+| 层 | 接收 | 校验 | 输出 |
+|---|---|---|---|
+| 拦截器 | 路由、令牌 | 契约是否声明（否 → 403）；令牌（1.2）；接口的权限码（`decide(用户, 权限码, 空)`） | 把操作者（用户 id、用户名、IP）放进请求 |
+| Controller | 路径参数、查询参数、JSON 请求体、操作者 | 只做类型转换 | `ApiResponse{code, message, data}`；`BizException` 由全局处理器转成状态码与错误码 |
+| Service | 操作者 + 请求 DTO | 业务规则：管理范围、授权上界、状态、重复 | DTO；失败抛 `BizException(HTTP 状态, 错误码, 说明)` |
+| Mapper | 简单参数（id、编码、路径前缀、集合） | 无 | 实体、投影 record（`GrantRow`、`AssignmentRow`）、计数 |
+
+操作者作为参数显式传入每个 Service 过程（「谁、在哪里」随数据流一路传到审计），不放在线程变量里。
+
+## 7. 事务与异常
+
+| 情况 | 处理 |
+|---|---|
+| 写操作 | Service 过程上 `@Transactional`；任何 `BizException` 回滚整个过程 |
+| 审计 | 独立事务，回滚不影响已写的审计 |
+| 缓存失效 | 注册在事务提交之后执行；提交前其他请求读不到新版本号 |
+| 并发提交相同指派 | 唯一键挡住第二条，`DataIntegrityViolationException` 转成 409 |
+| Redis 不可用 | 授权缓存当作未命中，直接查库（结论不变）；令牌注销查询失败按已注销处理（宁可重新登录） |
+| 未知异常 | 不向外暴露细节 |
+
+## 8. 需求 — 处理 — 测试追溯
+
+| 需求 | 处理规约 | 测试 |
 |---|---|---|
-| 缓存拓扑（只有 L1 → L1 + Redis L2） | `CacheHandle` 接口 | 新增一个实现类，改 `AppConfig` 一处 |
-| 令牌格式（JWT HS256 → 其他格式、加吊销） | `TokenFunctions` | 1 |
-| 口令哈希算法与强度 | 以函数参数注入，算法只在 `AppConfig` 出现 | 1 |
-| 接口所需权限存放在哪里 | `ContractRoutes`（现在读 YAML） | 1 |
-| 账号可用性规则（三态、临时人员过期） | `subjectDenyReason` | 1 |
-| 表结构 | `dao` 包内的 SQL | 每张表对应的 DAO |
-| **权限码格式**（`资源:操作`） | `AuthorizationFunctions.buildPermissionCode` 拼接，**但** `PermissionInterceptor` 又按最后一个冒号拆分 | **2** ⚠️ |
+| 登录；账号三态 | 5.1 | T01、T02、`firstLoginMustChangePassword…`、`fiveFailuresLock…` |
+| 临时用户 | 5.3 新增 | T03、`temporaryUserCannotGetAPhoneLater` |
+| 多部门权限 | 5.2.1 第 3.5 步 | T07、T07b、T19 |
+| 超级管理员越过权限引擎 | 5.2.1 第 3.3 步 | T11 |
+| 管理员管理自身及以下层级 | 5.3、5.4 第 7 步 | T08、T09、`userCrudWithinManagementScope` |
+| 不能越权授予 | 5.4 第 8 步、5.6 授权 | T10、`companyAdminManagesOnlyCompanyRoles` |
+| 移除管理员不级联 | 5.4 回收 | T14 |
+| 批量权限管理 | 5.5 | T16、`batchAssignByCompanyAndDepartmentThenRevoke` |
+| 下一次访问生效 | 5.2.2 | T12、T13、T22 |
+| 动态菜单 | 5.7 | T18、`menuManagementAndDynamicMenus` |
+| 审计 | 5.9 | T09、`auditDashboardAndHeatmapComeFromRealEvents` |
+| 权限解释 | 5.2.3 | T20、T20b |
+| 导入 | 5.8 | T21 ×2 |
 
-**没有隐藏住的决策**：
-
-1. **权限码格式**：知道「权限码 = 资源 + 冒号 + 操作」的地方有两处。若格式改变（例如操作改用 `#` 分隔），两处要同步改，漏一处编译器不会提醒。已记入 #13，随迭代二把拆分函数移到 `PermissionSetFunctions`、与拼接放在一起。
-2. **判定管道的阶段顺序**：写死在 `authorize` 函数体内（§4.2）。迭代二加继承闭包、迭代三加约束，都要修改这个函数。这是**按功能设计的固有代价**：模块边界来自「判定要做哪几步」，而「步骤会增加」恰恰是最可能的变化。面向对象实现将把每个阶段做成独立对象（按决策设计），两者的差异是 `10-paradigm-comparison.md` 的核心证据。
-
-### 5.2 深模块检查：`authorize`
-
-课件 3 给出了「深模块」的检查清单（小接口、大能力）。对 `authorize` 逐项检查：
-
-| 检查项 | 目标 | `authorize` 的情况 |
-|---|---|---|
-| 常见调用需要几个参数 | 越少越好 | **7 个**：3 个业务参数（主体、资源、操作）+ 1 个时间 + 3 个依赖（两个 DAO、缓存） ⚠️ |
-| 调用者是否需要了解调用顺序 | 最好不需要 | 不需要：一次调用完成全部阶段 ✅ |
-| 常见场景是否需要配置 | 最好零配置 | 调用者须自己备齐 3 个依赖 ⚠️ 拦截器与 `AuthorizationController` 各备一遍 |
-| 调用者是否重复处理同一异常 | 应移入模块 | 否：拒绝以返回值表达，无异常 ✅ |
-| 数据结构是否暴露给调用者 | 应隐藏 | 缓存结构、角色集合都不暴露；只暴露 `AuthzResult`，它就是契约里的 `AuthzDecision` ✅ |
-| 修改内部实现是否影响接口 | 尽量不影响 | 迭代二加继承闭包需要多一个依赖（继承关系 DAO），**接口会变** ⚠️ |
-| 模块行为是否可观测 | 必须 | 返回拒绝原因、是否命中缓存、耗时 ✅ |
-
-结论：**实现是深的**——主体校验、超管旁路、两级缓存、角色汇总、匹配全部藏在一次调用后面；**接口偏宽**，而且会随迭代继续变宽。原因是结构化范式要求「函数无状态、依赖通过参数传入」（§1.2 第 2、6 条），依赖只能出现在参数表上。
-
-可选的改法与取舍记入 `12-design-log.md` #13：迭代一**不改**（7 个参数、两个调用点，改动收益小于风险）；迭代二加入第 4 个依赖时，把 3–4 个依赖收拢为一个 `AuthzStores` 记录，参数降为 5 个。这个记录的每个字段 `authorize` 都会用到，所以不构成标记耦合。
-
----
-
-## 6. 关键算法
-
-### 6.1 有效权限计算（迭代一版本）
-
-```
-输入：userId
-输出：Set<String> 有效权限码
-
-1. roleIds ← SELECT role_id FROM sys_user_role
-              JOIN sys_role ON ... WHERE user_id = ? AND sys_role.status = 1
-2. IF roleIds 为空 THEN RETURN 空集
-3. codes  ← SELECT p.permission_code
-              FROM sys_role_permission rp JOIN sys_permission p ON ...
-              WHERE rp.role_id IN (roleIds)
-4. RETURN new HashSet<>(codes)
-
-时间复杂度：两次索引查询，O(k) k=权限条数
-空间复杂度：O(k)
-```
-
-迭代二将在步骤 1 与 2 之间插入继承闭包展开。
-
-### 6.2 环检测（迭代二预留）
-
-结构化实现采用**显式栈的深度优先搜索**，不使用递归（递归在深继承链下有栈溢出风险，且不便于记录路径）：
-
-```
-函数 detectCycle(newChildId, newParentId, edges) -> List<Long> 或 null
-
-1. 若 newChildId == newParentId 则返回 [newChildId, newChildId]   // 自环
-2. stack ← [newParentId]；path ← []；visited ← {}
-3. WHILE stack 非空:
-4.     node ← stack.peek()
-5.     IF node 未访问:
-6.         标记 visited；path.push(node)
-7.         IF node == newChildId THEN RETURN path + [newChildId]   // 找到环
-8.         将 node 的全部父角色压栈
-9.     ELSE:
-10.        stack.pop()；path.pop()
-11. RETURN null   // 无环
-
-说明：从「拟定的父角色」出发向上遍历，若能到达「拟定的子角色」，
-      则加入这条边后会成环。返回完整 path 供前端高亮（见 04-api.md §5.1）。
-```
-
----
-
-## 7. 异常与错误处理策略
-
-结构化范式下**不用异常做控制流**，业务失败通过返回值表达：
-
-```java
-public record AuthzResult(boolean allowed, String reason, String requiredPermission,
-                          boolean cacheHit, long elapsedMicros) {
-    public static AuthzResult allow(boolean cacheHit, long micros) { ... }
-    public static AuthzResult deny(String reason, String perm, long micros) { ... }
-}
-
-public record AssignResult(boolean success, ErrorCode errorCode, Object detail, ...) { }
-```
-
-异常只用于**真正的意外情况**：数据库连接失败、序列化错误等。这类异常由接入层的 `@RestControllerAdvice` 统一转为 `10006 SYSTEM_UNAVAILABLE` + HTTP 503。
-
-> 对应 SRS §5.3「数据库不可用时失败关闭」：捕获到 `DataAccessException` 时，授权判定**必须返回拒绝**，绝不能因为「查不到数据」就放行。这一条在代码审查中列为必查项。
-
----
-
-## 8. 单元测试设计
-
-因为所有函数都是无状态静态函数且依赖通过参数传入，测试**不需要 Spring 容器，也不需要 Mockito**：
-
-```java
-class AuthorizationFunctionsTest {
-
-    @Test
-    void 有权限时应当允许() {
-        var userDao = new InMemoryUserDao(enabledUser(1001L));
-        var assignDao = new InMemoryAssignmentDao()
-                .withUserRoles(1001L, Set.of(3L))
-                .withRolePermissions(3L, Set.of("oa:doc:draft:approve"));
-        var cache = new InMemoryCache();
-
-        var r = AuthorizationFunctions.authorize(
-                "SG000013", "oa:doc:draft", "approve", userDao, assignDao, cache);
-
-        assertTrue(r.allowed());
-        assertFalse(r.cacheHit());
-    }
-
-    @Test
-    void 用户被禁用时应当拒绝且不查询角色() {
-        var assignDao = new CountingAssignmentDao();
-        var r = AuthorizationFunctions.authorize("SG000013", "oa:doc:draft", "approve",
-                new InMemoryUserDao(disabledUser(1001L)), assignDao, new InMemoryCache());
-
-        assertFalse(r.allowed());
-        assertEquals("SUBJECT_DISABLED", r.reason());
-        assertEquals(0, assignDao.queryCount());   // 短路，不应产生查询
-    }
-
-    @Test
-    void 第二次调用应当命中缓存() { ... }
-
-    @Test
-    void 数据库异常时应当拒绝而非放行() { ... }   // 失败关闭
-}
-```
-
-> **「不需要 Mock 框架就能测试」本身就是结构化范式的一个优点**，应当在对比分析中记录：纯函数 + 参数注入使测试成本极低，这也是本模块能达到 90% 覆盖率目标的原因。
-
-目标覆盖率见 `09-test-plan.md`。
-
----
+完整的测试说明与覆盖率见 [09-test-plan.md](09-test-plan.md)。
 
 ## 9. 本文档对应的答辩设计点
 
-**DP-1 的结构化侧论据 + 结构化范式本身的陈述**
-
-| 项 | 内容 |
-|---|---|
-| **需求是什么** | 用面向功能（结构化）方法实现 RBAC0 的完整后端：用户/角色/权限配置 + 授权判定 |
-| **存在什么问题** | ① 「结构化」极易写成「用过程语法写的面向对象」，导致与 OO 实现无实质差异，三范式对比失效；② 授权判定要在万级 QPS 下 O(1) 完成；③ 没有事件机制，缓存失效的事务边界只能靠人工保证；④ 后续迭代的扩展点会不断修改主函数 |
-| **采用什么方法与理由** | ① 先定义 6 条**准入标准**（§1.2），禁用继承与多态，编码前评审；② 按功能而非实体分解，用 DFD + 结构图表达，并做耦合与内聚分析；③ 权限集合用 `HashSet`，判定退化为一次 O(1) 查找；④ 依赖通过参数传入，使函数无状态、可独立测试 |
-| **实现效果** | 授权判定主函数圈复杂度 6，调用层次清晰对应结构图；单元测试无需 Spring 与 Mockito，覆盖率易于达标；**同时如实暴露了两个范式局限**——缓存失效需人工保证事务边界、每次迭代都要修改主函数——这两点将作为 `10-paradigm-comparison.md` 的实测证据 |
-
-> 答辩时的关键一句：**我们没有把结构化实现写得「尽量好」，而是写得「尽量标准」。** 它暴露出的局限不是实现缺陷，而是范式特征，正是这门课要求做三范式对比的意义所在。
+| 设计点 | 需求是什么、存在什么问题 | 设计方法与理由 | 实现效果 |
+|---|---|---|---|
+| 判定过程的功能分解 | 鉴权、解释、管理接口拦截、管理范围检查都要判定权限；若各写一套会结论不一 | 变换分析得出 `decide` 一个顶层模块，四处调用同一个过程 | T20：check 与 explain 七组输入结论全同 |
+| 作用域跟着指派走 | 多部门权限；先并集再判部门会拼出不存在的授权 | 授权行 = 权限码 + 适用部门路径，逐行判断 | T07b |
+| 带版本号的缓存键 | 「下一次访问生效」；删键有竞争，本地缓存跨副本不一致 | 全局版本号在查库前读、在提交后加一 | T12、T13、T22 |
+| 授权上界 | 管理员给下属授予超出自己的权限，再借账号越权 | 角色的每个权限，操作者在适用部门都必须持有 | T10 |
+| 批量授权的原子性 | 部分人不合规时的语义 | 默认 ATOMIC 预校验，显式 PARTIAL；同一个 `checkOne` | T16 |

@@ -1,73 +1,203 @@
-### 部署后的接口检查（实验二要求：现场用 httpclient 或 postman 调用后端 API）
-# IntelliJ IDEA：打开本文件，点每个请求左边的 ▶ 运行。VS Code 装 REST Client 插件也能用。
-# 部署到集群时把 host 改成任一节点的公网 IP（Swarm 的路由网格让每个节点的 8081 都能访问到服务）。
-# 预期结果写在每个请求上方；第 3 个请求把令牌存进 {{token}}，后面的请求自动带上。
+### 部署后的接口检查与初始化（实验二要求：现场用 httpclient 或 postman 调用后端 API）
+# IntelliJ IDEA：打开本文件，从上到下点每个请求左边的 ▶ 运行。
+# 部署到集群时把 host、biz 改成任一节点的公网 IP（Swarm 的路由网格让每个节点的 8081、8090 都能访问到服务）。
+# 预期结果写在每个请求上方。令牌、部门 id 等由请求下方的脚本存进全局变量，后面的请求自动带上。
+# 第 5、6 步要上传三份 xlsx：把 < 后面的路径改成本机文件的位置。xlsx 含真实人员信息，不要放进仓库。
 
 @host = http://localhost:8081/api/v1
 @biz = http://localhost:8090/api/v1
+# 改口令后的新口令：改成你们组自己的，至少 8 位，含大写、小写、数字与特殊字符
+@newPassword = <改成你们组自己的新口令>
 
 ### 1. 健康检查（不需要登录）→ 200，status=UP
 GET {{host}}/actuator/health
 
-### 2. 口令错误 → 401，code=20002
-# 连续错 5 次会锁定 15 分钟（code=20003），演示时别连点
+### 2. 口令错误 → 401，code=40102（连续错 5 次锁定 15 分钟，演示时别连点）
 POST {{host}}/auth/login
 Content-Type: application/json
 
-{"username": "admin", "password": "wrong-password"}
+{"username": "root", "password": "wrong-password"}
 
-### 3. 登录 → 200，data.permissions 为 SYS_ADMIN 的 24 个平台权限，mustChangePwd=true
-# 初始口令见 docs/13-deployment.md §4.5；如已改过，这里用新口令
+### 3. 超级管理员首次登录 → 200，mustChangePwd=true（初始口令 Admin@123；已改过就用新口令，并跳过第 4 步）
 POST {{host}}/auth/login
 Content-Type: application/json
 
-{"username": "admin", "password": "Admin@123"}
+{"username": "root", "password": "Admin@123"}
 
 > {%
     client.global.set("token", response.body.data.token);
 %}
 
-### 4. 当前用户 → 200，与登录返回的用户、角色、权限一致
+### 3b. 没改口令前访问管理接口 → 403，code=40304「首次登录请先修改口令」
+GET {{host}}/users
+Authorization: Bearer {{token}}
+
+### 4. 修改口令 → 200。之后旧令牌作废，重新登录
+POST {{host}}/auth/password
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"oldPassword": "Admin@123", "newPassword": "{{newPassword}}"}
+
+### 4b. 用新口令登录 → 200，mustChangePwd=false
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{"username": "root", "password": "{{newPassword}}"}
+
+> {%
+    client.global.set("token", response.body.data.token);
+%}
+
+### 5. 导入应用软件功能权限清单 → counts：systems=18，resources=359，permissions=1795，rolePermissions=3190
+# anomalies 里有 1 个空白单元格（不授权，列入异常）
+POST {{host}}/imports/permissions
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=rbac
+
+--rbac
+Content-Disposition: form-data; name="file"; filename="permissions.xlsx"
+
+< ./data/raw/市政公司应用软件功能权限清单.xlsx
+--rbac--
+
+### 6. 导入部门信息表与员工信息表 → departmentsCreated=111，usersCreated=10000
+# 导入不分配任何角色；anomalies 里是无法唯一确定的部门负责人，需人工核对
+POST {{host}}/imports/organization?companyCode=SZ&companyName=市政公司
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=rbac
+
+--rbac
+Content-Disposition: form-data; name="departments"; filename="departments.xlsx"
+
+< ./data/raw/市政公司部门信息表.xlsx
+--rbac
+Content-Disposition: form-data; name="employees"; filename="employees.xlsx"
+
+< ./data/raw/市政公司员工信息表.xlsx
+--rbac--
+
+### 7. 公司列表 → 平台运维、市政公司（SZ）。记下 SZ 的 id
+GET {{host}}/companies
+Authorization: Bearer {{token}}
+
+> {%
+    const sz = response.body.data.find(c => c.companyCode === "SZ");
+    client.global.set("companyId", sz.id);
+%}
+
+### 8. 部门树 → 总公司下 11 个职能部门（含公司领导）、9 个分公司。记下两个分公司财务部的 id
+GET {{host}}/departments/tree?companyId={{companyId}}
+Authorization: Bearer {{token}}
+
+> {%
+    const ids = {};
+    const walk = n => { ids[n.deptName] = n.id; n.children.forEach(walk); };
+    response.body.data.forEach(walk);
+    client.global.set("roadFinance", ids["道路工程分公司-财务部"]);
+    client.global.set("bridgeFinance", ids["桥梁工程分公司-财务部"]);
+%}
+
+### 9. 角色列表 → 内置 3 个 + 权限清单 5 类角色模板。记下 EMPLOYEE 的 id
+GET {{host}}/roles
+Authorization: Bearer {{token}}
+
+> {%
+    const e = response.body.data.find(r => r.roleCode === "EMPLOYEE");
+    client.global.set("employeeRoleId", e.id);
+%}
+
+### 10. 人工批量授权：全公司分配普通员工角色（适用部门 = 各自所属部门）→ committed=true，succeeded=10000
+POST {{host}}/assignments/batch
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"targetType": "COMPANY", "targetIds": [{{companyId}}], "roleId": {{employeeRoleId}}, "reason": "初始化：全员普通员工"}
+
+### 11. 取道路工程分公司-财务部的一名员工
+GET {{host}}/users?departmentId={{roadFinance}}&includeDescendants=false&size=1
+Authorization: Bearer {{token}}
+
+> {%
+    client.global.set("staffId", response.body.data.items[0].id);
+%}
+
+### 12. 鉴权：该员工能否在本部门拟稿（OA › 公文管理 › 发文拟稿与审核 = oa:m01:f02）→ allowed=true，reason=ROLE_GRANTED
+POST {{host}}/authz/check
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"userId": {{staffId}}, "permission": "oa:m01:f02:create", "targetDeptId": {{roadFinance}}}
+
+### 13. 鉴权：同一权限，目标是桥梁工程分公司 → allowed=false，reason=OUT_OF_DATA_SCOPE（拒绝也是 HTTP 200）
+POST {{host}}/authz/check
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"userId": {{staffId}}, "permission": "oa:m01:f02:create", "targetDeptId": {{bridgeFinance}}}
+
+### 14. 鉴权：普通员工能否审批 → allowed=false，reason=MISSING_PERMISSION
+POST {{host}}/authz/check
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"userId": {{staffId}}, "permission": "oa:m01:f02:approve", "targetDeptId": {{roadFinance}}}
+
+### 15. 权限解释：同一个问题，trace 逐步说明为什么被拒绝
+POST {{host}}/authz/explain
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"userId": {{staffId}}, "permission": "oa:m01:f02:approve", "targetDeptId": {{roadFinance}}}
+
+### 16. 该员工的角色指派 → 1 条（普通员工 @ 道路工程分公司-财务部）。记下指派 id
+GET {{host}}/users/{{staffId}}/roles
+Authorization: Bearer {{token}}
+
+> {%
+    client.global.set("assignmentId", response.body.data[0].assignmentId);
+%}
+
+### 17. 回收这次指派 → 200（记 ROLE_REVOKE 审计）
+DELETE {{host}}/users/{{staffId}}/roles/{{assignmentId}}?reason=演示回收
+Authorization: Bearer {{token}}
+
+### 18. 再问第 12 步的问题 → allowed=false，reason=MISSING_PERMISSION：回收在下一次请求就生效
+POST {{host}}/authz/check
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"userId": {{staffId}}, "permission": "oa:m01:f02:create", "targetDeptId": {{roadFinance}}}
+
+### 19. 审计日志：最近的角色回收 → actorName=root，result=SUCCESS
+GET {{host}}/audit-logs?eventType=ROLE_REVOKE&size=5
+Authorization: Bearer {{token}}
+
+### 20. Dashboard → 用户数 10001、今日鉴权次数、成功率、P95/P99 等，全部来自真实事件
+GET {{host}}/dashboard
+Authorization: Bearer {{token}}
+
+### 21. 不带令牌 → 401，code=40101
 GET {{host}}/auth/me
-Authorization: Bearer {{token}}
 
-### 5. 鉴权：admin 能否列出用户 → allowed=true（允许时 reason 为 null）
-# cached=true：第 3 步登录时已把 admin 的权限集载入 L1 缓存，这次判定不查库
-POST {{host}}/authz/check
-Authorization: Bearer {{token}}
-Content-Type: application/json
-
-{"subject": "admin", "resource": "system:user", "action": "list"}
-
-### 6. 鉴权：admin 能否管理角色继承 → allowed=false，reason=MISSING_PERMISSION
-# 职责分离：角色继承归安全管理员（SEC_ADMIN），系统管理员没有。拒绝也是 HTTP 200、code=0
-POST {{host}}/authz/check
-Authorization: Bearer {{token}}
-Content-Type: application/json
-
-{"subject": "admin", "resource": "system:hier", "action": "manage"}
-
-### 7. 鉴权：超级管理员 root → allowed=true，reason=SUPER_ADMIN_BYPASS
-POST {{host}}/authz/check
-Authorization: Bearer {{token}}
-Content-Type: application/json
-
-{"subject": "root", "resource": "oa:doc:draft", "action": "approve"}
-
-### 8. 不带令牌 → 401，code=10002
-GET {{host}}/auth/me
-
-### 9. 契约里没有声明的接口 → 403，code=10003（所有接口都受权限控制，未声明一律拒绝）
+### 22. 契约里没有声明的接口 → 403，code=40301（所有接口都受权限控制，未声明一律拒绝）
 GET {{host}}/debug/anything
 Authorization: Bearer {{token}}
 
-### 10. 模拟业务系统 → 501，提示该接口需要的权限（迭代二接入权限中心）
-GET {{biz}}/oa/documents
-
-### 11. 修改口令 → 200。会真的改掉 admin 的口令，改完记下新口令
-# 新口令至少 8 位，含大写、小写、数字与特殊字符，且不同于旧口令；否则 400，code=28009
-POST {{host}}/auth/change-password
+### 23. 模拟业务系统：用 root 的令牌在道路工程分公司-财务部拟一份公文 → 200（超级管理员越过权限引擎）
+POST {{biz}}/oa/documents
 Authorization: Bearer {{token}}
 Content-Type: application/json
 
-{"oldPassword": "Admin@123", "newPassword": "<改成你们组自己的新口令>"}
+{"title": "演示公文", "deptId": {{roadFinance}}}
+
+### 24. 模拟业务系统：不带令牌 → 401
+GET {{biz}}/oa/documents?deptId={{roadFinance}}
+
+### 25. 登出 → 200；之后同一令牌访问 → 401
+POST {{host}}/auth/logout
+Authorization: Bearer {{token}}
+
+### 26. 登出后的旧令牌 → 401，「令牌已注销」
+GET {{host}}/auth/me
+Authorization: Bearer {{token}}
