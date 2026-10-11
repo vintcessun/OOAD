@@ -977,6 +977,8 @@ components:
       properties:
         assignmentId: { type: integer, format: int64 }
         userId: { type: integer, format: int64 }
+        username: { type: string }
+        userRealName: { type: string }
         roleId: { type: integer, format: int64 }
         roleCode: { type: string }
         roleName: { type: string }

@@ -1,0 +1,37 @@
+{
+  "name": "rbac-web",
+  "private": true,
+  "version": "1.0.0",
+  "description": "统一授权中心前端（Vue 3 + TypeScript），界面设计见 docs/05-ui.md",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "vue-tsc --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "e2e": "playwright test"
+  },
+  "dependencies": {
+    "@element-plus/icons-vue": "2.3.1",
+    "axios": "1.7.9",
+    "echarts": "5.6.0",
+    "element-plus": "2.9.1",
+    "pinia": "2.3.1",
+    "vue": "3.5.13",
+    "vue-router": "4.5.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.49.1",
+    "@types/node": "22.10.2",
+    "@vitejs/plugin-vue": "5.2.1",
+    "@vitest/coverage-v8": "2.1.9",
+    "@vue/test-utils": "2.4.6",
+    "jsdom": "25.0.1",
+    "typescript": "5.7.2",
+    "vite": "5.4.21",
+    "vitest": "2.1.9",
+    "vue-tsc": "2.2.0"
+  }
+}

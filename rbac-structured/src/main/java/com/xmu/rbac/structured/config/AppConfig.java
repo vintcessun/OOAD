@@ -7,6 +7,9 @@ import com.xmu.rbac.structured.service.AuditService;
 import com.xmu.rbac.structured.service.AuthenticationService;
 import com.xmu.rbac.structured.service.AuthorizationService;
 import io.jsonwebtoken.security.Keys;
+import io.lettuce.core.ClientOptions;
+import io.lettuce.core.SocketOptions;
+import org.springframework.boot.autoconfigure.data.redis.LettuceClientConfigurationBuilderCustomizer;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -40,6 +43,14 @@ public class AppConfig {
             throw new IllegalStateException("rbac.jwt.secret 至少 32 字节（环境变量 RBAC_JWT_SECRET）");
         }
         return Keys.hmacShaKeyFor(bytes);
+    }
+
+    /** Redis 连接开启 TCP keepalive：空闲连接被网络设备悄悄断开时尽早发现，而不是等到下一条命令超时。 */
+    @Bean
+    public LettuceClientConfigurationBuilderCustomizer redisKeepAlive() {
+        return builder -> builder.clientOptions(ClientOptions.builder()
+                .socketOptions(SocketOptions.builder().keepAlive(true).build())
+                .build());
     }
 
     @Bean

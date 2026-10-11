@@ -12,13 +12,16 @@ cd "$(dirname "$0")/.."
 
 # .env 里的 REGISTRY / TAG / BASE_IMAGE；命令行上临时给的环境变量优先
 if [ -f .env ]; then
-  _registry="${REGISTRY-}"; _tag="${TAG-}"; _base="${BASE_IMAGE-}"
+  _registry="${REGISTRY-}"; _tag="${TAG-}"; _base="${BASE_IMAGE-}"; _node="${NODE_IMAGE-}"; _nginx="${NGINX_IMAGE-}"
   set -a; . ./.env; set +a
   REGISTRY="${_registry:-${REGISTRY-}}"; TAG="${_tag:-${TAG-}}"; BASE_IMAGE="${_base:-${BASE_IMAGE-}}"
+  NODE_IMAGE="${_node:-${NODE_IMAGE-}}"; NGINX_IMAGE="${_nginx:-${NGINX_IMAGE-}}"
 fi
 TAG="${TAG:-$(git rev-parse --short HEAD)}"
 REGISTRY="${REGISTRY:-}"
 BASE_IMAGE="${BASE_IMAGE:-eclipse-temurin:21-jre}"
+NODE_IMAGE="${NODE_IMAGE:-node:20-alpine}"
+NGINX_IMAGE="${NGINX_IMAGE:-nginx:1.27-alpine}"
 
 if [ "${1:-}" = "push" ] && [ -z "$REGISTRY" ]; then
   echo "push 需要 REGISTRY，例如 REGISTRY=swr.cn-north-4.myhuaweicloud.com/<组织名>/（写进 .env）" >&2
@@ -33,10 +36,13 @@ for m in rbac-structured rbac-mock-biz; do
   docker build --build-arg BASE_IMAGE="$BASE_IMAGE" --build-arg MODULE="$m" \
     -t "${REGISTRY}${m}:${TAG}" -t "${REGISTRY}${m}:latest" .
 done
+# 前端：镜像内用 Node 构建（含类型检查），Nginx 提供页面
+docker build --build-arg NODE_IMAGE="$NODE_IMAGE" --build-arg NGINX_IMAGE="$NGINX_IMAGE" \
+  -t "${REGISTRY}rbac-web:${TAG}" -t "${REGISTRY}rbac-web:latest" rbac-web
 
 if [ "${1:-}" = "push" ]; then
   echo "==> 3/3 推送到 ${REGISTRY}"
-  for m in rbac-structured rbac-mock-biz; do
+  for m in rbac-structured rbac-mock-biz rbac-web; do
     docker push "${REGISTRY}${m}:${TAG}"
     docker push "${REGISTRY}${m}:latest"
   done

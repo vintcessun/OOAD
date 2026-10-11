@@ -12,6 +12,8 @@ spring:
     redis:
       host: ${TEST_REDIS_HOST:localhost}
       port: ${TEST_REDIS_PORT:16379}
+      # Windows 上 Docker Desktop 的端口转发偶有 1–2 秒的停顿（实测），测试环境放宽超时
+      timeout: 10s
 
 rbac:
   initial-password: Init@2026

@@ -72,6 +72,14 @@ class RedisFailureTest {
     }
 
     @Test
+    void revocationLookupRetriesOnceBeforeFailingClosed() {
+        when(redis.hasKey(anyString()))
+                .thenThrow(new RedisConnectionFailureException("blip"))
+                .thenReturn(false);
+        assertFalse(new TokenRevocationMapper(redis).isRevoked("jti-1"));
+    }
+
+    @Test
     void revocationOfExpiredTokenIsNotStored() {
         when(redis.opsForValue()).thenReturn(ops);
         TokenRevocationMapper revocations = new TokenRevocationMapper(redis);

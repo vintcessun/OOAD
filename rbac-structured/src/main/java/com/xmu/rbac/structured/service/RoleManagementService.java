@@ -103,17 +103,24 @@ public class RoleManagementService {
         return new RoleDetail(toView(r, userRoleMapper.countByRoleId(roleId), perms.size()), perms);
     }
 
-    /** 角色详情「用户」：持有该角色的指派，只列操作者能看到的部门里的。 */
+    /**
+     * 角色详情「用户」：持有该角色的指派，只列操作者能看到的部门里的。
+     * 超级管理员直接在库里分页；其他人先按管理范围过滤全部指派再分页，保证总数与每页内容一致。
+     */
     @Transactional(readOnly = true)
     public PageResult<AssignmentRow> users(Operator op, Long roleId, int page, int size) {
         requireVisible(op, roleId);
+        int p = Math.max(page, 0);
+        int s = Math.min(Math.max(size, 1), 200);
         Scope scope = authz.scopeOf(op.userId(), PERM_VIEW);
-        var result = userRoleMapper.findAssignmentsOfRole(roleId,
-                PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 200)));
-        List<AssignmentRow> visible = result.getContent().stream()
+        if (scope.all()) {
+            return PageResult.of(userRoleMapper.findAssignmentsOfRole(roleId, PageRequest.of(p, s)), a -> a);
+        }
+        List<AssignmentRow> visible = userRoleMapper.findAllAssignmentsOfRole(roleId).stream()
                 .filter(a -> AuthorizationService.inScope(scope, a.scopePath()))
                 .toList();
-        return new PageResult<>(visible, result.getTotalElements(), result.getNumber(), result.getSize());
+        int from = Math.min(p * s, visible.size());
+        return new PageResult<>(visible.subList(from, Math.min(from + s, visible.size())), visible.size(), p, s);
     }
 
     // ------------------------------------------------------------------ 增删改

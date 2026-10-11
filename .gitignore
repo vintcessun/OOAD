@@ -21,6 +21,8 @@ node_modules/
 dist/
 .pnpm-store/
 *.local
+rbac-web/test-results/
+rbac-web/playwright-report/
 
 # 日志与临时文件
 *.log

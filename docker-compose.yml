@@ -98,5 +98,19 @@ services:
       resources:
         limits: { memory: 350M }
 
+  # 前端（Vue 3）：Nginx 提供页面，/api 转发到 rbac-structured。浏览器访问 http://<节点>:80
+  rbac-web:
+    image: ${REGISTRY:-}rbac-web:${TAG:-latest}
+    build:
+      context: ./rbac-web
+    ports:
+      - "80:80"
+    depends_on: [rbac-structured]
+    deploy:
+      placement:
+        constraints: [node.labels.rbac.role == app]
+      resources:
+        limits: { memory: 64M }
+
 volumes:
   mysql-data:

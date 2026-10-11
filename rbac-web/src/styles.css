@@ -1,0 +1,51 @@
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  background: #f5f7fa;
+}
+
+.page-card {
+  margin-bottom: 16px;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.toolbar .spacer {
+  flex: 1;
+}
+
+.mono {
+  font-family: 'JetBrains Mono', Consolas, 'Courier New', monospace;
+}
+
+.muted {
+  color: #909399;
+  font-size: 12px;
+}
+
+.allow {
+  color: #67c23a;
+}
+
+.deny {
+  color: #f56c6c;
+}
+
+.perm-denied {
+  cursor: not-allowed;
+}
+
+.pager {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+}

@@ -1,4 +1,6 @@
-# 每次 push / PR：编译 + 全部测试（含连真实 MySQL、Redis 的集成测试）+ Jacoco 门槛，再验证镜像能构建（docs/09-test-plan.md §5）
+# 每次 push / PR（docs/09-test-plan.md §5）：
+#   verify：后端编译 + 全部测试（连真实 MySQL、Redis）+ Jacoco 门槛；再用同一套服务跑前端端到端测试；最后验证镜像能构建
+#   web：前端类型检查 + 单元测试与覆盖率门槛 + 生产构建
 name: ci
 
 on:
@@ -39,4 +41,45 @@ jobs:
         with:
           name: jacoco-report
           path: rbac-structured/target/site/jacoco/
+      # 前端端到端：真实的 jar + 同一个 MySQL、Redis + 生产构建的前端，在 Chromium 里走完整流程
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: rbac-web/package-lock.json
+      - run: npm ci --no-audit --no-fund
+        working-directory: rbac-web
+      - run: npx playwright install --with-deps chromium
+        working-directory: rbac-web
+      - run: npx playwright test
+        working-directory: rbac-web
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: |
+            rbac-web/playwright-report/
+            rbac-web/test-results/
       - run: docker compose build
+
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rbac-web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: rbac-web/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npm run test:coverage
+      - run: npx vite build
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: web-coverage
+          path: rbac-web/coverage/

@@ -262,7 +262,10 @@ class ManagementApiTest extends IntegrationTestBase {
         assertEquals(1, roles.size());
         assertEquals(1, roles.get(0).path("userCount").asInt());
         assertEquals(1, roles.get(0).path("permissionCount").asInt());
-        assertEquals(1, getJson(root, "/roles/" + roleId + "/users").data().path("items").size());
+        JsonNode holders = getJson(root, "/roles/" + roleId + "/users").data().path("items");
+        assertEquals(1, holders.size());
+        assertEquals("u1", holders.get(0).path("username").asText());
+        assertEquals("测试u1", holders.get(0).path("userRealName").asText());
         assertEquals(0, getJson(root, "/roles?status=DISABLED").data().size());
 
         // 修改、停用；有人持有时不能删
@@ -274,6 +277,22 @@ class ManagementApiTest extends IntegrationTestBase {
         userRoleMapper.deleteAll(userRoleMapper.findAll().stream().filter(x -> x.userId.equals(u.id)).toList());
         assertEquals(200, deleteReq(root, "/roles/" + roleId).status());
         assertEquals(404, getJson(root, "/roles/" + roleId).status());
+    }
+
+    @Test
+    void roleHoldersAreLimitedToManagementScopeWithConsistentTotals() throws Exception {
+        User admin = user("admin", org.road());
+        grant(admin, org.rbacAdmin(), org.road());
+        for (int i = 0; i < 3; i++) {
+            grant(user("r" + i, org.roadFinance()), org.docViewer(), org.roadFinance());
+            grant(user("b" + i, org.bridgeFinance()), org.docViewer(), org.bridgeFinance());
+        }
+        JsonNode page0 = getJson(login("admin"), "/roles/" + org.docViewer().id + "/users?size=2").data();
+        assertEquals(3, page0.path("total").asInt());   // 只算道路分公司的 3 人
+        assertEquals(2, page0.path("items").size());
+        JsonNode page1 = getJson(login("admin"), "/roles/" + org.docViewer().id + "/users?size=2&page=1").data();
+        assertEquals(1, page1.path("items").size());
+        assertEquals(6, getJson(login("root"), "/roles/" + org.docViewer().id + "/users").data().path("total").asInt());
     }
 
     @Test

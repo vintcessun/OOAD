@@ -5,6 +5,8 @@ import java.time.LocalDateTime;
 /** 用户的一次角色指派，连同角色与适用部门的名称。 */
 public record AssignmentRow(Long assignmentId,
                             Long userId,
+                            String username,
+                            String userRealName,
                             Long roleId,
                             String roleCode,
                             String roleName,

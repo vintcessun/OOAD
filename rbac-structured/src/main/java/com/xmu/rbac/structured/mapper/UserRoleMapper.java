@@ -18,10 +18,10 @@ public interface UserRoleMapper extends JpaRepository<UserRole, Long> {
 
     String ASSIGNMENT_ROW = """
             select new com.xmu.rbac.structured.dto.AssignmentRow(
-                   ur.id, ur.userId, r.id, r.roleCode, r.roleName, r.status,
+                   ur.id, ur.userId, u.username, u.realName, r.id, r.roleCode, r.roleName, r.status,
                    d.id, d.deptName, d.path, d.companyId, ur.grantedBy, ur.grantedAt, ur.reason)
-              from UserRole ur, Role r, Department d
-             where r.id = ur.roleId and d.id = ur.scopeDeptId
+              from UserRole ur, Role r, Department d, User u
+             where r.id = ur.roleId and d.id = ur.scopeDeptId and u.id = ur.userId
             """;
 
     /** 用户的全部指派（含已停用的角色，用户详情页展示用）。 */
@@ -32,6 +32,10 @@ public interface UserRoleMapper extends JpaRepository<UserRole, Long> {
     @Query(value = ASSIGNMENT_ROW + " and ur.roleId = :roleId order by ur.id",
             countQuery = "select count(ur) from UserRole ur where ur.roleId = :roleId")
     Page<AssignmentRow> findAssignmentsOfRole(@Param("roleId") Long roleId, Pageable pageable);
+
+    /** 持有某角色的全部指派（按管理范围过滤后再分页时用）。 */
+    @Query(ASSIGNMENT_ROW + " and ur.roleId = :roleId order by ur.id")
+    List<AssignmentRow> findAllAssignmentsOfRole(@Param("roleId") Long roleId);
 
     /** 判定 S3：用户经由启用中的角色获得的全部权限码，每一行都带着它来自哪次指派。 */
     @Query("""
