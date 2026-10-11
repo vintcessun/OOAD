@@ -65,7 +65,7 @@
 | [`02-architecture.md`](docs/02-architecture.md) | **概要设计**：质量属性与取舍、三层架构、判定、缓存与失效、认证、部署 | 检查一 ★ |
 | [`03-database.md`](docs/03-database.md) | **数据库设计**：ER 图、表结构、多公司与作用域、三份 xlsx 的导入规则与真实结果 | 检查一 ★ |
 | [`04-api.md`](docs/04-api.md) | **API 设计**：约定、错误码、45 个接口与所需权限 | 检查一 ★ |
-| [`05-ui.md`](docs/05-ui.md) | **前端界面设计**：页面结构、线框图、Dashboard 统计口径 | 检查一 ★ |
+| [`05-ui.md`](docs/05-ui.md) | **前端界面设计**：页面结构、线框图、Dashboard 统计口径；已在 `rbac-web/` 实现 | 检查一 ★ |
 | [`06-detail-structured.md`](docs/06-detail-structured.md) | **详细设计 · 结构化**：功能层次图、数据流图、数据字典、处理规约、耦合与内聚 | 检查一 ★ |
 | [`09-test-plan.md`](docs/09-test-plan.md) | 测试策略、T01–T22 验收用例与追溯、Jacoco | 检查一 ★ |
 | [`11-defense.md`](docs/11-defense.md) | 六个设计点与个人陈述讲稿模板、高频追问 | 每次检查前 ★ |
@@ -94,7 +94,8 @@
 | 数据导入 | Apache POI | 三份 xlsx，产出异常清单 |
 | 测试 | JUnit 5 + MockMvc + ArchUnit + **Jacoco** | 集成测试连真实 MySQL 与 Redis |
 | 部署 | Docker + Docker Swarm，华为云 3 台 2 核 2G | 见 [`13-deployment.md`](docs/13-deployment.md) |
-| 前端（设计） | Vue 3 + TypeScript + Element Plus + ECharts | 界面设计见 `05-ui.md`，**Vue 工程尚未实现** |
+| 前端 | Vue 3 + TypeScript + Element Plus + Pinia + ECharts | `rbac-web/`，界面设计见 `05-ui.md`；Nginx 镜像提供页面 |
+| 前端测试 | Vitest + Playwright | 单元测试 + 连真实后端的端到端测试 |
 
 ### 工程结构
 
@@ -109,7 +110,14 @@ rbac-parent/
 │       ├── entity/       与表一一对应的记录（只有字段，没有方法）
 │       ├── dto/          请求、响应与过程间传递的数据（record）
 │       └── config/       装配
-└── rbac-mock-biz/     外部模拟业务系统（:8090）：带用户令牌调用 /authz/check，允许才执行
+├── rbac-mock-biz/     外部模拟业务系统（:8090）：带用户令牌调用 /authz/check，允许才执行
+└── rbac-web/          前端（Vue 3 + TypeScript，不在 Maven 里）：15 个页面，菜单与路由由 /menus/me 动态生成
+    ├── src/api/          45 个接口的类型与调用、统一错误处理
+    ├── src/stores/       登录与权限状态
+    ├── src/router/       按菜单注册路由、路由守卫
+    ├── src/views/        页面；src/components/ 共用组件（批量授权、部门选择、用户详情……）
+    ├── tests/            Vitest 单元测试
+    └── e2e/              Playwright 端到端测试与虚构的 xlsx 样本
 ```
 
 依赖方向、包结构、「不用 MyBatis」「实体没有方法」「Service 无状态」由 `ArchitectureTest` 检查，违反即构建失败。
@@ -127,16 +135,23 @@ docker run -d --name rbac-test-mysql -p 13306:3306 -e MYSQL_ROOT_PASSWORD=root \
   -e MYSQL_DATABASE=rbac_test mysql:8.0 --character-set-server=utf8mb4
 docker run -d --name rbac-test-redis -p 16379:6379 redis:7-alpine
 
-# 构建：编译 + 59 个测试 + Jacoco 门槛（只需装 JDK 21，Maven 由 ./mvnw 下载）
+# 构建：编译 + 61 个测试 + Jacoco 门槛（只需装 JDK 21，Maven 由 ./mvnw 下载）
 ./mvnw -s deploy/maven-settings-huawei.xml verify          # Windows 用 mvnw.cmd
 # Jacoco 报告：rbac-structured/target/site/jacoco/index.html
 
-# 部署：MySQL + Redis + 权限中心 + 外部模拟系统
+# 前端：单元测试、类型检查、端到端测试（需要 Node 20+；端到端会自己启动上面打出的 jar）
+cd rbac-web && npm ci && npm run typecheck && npm run test:coverage
+npx playwright install chromium && npm run e2e
+npm run dev                                                # 开发：http://localhost:5173，/api 转发到 8081
+cd ..
+
+# 部署：MySQL + Redis + 权限中心 + 外部模拟系统 + 前端
 docker compose up -d --build
 curl http://localhost:8081/api/v1/actuator/health          # {"status":"UP"}
+# 浏览器打开 http://localhost
 ```
 
-部署后的初始化（详见 [`13-deployment.md`](docs/13-deployment.md)，可直接按 [`deploy/rbac-demo.http`](deploy/rbac-demo.http) 顺序执行）：
+部署后的初始化（详见 [`13-deployment.md`](docs/13-deployment.md)；可在前端页面操作，也可按 [`deploy/rbac-demo.http`](deploy/rbac-demo.http) 顺序调接口）：
 
 1. `root` / `Admin@123` 登录，**先修改口令**（改之前其他接口都返回 40304）；
 2. `POST /imports/permissions` 上传功能权限清单；
@@ -149,15 +164,15 @@ curl http://localhost:8081/api/v1/actuator/health          # {"status":"UP"}
 | 模块 | 状态 |
 |---|---|
 | `rbac-contract` | ✅ RBAC0 基线 V1；45 个接口的 OpenAPI 契约 |
-| `rbac-structured` | ✅ 45 个接口全部实现；T01–T22 验收用例通过；59 个测试，行覆盖率 97%、分支 82% |
+| `rbac-structured` | ✅ 45 个接口全部实现；T01–T22 验收用例通过；61 个测试，行覆盖率 97%、分支 82% |
 | `rbac-mock-biz` | ✅ 发文拟稿 / 审批、考勤（只限本人）调用权限中心 |
-| 前端 | ❌ 只有界面设计 |
-| 三台服务器部署 | 🟡 编排沿用实验二；新版本待重新部署（旧库需删库重建） |
+| `rbac-web` | ✅ 15 个页面；33 个单元测试、9 个连真实后端的端到端测试 |
+| 三台服务器部署 | 🟡 编排已含前端；新版本按组内安排暂未部署（旧库需删库重建） |
 
 ### 组员请先做三件事
 
 1. **通读 [`docs/11-defense.md`](docs/11-defense.md)** —— 检查是无领导小组面试，每人要讲**文档中的一个设计**。先了解六个设计点各自在讲什么。
-2. **读 [`docs/14-rbac0-gap.md`](docs/14-rbac0-gap.md)** —— 需求逐条对照，以及还没做完的事（前端、部署）。
+2. **读 [`docs/14-rbac0-gap.md`](docs/14-rbac0-gap.md)** —— 需求逐条对照，以及还没做完的事（服务器部署、老师的测试、StarUML 图）。
 3. **把三份 xlsx 放进 `data/raw/`** —— 它们不入库（含一万条真实姓名和手机号），需要自己从课程网站下载。
 
 ### 有异议的地方

@@ -49,7 +49,7 @@ flowchart LR
     GH --> B1
     subgraph DEPLOY["两台部署服务器"]
         D1["mysql-server<br/>MySQL + Redis"]
-        D2["project-server<br/>rbac-structured :8081<br/>rbac-mock-biz :8090"]
+        D2["project-server<br/>rbac-structured :8081<br/>rbac-mock-biz :8090<br/>rbac-web :80"]
     end
     REG -->|docker pull| D2
     D2 -->|JDBC| D1
@@ -79,7 +79,7 @@ flowchart LR
 |---|---|---|---|
 | package-server | Maven 构建（临时）+ Swarm manager | Maven 约 1G | 约 1.0G |
 | mysql-server | MySQL（`innodb_buffer_pool_size=256M`）+ Redis（`maxmemory 128mb`） | 800M + 200M | 1.0G |
-| project-server | `rbac-structured`（`-Xmx512m`）+ `rbac-mock-biz`（`-Xmx256m`） | 700M + 350M | 1.05G |
+| project-server | `rbac-structured`（`-Xmx512m`）+ `rbac-mock-biz`（`-Xmx256m`）+ `rbac-web`（Nginx） | 700M + 350M + 64M | 1.11G |
 
 ⚠️ **实验二的 `lab` 栈（MySQL + productdemojpa）和本项目的 `rbac` 栈不要同时运行**：mysql-server 上会有两个 MySQL，2G 放不下。实验二验收完后先 `docker stack rm lab`，再部署 `rbac`。
 
@@ -132,9 +132,9 @@ docker login -u ... -p ... swr.cn-north-4.myhuaweicloud.com
 bash deploy/build.sh push
 ```
 
-`build.sh` 依次执行 `./mvnw verify`，打两个镜像（标签为当前提交的短哈希和 `latest`），再 push 到 SWR。对应实验二的 `docker tag` 与 `docker push`。
+`build.sh` 依次执行 `./mvnw verify`，打三个镜像（`rbac-structured`、`rbac-mock-biz`、前端 `rbac-web`；标签为当前提交的短哈希和 `latest`），再 push 到 SWR。前端镜像在构建阶段用 Node 编译（含类型检查），运行阶段是 Nginx。对应实验二的 `docker tag` 与 `docker push`。
 
-服务器拉不到 Docker Hub 时，在 `.env` 里把 `MYSQL_IMAGE`、`REDIS_IMAGE`、`BASE_IMAGE` 换成 SWR 上的镜像。老师实验二用的 MySQL 镜像是 9.2 版。10 月 9 日用 MySQL 9.2 实测过旧版迁移脚本，只有一条「Flyway 未测试过 9.2」的警告；重写后的 V1 在 MySQL 8.0 上测过（集成测试与本机部署），换 9.2 前先在测试库上跑一次。
+服务器拉不到 Docker Hub 时，在 `.env` 里把 `MYSQL_IMAGE`、`REDIS_IMAGE`、`BASE_IMAGE`、`NODE_IMAGE`、`NGINX_IMAGE` 换成 SWR 上的镜像。老师实验二用的 MySQL 镜像是 9.2 版。10 月 9 日用 MySQL 9.2 实测过旧版迁移脚本，只有一条「Flyway 未测试过 9.2」的警告；重写后的 V1 在 MySQL 8.0 上测过（集成测试与本机部署），换 9.2 前先在测试库上跑一次。
 
 ### 4.3 组建 Swarm、打标签（package-server，一次）
 
@@ -232,6 +232,8 @@ bash deploy/stack.sh up
 - 不带令牌 401、未声明的接口 403、登出后旧令牌 401；
 - 调用模拟业务系统。
 
+浏览器访问任一节点的 80 端口即是前端控制台：`root` 登录后按页面完成同样的流程（导入在「系统管理 › 组织管理」，批量授权在用户列表或组织管理，解释在「权限解释」）。
+
 ### 4.7 只有一台机器时（本地开发、检查现场演示）
 
 ```bash
@@ -239,7 +241,11 @@ bash deploy/stack.sh up
 docker compose up -d --build
 ```
 
-单机时 `deploy:` 段被忽略，四个服务都跑在本机，口令用编排文件里的开发默认值。四个服务合计约 2G，一台 2G 服务器跑起来很勉强，建议只在本地开发机上这样用。
+单机时 `deploy:` 段被忽略，五个服务都跑在本机（前端在 http://localhost），口令用编排文件里的开发默认值。合计约 2G，一台 2G 服务器跑起来很勉强，建议只在本地开发机上这样用。
+
+只改前端时不必打镜像：后端在 8081 运行时，`cd rbac-web && npm ci && npm run dev`，打开 http://localhost:5173（开发服务器把 `/api` 转发到 8081）。
+
+> 截至 2026-10-12，新版本（含前端）尚未部署到三台服务器，按组内安排暂缓。
 
 ---
 

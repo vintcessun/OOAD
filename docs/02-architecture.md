@@ -172,8 +172,12 @@ rbac-parent/              父 POM：JDK 21、依赖版本、Jacoco 门槛
 │   ├── entity/           表记录
 │   ├── dto/              请求与响应
 │   └── config/           装配
-└── rbac-mock-biz/        外部模拟业务系统 :8090：OA 发文拟稿审批、HR 考勤；每个操作带用户令牌调 /authz/check
+├── rbac-mock-biz/        外部模拟业务系统 :8090：OA 发文拟稿审批、HR 考勤；每个操作带用户令牌调 /authz/check
+└── rbac-web/             前端（不在 Maven 里）：Vue 3 + TypeScript + Element Plus + Pinia + ECharts，
+                          Nginx 提供页面并把 /api 转发到权限中心；界面设计见 05-ui.md
 ```
+
+前端只是权限中心的一个客户端：菜单由 `GET /menus/me` 下发、路由按菜单动态注册、按钮用 `v-perm` 按权限禁用，这些都只为体验；能否执行由后端每次判定（`05-ui.md` §4）。
 
 ### 3.2 为什么这样切分
 

@@ -4,18 +4,20 @@
 
 ---
 
-## 0. 当前状态（2026-10-11）
+## 0. 当前状态（2026-10-12）
 
 | 项 | 结果 |
 |---|---|
-| 测试数 | 59 个，全部通过（`./mvnw verify`） |
-| 行覆盖率 | 97.2%（1,712 / 1,761 行） |
-| 分支覆盖率 | 82.5%（800 / 970 个分支） |
+| 后端测试 | 61 个，全部通过（`./mvnw verify`） |
+| 后端行覆盖率 | 97.2%（1,718 / 1,767 行） |
+| 后端分支覆盖率 | 82.4%（803 / 974 个分支） |
 | `service` 包 | 行 97.3%，分支 82.2% |
 | 接口覆盖 | 契约中的 45 个接口全部经 HTTP 调用过 |
 | 验收用例 | 审查报告 §10.2 的 T01–T22 全部实现并通过 |
+| 前端单元测试 | 33 个（Vitest），逻辑层行覆盖 92.3%、分支 90.8% |
+| 前端端到端测试 | 9 个（Playwright），连真实后端、MySQL、Redis，在 Chromium 里操作页面 |
 
-覆盖率统计范围：`rbac-structured` 的 controller、service、mapper；`entity`、`dto`、`config` 与启动类排除（只有字段或框架装配）。
+后端覆盖率统计范围：`rbac-structured` 的 controller、service、mapper；`entity`、`dto`、`config` 与启动类排除（只有字段或框架装配）。前端覆盖率统计范围：`src/api`、`stores`、`router`、`utils`、`directives`；页面组件由端到端测试覆盖。
 
 ## 1. 测试策略
 
@@ -25,10 +27,12 @@
 |---|---|---|---|
 | 架构 | `ArchitectureTest` | 6 | ArchUnit：只有三层与三个辅助包、依赖向下、禁止 MyBatis、实体没有方法、Service 无状态不继承 |
 | 契约 | `ContractRoutesTest` | 6 | 读真实的 `rbac-api.yaml`：45 个操作都声明了权限；契约里的权限码在 V1 脚本里都有资源；正反两个方向的核对逻辑 |
-| 单元 | `RedisFailureTest` | 4 | Mockito 模拟 Redis 故障：授权缓存当未命中、令牌注销查询失败按已注销 |
+| 单元 | `RedisFailureTest` | 5 | Mockito 模拟 Redis 故障：授权缓存当未命中；令牌注销查询失败先重试一次，仍失败按已注销 |
 | 集成（验收） | `AcceptanceTest` | 23 | T01–T22（另加 T07b、T20b），经 HTTP 调接口，连真实 MySQL 与 Redis |
 | 集成（导入） | `ExcelImportIntegrationTest` | 3 | 按原表格式造 xlsx（姓名虚构），上传后核对数量、部门归属、异常清单 |
-| 集成（管理接口） | `ManagementApiTest` | 17 | 每个管理功能的成功、失败、权限不足、对象不存在、重复等分支 |
+| 集成（管理接口） | `ManagementApiTest` | 18 | 每个管理功能的成功、失败、权限不足、对象不存在、重复等分支 |
+| 前端单元 | `rbac-web/tests/*.spec.ts` | 33 | Vitest + jsdom：统一错误处理的决策表（401 / 40304 / 40301 / 其他）、登录与权限状态、路由只来自菜单与路由守卫（未登录、刷新页面、须改口令、令牌失效）、`v-perm`、批量结果（整批未写入时的提示）、导入报告、Dashboard 十一项、权限解释只展示后端结论 |
+| 前端端到端 | `rbac-web/e2e/console.spec.ts` | 9 | Playwright：启动真实的 jar（新建一个空库）与生产构建的前端，按顺序走完首次登录改口令 → 导入三份 Excel（虚构数据）→ 按部门批量授权 13 人 → 用户列表电话脱敏、用户详情「角色 @ 适用部门」→ 回收后立即生效 → 权限解释拒绝并给出依据 → 新增临时用户 → 新建公司内角色并授权 → 审计、权限、菜单、热力图 → 普通员工没有菜单、直接访问管理页 403 |
 
 ### 1.2 为什么集成测试连真实数据库
 
@@ -47,6 +51,7 @@ JaCoCo 只能证明「这行代码被执行过」，证明不了：
 - 每个测试前把库恢复成只含内置数据的状态：整个测试进程只 clean + migrate 一次并给每张表拍快照，之后每个测试前「清空 + 从快照复制」，再清空 Redis。
 - 测试组织（`IntegrationTestBase`）：公司 A「总公司 › 财务部 / 道路分公司 › 财务部、第一项目部 / 桥梁分公司 › 财务部」，公司 B「总公司 › 财务部」（与 A 同名，用于多公司隔离）；业务资源 `oa:doc:draft` 的查看、审批两个权限，角色 `DOC_VIEWER`、`DOC_APPROVER`。
 - 原始 xlsx 含个人信息，不进仓库。导入测试用按原表格式造的小样本；真实数据的全量导入结果记在 [03 §5.4](03-database.md)。
+- 前端端到端测试用 `rbac-web/e2e/fixtures/` 下的三份 xlsx（由同目录的 `generate.py` 生成，姓名、电话全部虚构），每次运行新建一个数据库（`rbac_e2e_<时间戳>`），Redis 用 5 号库并在开始前清空。
 
 ## 2. Jacoco 配置与门槛
 
@@ -55,7 +60,7 @@ JaCoCo 只能证明「这行代码被执行过」，证明不了：
 | 规则 | 门槛 | 当前 |
 |---|---|---|
 | 整体行覆盖率 | ≥ 70% | 97.2% |
-| 整体分支覆盖率 | ≥ 60% | 82.5% |
+| 整体分支覆盖率 | ≥ 60% | 82.4% |
 | `service` 包行覆盖率 | ≥ 85% | 97.3% |
 
 `./mvnw verify` 在 `verify` 阶段执行检查，不达标构建失败。报告在 `rbac-structured/target/site/jacoco/index.html`，CI 每次上传为构建产物 `jacoco-report`。
@@ -76,6 +81,19 @@ docker run -d --name rbac-test-redis -p 16379:6379 redis:7-alpine
 ```
 
 连接参数可用环境变量覆盖：`TEST_DB_URL`、`TEST_DB_USER`、`TEST_DB_PASSWORD`、`TEST_REDIS_HOST`、`TEST_REDIS_PORT`。全部测试约 4 分钟（其中 T22 要另起一个应用上下文）。
+
+前端（需要 Node 20+）：
+
+```bash
+cd rbac-web
+npm ci
+npm run typecheck          # vue-tsc 类型检查
+npm run test:coverage      # Vitest 单元测试 + 覆盖率门槛（行 85%、分支 80%）
+npx playwright install chromium   # 第一次
+npm run e2e                # 端到端：先 ./mvnw verify 打出 jar，并起好上面两个容器
+```
+
+端到端测试会自己启动 jar（端口 18081）和前端（5174）。`JAVA_BIN` 指定 java 可执行文件；本机已有其他版本的 Chromium 时可用 `PW_CHROMIUM` 指过去。后端日志写在 `rbac-web/test-results/backend.log`。
 
 CI（`.github/workflows/ci.yml`）用 `services` 在同样的端口起 MySQL 8.0 与 Redis 7。
 
@@ -114,10 +132,14 @@ CI（`.github/workflows/ci.yml`）用 `services` 在同样的端口起 MySQL 8.0
 
 `.github/workflows/ci.yml`：每次 push 与 PR 执行
 
+`verify` 任务：
+
 1. 起 MySQL 8.0（13306）与 Redis 7（16379）两个 service；
-2. `./mvnw -B verify`：编译、59 个测试、Jacoco 门槛；
-3. 上传 Jacoco 报告；
-4. `docker compose build` 验证镜像能构建。
+2. `./mvnw -B verify`：编译、61 个后端测试、Jacoco 门槛；上传 Jacoco 报告；
+3. 用同一套 service 跑前端端到端测试（Playwright + Chromium），上传报告与后端日志；
+4. `docker compose build` 验证四个镜像都能构建。
+
+`web` 任务：前端类型检查、单元测试与覆盖率门槛、生产构建。
 
 ## 6. 第一次检查的提交清单
 
@@ -132,5 +154,6 @@ CI（`.github/workflows/ci.yml`）用 `services` 在同样的端口起 MySQL 8.0
 | 设计点 | 问题 | 方法与理由 | 效果 |
 |---|---|---|---|
 | 验收测试连真实数据库 | 覆盖率高不等于需求都实现、权限都生效 | 22 个验收用例经 HTTP 调接口，连真实 MySQL + Redis | T01–T22 全部通过 |
+| 前端端到端测试 | 页面能打开不等于前后端真的接上了 | 浏览器里操作生产构建的前端，后端、数据库都是真的 | 9 个场景，含普通员工直接访问管理页被拒 |
 | 多副本一致性的测试 | 「下一次访问生效」在单实例里测不出跨副本问题 | 测试里另起一个完整的应用上下文，共用数据库与缓存 | T22 |
 | 测试数据快照 | 每个测试重建表太慢 | 只迁移一次，之后「清空 + 从快照复制」 | 每个测试约 2 秒 |
