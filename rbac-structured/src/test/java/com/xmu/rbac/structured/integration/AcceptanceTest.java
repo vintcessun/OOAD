@@ -301,7 +301,7 @@ class AcceptanceTest extends IntegrationTestBase {
         assertFalse(d.path("cacheHit").asBoolean());
         assertEquals("MISSING_PERMISSION", d.path("reason").asText());
 
-        // 被拒绝的修改不递增版本号（随事务回滚），缓存照常命中
+        // 被拒绝的修改在任何写入之前终止，不会碰版本号
         User admin = adminOf(org.road());
         assertEquals(403, postJson(login(admin.username), "/users/" + u.id + "/roles",
                 Map.of("roleId", org.docViewer().id)).status());

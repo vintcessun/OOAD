@@ -99,7 +99,7 @@
 修复后验证：
   AcceptanceTest.t12b_revocationDoesNotDependOnRedis：先让授权进缓存；回收后旧键仍在 Redis（证明回收没有依赖 Redis），
   MySQL 版本号 + 1；下一次鉴权 allowed = false、cacheHit = false、reason = MISSING_PERMISSION；
-  一次被拒绝的分配不改变版本号（随事务回滚）。T12、T13、T22（第二个副本）仍通过。
+  一次被拒绝的分配不改变版本号（校验失败在任何写入之前终止）。T12、T13、T22（第二个副本）仍通过。
 ```
 
 ### 问题 3
