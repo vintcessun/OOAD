@@ -8,15 +8,16 @@ import { me } from './fixtures'
 const api = vi.hoisted(() => ({
   authApi: { me: vi.fn() },
   menuApi: { mine: vi.fn() },
-  statsApi: { dashboard: vi.fn() },
+  statsApi: { dashboard: vi.fn(), auditLogs: vi.fn() },
   authzApi: { explain: vi.fn() },
   userApi: { list: vi.fn(), detail: vi.fn() },
   orgApi: { companies: vi.fn(async () => []), tree: vi.fn(async () => []) },
 }))
 vi.mock('@/api', () => api)
+const nav = vi.hoisted(() => ({ push: vi.fn(), back: vi.fn(), query: {} as Record<string, string> }))
 vi.mock('vue-router', () => ({
-  useRouter: () => ({ push: vi.fn(), back: vi.fn() }),
-  useRoute: () => ({ query: {}, params: {}, path: '/' }),
+  useRouter: () => ({ push: nav.push, back: nav.back }),
+  useRoute: () => ({ query: nav.query, params: {}, path: '/' }),
 }))
 
 import { vPerm } from '@/directives/perm'
@@ -24,6 +25,8 @@ import { useAuthStore } from '@/stores/auth'
 import BatchResultView from '@/components/BatchResultView.vue'
 import ImportReportView from '@/components/ImportReportView.vue'
 import PermissionCode from '@/components/PermissionCode.vue'
+import UserDetailPanel from '@/components/UserDetailPanel.vue'
+import AuditLogView from '@/views/AuditLogView.vue'
 import DashboardView from '@/views/DashboardView.vue'
 import ExplainView from '@/views/ExplainView.vue'
 
@@ -32,6 +35,7 @@ const global = { plugins: [ElementPlus], directives: { perm: vPerm } }
 beforeEach(() => {
   setActivePinia(createPinia())
   vi.clearAllMocks()
+  nav.query = {}
 })
 
 describe('v-perm（按钮级控制，只为体验）', () => {
@@ -114,7 +118,54 @@ describe('Dashboard', () => {
       expect(w.text()).toContain(v)
     }
     expect(w.find('[data-test="metric-abnormalCount"] .value').classes()).toContain('warn')
+    // 点进审计日志用与指标相同的口径，而不是只看 AUTH_FAILED
+    await w.find('[data-test="metric-abnormalCount"]').trigger('click')
+    expect(nav.push).toHaveBeenCalledWith({ path: '/audit-logs',
+      query: { abnormal: '1', from: expect.stringMatching(/T00:00:00$/) } })
     w.unmount()
+  })
+})
+
+describe('审计日志', () => {
+  it('从 Dashboard 带 abnormal=1 进来时只查异常访问', async () => {
+    nav.query = { abnormal: '1', from: '2026-10-14T00:00:00' }
+    api.statsApi.auditLogs.mockResolvedValue({ items: [], total: 0, page: 0, size: 20 })
+    const w = mount(AuditLogView, { global })
+    await flushPromises()
+    expect(api.statsApi.auditLogs).toHaveBeenCalledWith(expect.objectContaining({ abnormal: true, from: '2026-10-14T00:00:00' }))
+    expect((w.find('[data-test="audit-abnormal"] input').element as HTMLInputElement).checked).toBe(true)
+  })
+
+  it('默认不带 abnormal 条件', async () => {
+    api.statsApi.auditLogs.mockResolvedValue({ items: [], total: 0, page: 0, size: 20 })
+    mount(AuditLogView, { global })
+    await flushPromises()
+    expect(api.statsApi.auditLogs.mock.calls[0][0].abnormal).toBeUndefined()
+  })
+})
+
+describe('「解释某个权限」入口', () => {
+  const other = () => ({ ...me([]), user: { ...me([]).user, id: 20, username: 'u20' } })
+  const link = (detail: ReturnType<typeof me>) =>
+    mount(UserDetailPanel, { props: { detail, initialTab: 'perms' }, global }).find('[data-test="explain-link"]')
+
+  it('没有「权限解释」菜单的账号看不到入口（审计员、业务角色）', () => {
+    useAuthStore().me = me(['rbac:user:view', 'rbac:audit:view'])
+    expect(link(other()).exists()).toBe(false)
+    expect(link(useAuthStore().me!).exists()).toBe(false)
+  })
+
+  it('解释自己只要菜单权限；解释别人还要 rbac:authz:explain', () => {
+    useAuthStore().me = me(['rbac:explain:view'])
+    expect(link(useAuthStore().me!).exists()).toBe(true)
+    expect(link(other()).exists()).toBe(false)
+    useAuthStore().me = me(['rbac:explain:view', 'rbac:authz:explain'])
+    expect(link(other()).exists()).toBe(true)
+  })
+
+  it('超级管理员可见', () => {
+    useAuthStore().me = me([], { superAdmin: true })
+    expect(link(other()).exists()).toBe(true)
   })
 })
 

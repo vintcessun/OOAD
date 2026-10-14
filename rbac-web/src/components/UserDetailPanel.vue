@@ -71,7 +71,7 @@
             </el-select>
             <el-checkbox v-model="onlySelf">只看「只限本人」</el-checkbox>
             <span class="spacer" />
-            <el-button link type="primary" @click="router.push({ path: '/explain', query: { userId: detail.user.id } })">
+            <el-button v-if="canExplain" link type="primary" data-test="explain-link" @click="router.push({ path: '/explain', query: { userId: detail.user.id } })">
               解释某个权限 →
             </el-button>
           </div>
@@ -102,6 +102,7 @@ import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessageBox, ElMessage } from 'element-plus'
 import { userApi } from '@/api'
+import { useAuthStore } from '@/stores/auth'
 import type { Assignment, UserDetail } from '@/api/types'
 import { USER_STATUS_LABEL, USER_TYPE_LABEL, formatTime, label } from '@/utils/format'
 import PermissionCode from './PermissionCode.vue'
@@ -116,6 +117,15 @@ const emit = defineEmits<{ (e: 'changed'): void }>()
 const router = useRouter()
 
 const tab = ref(props.initialTab ?? 'basic')
+
+/**
+ * 「解释某个权限」只给能用上它的人：要有「权限解释」菜单；解释别人还要 rbac:authz:explain
+ * （ExplainView 选别人还要 rbac:user:view，能打开用户详情页的人已经有）。后端仍按被查用户所在部门独立判定。
+ */
+const auth = useAuthStore()
+const canExplain = computed(() => auth.has('rbac:explain:view')
+  && (props.detail.user.id === auth.me?.user.id || auth.has('rbac:authz:explain')))
+
 const assignVisible = ref(false)
 const keyword = ref('')
 const system = ref('')

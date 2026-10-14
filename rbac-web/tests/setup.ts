@@ -12,3 +12,17 @@ if (!window.matchMedia) {
     addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {}, dispatchEvent: () => false,
   })) as unknown as typeof window.matchMedia
 }
+
+// Node 25 起自带的 localStorage（未指定存储文件时取到 undefined）会盖住 jsdom 的实现，补一个内存版
+if (typeof globalThis.localStorage === 'undefined' || globalThis.localStorage === null) {
+  const data = new Map<string, string>()
+  const storage: Storage = {
+    get length() { return data.size },
+    clear: () => data.clear(),
+    getItem: (k) => data.get(k) ?? null,
+    key: (i) => [...data.keys()][i] ?? null,
+    removeItem: (k) => { data.delete(k) },
+    setItem: (k, v) => { data.set(k, String(v)) },
+  }
+  Object.defineProperty(globalThis, 'localStorage', { value: storage, configurable: true })
+}

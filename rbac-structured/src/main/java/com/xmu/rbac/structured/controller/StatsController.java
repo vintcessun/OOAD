@@ -33,9 +33,10 @@ public class StatsController {
             @RequestParam(required = false) String result,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to,
+            @RequestParam(defaultValue = "false") boolean abnormal,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        return ApiResponse.ok(PageResult.of(audit.search(eventType, actor, target, result, from, to, page, size),
+        return ApiResponse.ok(PageResult.of(audit.search(eventType, actor, target, result, from, to, abnormal, page, size),
                 a -> a));
     }
 

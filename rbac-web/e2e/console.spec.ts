@@ -213,6 +213,15 @@ test('审计日志记录了回收；权限、菜单、热力图页面显示真�
   await shot('13-heatmap')
   await menu('Dashboard')
   await expect(page.getByTestId('metric-todayAuthzCount')).not.toContainText('—')
+  // 异常访问：点进去看到的就是计入指标的记录（第一个用例里 root 输错过一次口令）
+  await expect(page.getByTestId('metric-abnormalCount')).not.toContainText('—')
+  await page.getByTestId('metric-abnormalCount').click()
+  await expect(page).toHaveURL(/abnormal=1/)
+  await expect(page.getByTestId('audit-abnormal').locator('input')).toBeChecked()
+  await expect(page.getByTestId('audit-table')).toContainText('LOGIN')
+  await expect(page.getByTestId('audit-table')).not.toContainText('OUT_OF_DATA_SCOPE')
+  await expect(page.getByTestId('audit-table')).not.toContainText('MISSING_PERMISSION')
+  await shot('13b-abnormal')
 })
 
 test('普通员工：首次登录改口令，没有管理菜单，直接访问管理页落到 403', async () => {
@@ -224,6 +233,8 @@ test('普通员工：首次登录改口令，没有管理菜单，直接访问�
   await login('E2E0001', 'Emp@E2e2026')
   await expect(page).toHaveURL(/\/me/)
   await expect(page.getByTestId('user-detail')).toContainText('E2E0001')
+  // 普通员工没有「权限解释」菜单，个人中心不显示解释入口
+  await expect(page.getByTestId('explain-link')).toHaveCount(0)
   await shot('14-me')
   await page.goto('/audit-logs')
   await expect(page.getByTestId('forbidden')).toBeVisible()

@@ -526,6 +526,34 @@ class ManagementApiTest extends IntegrationTestBase {
     }
 
     @Test
+    void abnormalAuditFilterMatchesDashboardCount() throws Exception {
+        User u = user("u1", org.aFinance());
+        grant(u, org.docApprover(), org.aFinance());
+        String token = login("u1");
+        check(token, "oa:doc:draft:approve", org.bridge().id);                           // 缺少权限：不算异常
+        postJson(null, "/auth/login", Map.of("username", "u1", "password", "wrong"));   // 登录失败：异常
+        postJson(null, "/auth/login", Map.of("username", "nobody", "password", "x"));   // 登录失败：异常
+        u.status = User.DISABLED;
+        userMapper.save(u);
+        String root = login("root");
+        JsonNode d = postJson(root, "/authz/check", Map.of("userId", u.id, "permission", "oa:doc:draft:view")).data();
+        assertEquals("SUBJECT_DISABLED", d.path("reason").asText());                     // 停用主体鉴权：异常
+
+        long count = getJson(root, "/dashboard").data().path("abnormalCount").asLong();
+        assertEquals(3, count);
+        JsonNode logs = getJson(root, "/audit-logs?abnormal=true&size=200").data();
+        assertEquals(count, logs.path("total").asLong());
+        for (JsonNode a : logs.path("items")) {
+            boolean loginFailed = a.path("eventType").asText().equals("LOGIN") && a.path("result").asText().equals("FAILED");
+            boolean invalidSubject = a.path("eventType").asText().equals("AUTH_FAILED")
+                    && a.path("reason").asText().startsWith("SUBJECT_");
+            assertTrue(loginFailed || invalidSubject, a.toString());
+        }
+        // 不带 abnormal 时照常返回全部鉴权失败，包括「缺少权限」
+        assertTrue(getJson(root, "/audit-logs?eventType=AUTH_FAILED").data().path("total").asLong() >= 2);
+    }
+
+    @Test
     void undeclaredRoutesAreDeniedByDefault() throws Exception {
         String root = login("root");
         assertEquals(403, getJson(root, "/not/in/contract").status());

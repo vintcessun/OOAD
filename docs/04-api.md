@@ -105,7 +105,7 @@
 | 41 | 组织与导入 | `POST /imports/organization` | `rbac:org:import` | 导入部门信息表与员工信息表 |
 | 42 | 组织与导入 | `POST /imports/permissions` | `rbac:permission:create` | 导入应用软件功能权限清单 |
 | 43 | 审计与统计 | `GET /permissions/heatmap` | `rbac:heatmap:view` | 权限使用热力图（业务系统 × 操作，成功鉴权次数） |
-| 44 | 审计与统计 | `GET /audit-logs` | `rbac:audit:view` | 审计日志：谁、什么时候、在哪里、对谁、做了什么、结果如何、为什么 |
+| 44 | 审计与统计 | `GET /audit-logs` | `rbac:audit:view` | 审计日志：谁、什么时候、在哪里、对谁、做了什么、结果如何、为什么；`abnormal=true` 只看异常访问，口径与 Dashboard 的 `abnormalCount` 相同 |
 | 45 | 审计与统计 | `GET /dashboard` | `rbac:dashboard:view` | Dashboard 十一项指标 |
 
 内置角色持有的平台权限：
@@ -230,7 +230,7 @@ POST /api/v1/imports/permissions                  （multipart：file）
 POST /api/v1/imports/organization?companyCode=SZ&companyName=市政公司   （multipart：departments、employees）
 ```
 
-返回导入报告 `{counts, notes, anomalies}`。导入不分配任何角色；无法唯一确定的行进 `anomalies`、不写入；可重复执行。规则与真实数据的导入结果见 [03 §5](03-database.md)。
+返回导入报告 `{counts, notes, anomalies}`。导入不分配任何角色；无法唯一确定的行进 `anomalies`、不写入；可重复执行。重复导入功能权限清单时，角色模板在业务系统上的授权与最新清单对齐：新增的写入、「只限本人」变了的更新（`rolePermissionsSelfOnlyChanged`）、清单里去掉的回收（`rolePermissionsRevoked`）。规则与真实数据的导入结果见 [03 §5](03-database.md)。
 
 ### 3.6 菜单、Dashboard、热力图
 

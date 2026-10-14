@@ -783,6 +783,7 @@ paths:
         - { name: result, in: query, schema: { type: string, enum: [SUCCESS, DENIED, FAILED] } }
         - { name: from, in: query, schema: { type: string, format: date-time } }
         - { name: to, in: query, schema: { type: string, format: date-time } }
+        - { name: abnormal, in: query, schema: { type: boolean, default: false }, description: '只看异常访问，口径与 Dashboard 的 abnormalCount 相同：登录失败，以及已停用、已删除、已到期或不存在的主体发起的鉴权' }
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/Size'
       responses:

@@ -2,6 +2,9 @@ package com.xmu.rbac.structured.integration;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.xmu.rbac.structured.entity.Department;
+import com.xmu.rbac.structured.entity.Permission;
+import com.xmu.rbac.structured.entity.Role;
+import com.xmu.rbac.structured.entity.RolePermission;
 import com.xmu.rbac.structured.entity.User;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
@@ -130,9 +133,11 @@ class ExcelImportIntegrationTest extends IntegrationTestBase {
         assertEquals("空白权限单元格，未授权", r.data().path("anomalies").get(0).path("reason").asText());
         assertTrue(r.data().path("notes").toString().contains("view"));
 
-        // 编码：系统固定码 + 模块编码 + 功能点序号。测试夹具已建有同名模块「公文管理」（doc），导入沿用它；
-        // 「会议管理」是新模块，按序号编为 m02
-        assertTrue(permissionMapper.findByPermissionCode("oa:doc:f02:approve").isPresent());
+        // 编码：系统固定码 + 模块编码 + 功能点序号。测试夹具已建有同名模块「公文管理」（doc）和其中的
+        // 「发文拟稿与审核」（oa:doc:draft），导入按名称沿用；「会议管理」是新模块，按序号编为 m02
+        assertTrue(permissionMapper.findByPermissionCode("oa:doc:draft:approve").isPresent());
+        assertTrue(permissionMapper.findByPermissionCode("oa:doc:f01:view").isPresent());
+        assertFalse(permissionMapper.findByPermissionCode("oa:doc:f02:view").isPresent());
         assertTrue(permissionMapper.findByPermissionCode("cost:m01:f01:export").isPresent());
         // 「编辑本人」只限本人
         JsonNode employee = getJson(root, "/roles/" + roleMapper.findByRoleCode("EMPLOYEE").orElseThrow().id).data();
@@ -151,6 +156,93 @@ class ExcelImportIntegrationTest extends IntegrationTestBase {
         assertEquals(200, again.status());
         assertEquals(before, rolePermissionMapper.count());
         assertEquals(permissionsBefore, permissionMapper.count());
+    }
+
+    @Test
+    void reimportingPermissionMatrixRevokesRemovedGrantsAndUpdatesSelfOnly() throws Exception {
+        String[] head = {"软件系统", "功能模块", "功能点", "功能说明", "系统管理员", "公司领导", "部门经理", "项目经理", "普通员工"};
+        byte[] first = workbook("功能权限", null, new String[][]{
+                {"清单"}, head,
+                {"OA协同办公系统", "公文管理", "收文登记与流转", "说明", "全部", "查看/审批", "查看/编辑", "查看", "查看"},
+                {null, null, "发文拟稿与审核", "说明", "全部", "查看", "查看/编辑", "查看", "查看本人"},
+                {null, null, "公文归档", "说明", "全部", "查看", "查看", "查看", "查看"},
+                {null, "会议管理", "会议室预约", "说明", "全部", "查看", "查看", "查看", "查看/编辑"},
+        });
+        String root = login("root");
+        assertEquals(200, call(root, multipart("/imports/permissions")
+                .file(new MockMultipartFile("file", "p.xlsx", null, first))).status());
+        Role leader = roleMapper.findByRoleCode("COMPANY_LEADER").orElseThrow();
+        Role manager = roleMapper.findByRoleCode("DEPT_MANAGER").orElseThrow();
+        Role employee = roleMapper.findByRoleCode("EMPLOYEE").orElseThrow();
+        // 权限中心自己的权限不归清单管，重复导入不能动它
+        Permission dashboard = permissionMapper.findByPermissionCode("rbac:dashboard:view").orElseThrow();
+        RolePermission extra = new RolePermission();
+        extra.roleId = employee.id;
+        extra.permissionId = dashboard.id;
+        extra.grantedAt = java.time.LocalDateTime.now();
+        rolePermissionMapper.save(extra);
+        User u = user("u1", org.aFinance());
+        grant(u, leader, org.aFinance());
+        String token = login("u1");
+        assertTrue(check(token, "oa:doc:f01:approve", org.aFinance().id).path("allowed").asBoolean());
+        String archive = "oa:doc:f02:view";   // 「发文拟稿与审核」沿用夹具里的 oa:doc:draft
+        assertTrue(rolePermissionMapper.findPermissionCodesOfRole(leader.id).contains(archive));
+
+        // 领导收文去掉「审批」；员工发文「查看本人」改「查看」；经理发文改成空白（异常，原授权不动）；
+        // 删掉中间的「发文拟稿与审核」之后的「公文归档」保持原编码；整行删掉「会议室预约」
+        byte[] second = workbook("功能权限", null, new String[][]{
+                {"清单"}, head,
+                {"OA协同办公系统", "公文管理", "收文登记与流转", "说明", "全部", "查看", "查看/编辑", "查看", "查看"},
+                {null, null, "发文拟稿与审核", "说明", "全部", "查看", null, "查看", "查看"},
+                {null, null, "公文归档", "说明", "全部", "查看", "查看", "查看", "查看"},
+        });
+        Resp r = call(root, multipart("/imports/permissions").file(new MockMultipartFile("file", "p.xlsx", null, second)));
+        assertEquals(200, r.status(), r.toString());
+        JsonNode c = r.data().path("counts");
+        // 领导 approve 1 + 会议室预约：管理员 5、领导 1、经理 1、项目经理 1、员工 2
+        assertEquals(11, c.path("rolePermissionsRevoked").asInt());
+        assertEquals(1, c.path("rolePermissionsSelfOnlyChanged").asInt());
+        assertEquals(1, r.data().path("anomalies").size());
+
+        List<String> leaderCodes = rolePermissionMapper.findPermissionCodesOfRole(leader.id);
+        assertFalse(leaderCodes.contains("oa:doc:f01:approve"));
+        assertTrue(leaderCodes.contains("oa:doc:f01:view"));
+        assertTrue(leaderCodes.contains(archive));
+        for (Role role : roleMapper.findAll()) {
+            assertTrue(rolePermissionMapper.findPermissionCodesOfRole(role.id).stream()
+                    .noneMatch(code -> code.startsWith("oa:m02:f01:")), role.roleCode);
+        }
+        assertTrue(rolePermissionMapper.findPermissionCodesOfRole(manager.id).contains("oa:doc:draft:edit"));
+        Permission draftView = permissionMapper.findByPermissionCode("oa:doc:draft:view").orElseThrow();
+        assertFalse(rolePermissionMapper.findByRoleIdAndPermissionId(employee.id, draftView.id).orElseThrow().selfOnly);
+        assertTrue(rolePermissionMapper.findPermissionCodesOfRole(employee.id).contains("rbac:dashboard:view"));
+        // 下一次请求立即生效
+        assertFalse(check(token, "oa:doc:f01:approve", org.aFinance().id).path("allowed").asBoolean());
+
+        // 中间删掉一行：后面的功能点按名称认领原资源，不会挪到别的编码上
+        byte[] third = workbook("功能权限", null, new String[][]{
+                {"清单"}, head,
+                {"OA协同办公系统", "公文管理", "收文登记与流转", "说明", "全部", "查看", "查看/编辑", "查看", "查看"},
+                {null, null, "公文归档", "说明", "全部", "无", "查看", "查看", "查看"},
+        });
+        Resp r3 = call(root, multipart("/imports/permissions").file(new MockMultipartFile("file", "p.xlsx", null, third)));
+        assertEquals(200, r3.status(), r3.toString());
+        leaderCodes = rolePermissionMapper.findPermissionCodesOfRole(leader.id);
+        assertFalse(leaderCodes.contains(archive));
+        assertFalse(leaderCodes.contains("oa:doc:draft:view"));
+        assertTrue(rolePermissionMapper.findPermissionCodesOfRole(manager.id).contains(archive));
+
+        // 有功能点认不出所属系统时整份不回收
+        byte[] broken = workbook("功能权限", null, new String[][]{
+                {"清单"}, head,
+                {null, null, "认不出的功能点", "说明", "全部", "全部", "全部", "全部", "全部"},
+        });
+        long before = rolePermissionMapper.count();
+        Resp r4 = call(root, multipart("/imports/permissions").file(new MockMultipartFile("file", "p.xlsx", null, broken)));
+        assertEquals(200, r4.status(), r4.toString());
+        assertEquals(0, r4.data().path("counts").path("rolePermissionsRevoked").asInt());
+        assertTrue(r4.data().path("notes").toString().contains("未回收"));
+        assertEquals(before, rolePermissionMapper.count());
     }
 
     @Test

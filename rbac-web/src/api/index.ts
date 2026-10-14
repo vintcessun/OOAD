@@ -110,6 +110,8 @@ export interface AuditQuery {
   result?: string
   from?: string
   to?: string
+  /** 只看异常访问，口径与 Dashboard 的 abnormalCount 相同 */
+  abnormal?: boolean
   page?: number
   size?: number
 }

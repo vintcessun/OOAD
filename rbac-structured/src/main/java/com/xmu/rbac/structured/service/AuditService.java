@@ -82,9 +82,9 @@ public class AuditService {
     /** 6.3 审计查询。 */
     @Transactional(readOnly = true)
     public Page<AuditLog> search(String eventType, String actorName, String targetName, String result,
-                                 LocalDateTime from, LocalDateTime to, int page, int size) {
+                                 LocalDateTime from, LocalDateTime to, boolean abnormal, int page, int size) {
         return auditLogMapper.search(blankToNull(eventType), blankToNull(actorName), blankToNull(targetName),
-                blankToNull(result), from, to, PageRequest.of(page, Math.min(Math.max(size, 1), 200)));
+                blankToNull(result), from, to, abnormal, PageRequest.of(page, Math.min(Math.max(size, 1), 200)));
     }
 
     static String truncate(String s, int max) {

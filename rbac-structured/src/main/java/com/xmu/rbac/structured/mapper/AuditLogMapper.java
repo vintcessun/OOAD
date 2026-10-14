@@ -22,6 +22,10 @@ public interface AuditLogMapper extends JpaRepository<AuditLog, Long> {
                and (:result is null or a.result = :result)
                and (:from is null or a.occurredAt >= :from)
                and (:to is null or a.occurredAt < :to)
+               and (:abnormal = false
+                 or (a.eventType = 'LOGIN' and a.result = 'FAILED')
+                 or (a.eventType = 'AUTH_FAILED' and a.reason in
+                     ('SUBJECT_DISABLED', 'SUBJECT_DELETED', 'SUBJECT_EXPIRED', 'SUBJECT_NOT_FOUND')))
              order by a.id desc
             """)
     Page<AuditLog> search(@Param("eventType") String eventType,
@@ -30,6 +34,7 @@ public interface AuditLogMapper extends JpaRepository<AuditLog, Long> {
                           @Param("result") String result,
                           @Param("from") LocalDateTime from,
                           @Param("to") LocalDateTime to,
+                          @Param("abnormal") boolean abnormal,
                           Pageable pageable);
 
     long countByEventTypeInAndOccurredAtGreaterThanEqual(Collection<String> eventTypes, LocalDateTime from);
@@ -65,6 +70,7 @@ public interface AuditLogMapper extends JpaRepository<AuditLog, Long> {
     /**
      * 异常访问：登录失败，以及已停用、已删除、已过期或不存在的主体发起的鉴权。
      * 这类请求说明有人在用不该再有效的身份访问系统（docs/05-ui.md §3.1 的统计口径）。
+     * 与 {@link #search} 的 abnormal 条件必须一致：Dashboard 点进审计日志看到的就是这些记录。
      */
     @Query("""
             select count(a) from AuditLog a

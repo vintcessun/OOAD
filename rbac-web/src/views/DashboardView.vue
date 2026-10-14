@@ -50,7 +50,7 @@ async function load() {
 function openAbnormal() {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
-  router.push({ path: '/audit-logs', query: { eventType: 'AUTH_FAILED', from: toLocalDateTime(today) } })
+  router.push({ path: '/audit-logs', query: { abnormal: '1', from: toLocalDateTime(today) } })
 }
 
 onMounted(() => {

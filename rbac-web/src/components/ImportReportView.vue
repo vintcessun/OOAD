@@ -43,6 +43,8 @@ const COUNT_LABEL: Record<string, string> = {
   resources: '资源',
   permissions: '权限',
   rolePermissions: '角色权限',
+  rolePermissionsSelfOnlyChanged: '「只限本人」已更新',
+  rolePermissionsRevoked: '按清单回收',
 }
 </script>
 

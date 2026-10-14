@@ -360,7 +360,10 @@ public class ImportService {
 
     /**
      * 导入应用软件功能权限清单：业务系统、功能模块、功能点（资源），每个资源 × 五类操作的权限，
-     * 以及五类角色模板的角色权限。可重复执行，已存在的跳过。
+     * 以及五类角色模板的角色权限。可重复执行：资源与权限已存在的沿用；角色模板在业务系统上的授权
+     * 与最新清单对齐——清单新增的写入，「只限本人」变了的更新，清单里已去掉的（改为「无」、删掉某个操作、
+     * 整行删掉功能点）回收。单元格有异常的，该角色在该功能点上的原有授权保持不动；
+     * 有功能点定位不到所属系统或模块时整份清单不做回收，避免把认不出的行当成删除。
      */
     @Transactional
     public ImportReport importPermissions(Operator op, InputStream xlsx) {
@@ -402,9 +405,19 @@ public class ImportService {
         int permissions = 0;
         int grants = 0;
         int[] perRole = new int[roles.size()];
+        int selfOnlyChanged = 0;
+        boolean unresolvedRows = false;
+        // 每个角色：清单要求的 permissionId → 是否只限本人；单元格异常、原有授权不动的 resourceId
+        List<Map<Long, Boolean>> wanted = new ArrayList<>();
+        List<Set<Long>> untouched = new ArrayList<>();
+        for (int i = 0; i < roles.size(); i++) {
+            wanted.add(new HashMap<>());
+            untouched.add(new HashSet<>());
+        }
         SoftwareSystem sys = null;
         FunctionModule mod = null;
         int resourceSeq = 0;
+        Map<Long, Map<String, Integer>> seenNames = new HashMap<>();
         for (int r = header + 1; r <= sheet.getLastRowNum(); r++) {
             Row row = sheet.getRow(r);
             if (row == null) {
@@ -429,10 +442,12 @@ public class ImportService {
             }
             if (sys == null || mod == null) {
                 anomalies.add(new Anomaly("功能权限清单", r + 1, "功能点缺少所属系统或模块", resName));
+                unresolvedRows = true;
                 continue;
             }
             resourceSeq++;
-            Resource res = resource(sys, mod, resourceSeq, resName, text(fmt, row.getCell(3)));
+            int occurrence = seenNames.computeIfAbsent(mod.id, k -> new HashMap<>()).merge(resName, 1, Integer::sum);
+            Resource res = resource(sys, mod, resourceSeq, occurrence, resName, text(fmt, row.getCell(3)));
             resources++;
             Map<String, Permission> permOf = new HashMap<>();
             for (Permission p : permissionMapper.findByResourceId(res.id)) {
@@ -455,6 +470,7 @@ public class ImportService {
                 if (parsed.error() != null) {
                     anomalies.add(new Anomaly("功能权限清单", r + 1, parsed.error(),
                             sysName(sys) + " / " + resName + " / " + roleColumns.get(i) + " = " + raw));
+                    untouched.get(i).add(res.id);
                     continue;
                 }
                 if (parsed.note() != null) {
@@ -462,14 +478,22 @@ public class ImportService {
                 }
                 for (String a : parsed.actions()) {
                     Permission p = permOf.get(res.resourceCode + ":" + a);
-                    if (rolePermissionMapper.findByRoleIdAndPermissionId(roles.get(i).id, p.id).isEmpty()) {
-                        RolePermission rp = new RolePermission();
+                    boolean selfOnly = parsed.selfOnly().contains(a);
+                    wanted.get(i).put(p.id, selfOnly);
+                    RolePermission rp = rolePermissionMapper.findByRoleIdAndPermissionId(roles.get(i).id, p.id)
+                            .orElse(null);
+                    if (rp == null) {
+                        rp = new RolePermission();
                         rp.roleId = roles.get(i).id;
                         rp.permissionId = p.id;
-                        rp.selfOnly = parsed.selfOnly().contains(a);
+                        rp.selfOnly = selfOnly;
                         rp.grantedBy = op.userId();
                         rp.grantedAt = LocalDateTime.now(clock);
                         rolePermissionMapper.save(rp);
+                    } else if (rp.selfOnly != selfOnly) {
+                        rp.selfOnly = selfOnly;
+                        rolePermissionMapper.save(rp);
+                        selfOnlyChanged++;
                     }
                     grants++;
                     perRole[i]++;
@@ -481,11 +505,21 @@ public class ImportService {
         } catch (IOException ignored) {
             // 输入流由调用方关闭
         }
+        int revoked = 0;
+        if (unresolvedRows) {
+            notes.add("有功能点定位不到所属系统或模块，本次只新增与更新授权，未回收清单中去掉的授权");
+        } else {
+            for (int i = 0; i < roles.size(); i++) {
+                revoked += revokeMissing(roles.get(i), wanted.get(i), untouched.get(i));
+            }
+        }
         counts.put("systems", systems);
         counts.put("modules", modules);
         counts.put("resources", resources);
         counts.put("permissions", permissions);
         counts.put("rolePermissions", grants);
+        counts.put("rolePermissionsSelfOnlyChanged", selfOnlyChanged);
+        counts.put("rolePermissionsRevoked", revoked);
         for (int i = 0; i < roles.size(); i++) {
             counts.put("rolePermissions." + roles.get(i).roleCode, perRole[i]);
         }
@@ -496,6 +530,22 @@ public class ImportService {
                 anomalies.isEmpty() ? AuditService.SUCCESS : AuditService.FAILED,
                 anomalies.isEmpty() ? null : anomalies.size() + " 个单元格异常");
         return new ImportReport(counts, notes, anomalies);
+    }
+
+    /**
+     * 回收角色模板在业务系统上、最新清单里已不再要求的授权（权限中心自身的 rbac:* 权限不归清单管）。
+     * 清单是角色模板业务权限的唯一来源，界面上给模板角色加的业务权限也会在下次导入时按清单回收。
+     */
+    private int revokeMissing(Role role, Map<Long, Boolean> wanted, Set<Long> untouched) {
+        List<RolePermission> stale = new ArrayList<>();
+        for (Object[] row : rolePermissionMapper.findBusinessGrantsOfRole(role.id)) {
+            RolePermission rp = (RolePermission) row[0];
+            if (!wanted.containsKey(rp.permissionId) && !untouched.contains((Long) row[1])) {
+                stale.add(rp);
+            }
+        }
+        rolePermissionMapper.deleteAll(stale);
+        return stale.size();
     }
 
     /** 一个权限单元格的解析结果。error 非空表示该单元格无法使用。 */
@@ -584,18 +634,33 @@ public class ImportService {
         return moduleMapper.save(m);
     }
 
-    private Resource resource(SoftwareSystem sys, FunctionModule mod, int seq, String name, String description) {
-        String code = sys.systemCode + ":" + mod.moduleCode + ":" + String.format("f%02d", seq);
-        return resourceMapper.findByResourceCode(code).orElseGet(() -> {
-            Resource r = new Resource();
-            r.moduleId = mod.id;
-            r.resourceCode = code;
-            r.resourceName = name;
-            r.resourceType = Resource.BUSINESS;
-            r.description = description;
-            r.sortOrder = seq;
-            return resourceMapper.save(r);
-        });
+    /**
+     * 功能点按「所属模块 + 名称」认领已有资源（同一模块里同名的按出现次序对应），不按行号：
+     * 清单中间删掉或插入一行时，后面的功能点不会错认成别的资源，授权也就不会挪到别的功能点上。
+     * 新功能点的编码取该模块已用的最大序号 + 1。
+     */
+    private Resource resource(SoftwareSystem sys, FunctionModule mod, int seq, int occurrence, String name,
+                              String description) {
+        List<Resource> existing = resourceMapper.findByModuleIdOrderByIdAsc(mod.id);
+        int sameName = 0;
+        int maxSeq = 0;
+        String prefix = sys.systemCode + ":" + mod.moduleCode + ":f";
+        for (Resource r : existing) {
+            if (r.resourceName.equals(name) && ++sameName == occurrence) {
+                return r;
+            }
+            if (r.resourceCode.startsWith(prefix) && r.resourceCode.substring(prefix.length()).matches("\\d+")) {
+                maxSeq = Math.max(maxSeq, Integer.parseInt(r.resourceCode.substring(prefix.length())));
+            }
+        }
+        Resource r = new Resource();
+        r.moduleId = mod.id;
+        r.resourceCode = prefix + String.format("%02d", maxSeq + 1);
+        r.resourceName = name;
+        r.resourceType = Resource.BUSINESS;
+        r.description = description;
+        r.sortOrder = seq;
+        return resourceMapper.save(r);
     }
 
     private static String sysName(SoftwareSystem s) {

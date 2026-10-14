@@ -13,6 +13,10 @@
       </el-select>
       <el-date-picker v-model="range" type="datetimerange" value-format="YYYY-MM-DDTHH:mm:ss"
                       start-placeholder="从" end-placeholder="到" />
+      <el-checkbox v-model="abnormal" data-test="audit-abnormal"
+                   title="登录失败，以及已停用、已删除、已到期或不存在的主体发起的鉴权（与 Dashboard 的统计口径相同）">
+        只看异常访问
+      </el-checkbox>
       <el-button type="primary" @click="search" data-test="audit-search">查询</el-button>
     </div>
     <el-table v-loading="loading" :data="page.items" data-test="audit-table">
@@ -95,6 +99,7 @@ const EVENT_GROUPS = [
 const q = route.query
 const query = reactive({ eventType: (q.eventType as string) ?? '', actor: (q.actor as string) ?? '',
   target: (q.target as string) ?? '', result: (q.result as string) ?? '' })
+const abnormal = ref(q.abnormal === '1' || q.abnormal === 'true')
 const range = ref<[string, string] | undefined>(q.from ? [q.from as string, (q.to as string) ?? ''] : undefined)
 const pageNo = ref(1)
 const size = ref(20)
@@ -108,7 +113,7 @@ async function load() {
   loading.value = true
   try {
     const result = await statsApi.auditLogs({ ...query, from: range.value?.[0] || undefined, to: range.value?.[1] || undefined,
-      page: pageNo.value - 1, size: size.value })
+      abnormal: abnormal.value || undefined, page: pageNo.value - 1, size: size.value })
     if (mine === seq) page.value = result
   } finally {
     if (mine === seq) loading.value = false
