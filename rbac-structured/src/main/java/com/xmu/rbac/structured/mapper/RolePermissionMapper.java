@@ -20,6 +20,10 @@ public interface RolePermissionMapper extends JpaRepository<RolePermission, Long
     @Query("select p.permissionCode from RolePermission rp, Permission p where p.id = rp.permissionId and rp.roleId = :roleId")
     List<String> findPermissionCodesOfRole(@Param("roleId") Long roleId);
 
+    /** 角色的授权及其范围：[permissionCode, selfOnly]。授权上界检查要连「只限本人」一起比。 */
+    @Query("select p.permissionCode, rp.selfOnly from RolePermission rp, Permission p where p.id = rp.permissionId and rp.roleId = :roleId")
+    List<Object[]> findGrantScopesOfRole(@Param("roleId") Long roleId);
+
     /**
      * 角色在业务系统（权限中心 rbac 以外）上的授权：[RolePermission, resourceId]。
      * 重复导入功能权限清单时，用它找出清单里已经去掉的授权。

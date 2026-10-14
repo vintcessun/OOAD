@@ -9,10 +9,10 @@ import com.xmu.rbac.structured.entity.Role;
 import com.xmu.rbac.structured.entity.User;
 import com.xmu.rbac.structured.mapper.DepartmentMapper;
 import com.xmu.rbac.structured.mapper.GrantCacheMapper;
+import com.xmu.rbac.structured.mapper.GrantVersionMapper;
 import com.xmu.rbac.structured.mapper.UserMapper;
 import com.xmu.rbac.structured.mapper.UserRoleMapper;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Clock;
@@ -49,14 +49,17 @@ public class AuthorizationService {
     private final UserRoleMapper userRoleMapper;
     private final DepartmentMapper departmentMapper;
     private final GrantCacheMapper grantCacheMapper;
+    private final GrantVersionMapper grantVersionMapper;
     private final Clock clock;
 
     public AuthorizationService(UserMapper userMapper, UserRoleMapper userRoleMapper,
-                                DepartmentMapper departmentMapper, GrantCacheMapper grantCacheMapper, Clock clock) {
+                                DepartmentMapper departmentMapper, GrantCacheMapper grantCacheMapper,
+                                GrantVersionMapper grantVersionMapper, Clock clock) {
         this.userMapper = userMapper;
         this.userRoleMapper = userRoleMapper;
         this.departmentMapper = departmentMapper;
         this.grantCacheMapper = grantCacheMapper;
+        this.grantVersionMapper = grantVersionMapper;
         this.clock = clock;
     }
 
@@ -168,11 +171,17 @@ public class AuthorizationService {
     // ------------------------------------------------------------------ 3.2 授权数据与缓存
 
     /**
-     * 3.2 读取用户的授权数据。先按当前版本号查 Redis，未命中再查库并写回。
-     * 版本号在查库之前读取：若查库期间有授权变更提交，版本号已经变了，写回的是旧版本的键，不会被后续请求读到。
+     * 3.2 读取用户的授权数据。先从 MySQL 读版本号，按它查 Redis，未命中再查库并写回。
+     *
+     * <p>版本号必须在授权数据之前读：授权变更与版本号加一在同一个事务里提交，
+     * 读到新版本号的请求随后读到的授权数据一定也是新的；读到旧版本号的请求即使读到了新数据，
+     * 写回的也是旧版本的键，之后没有人再读它。所以 Redis 出任何故障都不会让回收的权限继续生效
+     * （docs/12-design-log.md #37）。代价是每次判定多一次按主键读一行，判定本来就要查 sys_user，缓存省下的是授权连表查询。
+     *
+     * <p>在读写事务里不写回缓存：这时读到的可能包含本事务尚未提交的修改，事务回滚后它就是错的。
      */
     public LoadedGrants loadGrants(Long userId) {
-        Long version = grantCacheMapper.currentVersion();
+        Long version = grantVersionMapper.current().orElse(null);
         if (version != null) {
             Optional<GrantSet> cached = grantCacheMapper.find(version, userId);
             if (cached.isPresent()) {
@@ -183,27 +192,27 @@ public class AuthorizationService {
                 .filter(a -> Role.ENABLED.equals(a.roleStatus()))
                 .toList();
         GrantSet grants = new GrantSet(assignments, userRoleMapper.findGrantsOfUser(userId));
-        if (version != null) {
+        if (version != null && !inReadWriteTransaction()) {
             grantCacheMapper.save(version, userId, grants);
         }
         return new LoadedGrants(grants, false);
     }
 
     /**
-     * 授权数据（指派、角色权限、角色状态）变更后调用：在当前事务提交之后让缓存版本号加一。
-     * 放在提交之后，是为了不让其他请求在提交前按新版本号读到旧数据并缓存下来。
+     * 授权数据（指派、角色权限、角色状态）变更时调用：在当前事务里让版本号加一，随修改一起提交或回滚。
+     * 提交前其他请求读不到新版本号，读的仍是旧键里与已提交数据一致的内容；提交后它们读新版本号，缓存未命中，查库得到新数据。
+     * 版本号那一行会被锁到本事务提交，并发的授权修改因此排队，读请求不受影响。
+     * 版本行缺失时抛异常让整个修改回滚，宁可改不成，也不留下缓存与数据库不一致的状态。
      */
-    public void invalidateAfterCommit() {
-        if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    grantCacheMapper.bumpVersion();
-                }
-            });
-        } else {
-            grantCacheMapper.bumpVersion();
+    public void bumpGrantVersion() {
+        if (grantVersionMapper.bump() != 1) {
+            throw new IllegalStateException("sys_grant_version 缺少 id = 1 的行，授权修改已回滚");
         }
+    }
+
+    private static boolean inReadWriteTransaction() {
+        return TransactionSynchronizationManager.isActualTransactionActive()
+                && !TransactionSynchronizationManager.isCurrentTransactionReadOnly();
     }
 
     // ------------------------------------------------------------------ 管理范围（供各管理 Service 使用）

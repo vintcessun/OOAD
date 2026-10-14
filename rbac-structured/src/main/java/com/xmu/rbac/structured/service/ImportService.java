@@ -494,6 +494,9 @@ public class ImportService {
                         rp.selfOnly = selfOnly;
                         rolePermissionMapper.save(rp);
                         selfOnlyChanged++;
+                        audit.record(op, "PERMISSION_ASSIGN", "ROLE", roles.get(i).id, roles.get(i).roleCode,
+                                "permission=" + p.permissionCode + " selfOnly=" + selfOnly + " source=import",
+                                AuditService.SUCCESS, null);
                     }
                     grants++;
                     perRole[i]++;
@@ -510,7 +513,7 @@ public class ImportService {
             notes.add("有功能点定位不到所属系统或模块，本次只新增与更新授权，未回收清单中去掉的授权");
         } else {
             for (int i = 0; i < roles.size(); i++) {
-                revoked += revokeMissing(roles.get(i), wanted.get(i), untouched.get(i));
+                revoked += revokeMissing(op, roles.get(i), wanted.get(i), untouched.get(i));
             }
         }
         counts.put("systems", systems);
@@ -525,7 +528,7 @@ public class ImportService {
         }
         notes.addAll(normalized);
         notes.add("每个功能点按五类操作建立权限（可配置集合），角色实际获得哪些由清单单元格决定");
-        authz.invalidateAfterCommit();
+        authz.bumpGrantVersion();
         audit.record(op, "IMPORT_PERMISSIONS", "RESOURCE", null, "功能权限清单", counts.toString(),
                 anomalies.isEmpty() ? AuditService.SUCCESS : AuditService.FAILED,
                 anomalies.isEmpty() ? null : anomalies.size() + " 个单元格异常");
@@ -535,8 +538,9 @@ public class ImportService {
     /**
      * 回收角色模板在业务系统上、最新清单里已不再要求的授权（权限中心自身的 rbac:* 权限不归清单管）。
      * 清单是角色模板业务权限的唯一来源，界面上给模板角色加的业务权限也会在下次导入时按清单回收。
+     * 每回收一条记一条 PERMISSION_REVOKE，与界面上回收一致。
      */
-    private int revokeMissing(Role role, Map<Long, Boolean> wanted, Set<Long> untouched) {
+    private int revokeMissing(Operator op, Role role, Map<Long, Boolean> wanted, Set<Long> untouched) {
         List<RolePermission> stale = new ArrayList<>();
         for (Object[] row : rolePermissionMapper.findBusinessGrantsOfRole(role.id)) {
             RolePermission rp = (RolePermission) row[0];
@@ -545,6 +549,13 @@ public class ImportService {
             }
         }
         rolePermissionMapper.deleteAll(stale);
+        Map<Long, String> codes = new HashMap<>();
+        permissionMapper.findAllById(stale.stream().map(rp -> rp.permissionId).toList())
+                .forEach(p -> codes.put(p.id, p.permissionCode));
+        for (RolePermission rp : stale) {
+            audit.record(op, "PERMISSION_REVOKE", "ROLE", role.id, role.roleCode,
+                    "permission=" + codes.get(rp.permissionId) + " source=import", AuditService.SUCCESS, null);
+        }
         return stale.size();
     }
 

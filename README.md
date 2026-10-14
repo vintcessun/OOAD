@@ -72,6 +72,7 @@
 | [`12-design-log.md`](docs/12-design-log.md) | **设计问题与改正记录**（#15–#29 为本次按审查整改） | 检查二 ★ |
 | [`13-deployment.md`](docs/13-deployment.md) | 编译、打包与 Swarm 部署手册，部署后的初始化步骤 | 个人验收 ★ |
 | [`14-rbac0-gap.md`](docs/14-rbac0-gap.md) | RBAC0 需求逐条对照、审查问题的处理、遗留事项 | 检查一 ★ |
+| [`15-debug-report.md`](docs/15-debug-report.md) | 验收前 Debug 记录：问题复现、定位、修复与验证；RBAC0 验收场景实测结果 | 检查一 ★ |
 | [`07`](docs/07-detail-oo.md) / [`08`](docs/08-detail-functional.md) / [`10`](docs/10-paradigm-comparison.md) | 面向对象、函数式、范式对比的早期骨架（**当前阶段不实现**） | 后续检查 |
 | [`archive/sql/`](docs/archive/sql/) | 旧版 V1–V3 迁移脚本（含 RBAC1/2/3，已不执行） | 参考 |
 | [`rbac-contract/`](rbac-contract/) | Flyway 建表脚本与 OpenAPI 契约（数据库与接口的唯一来源） | 全程 ★ |
@@ -89,7 +90,7 @@
 | 后端 | Spring Boot 3.3（Spring MVC） | |
 | 持久化 | **Spring Data JPA** + Flyway | 课程规定 JPA，不使用 MyBatis |
 | 数据库 | MySQL 8.0 | 组织与授权关系建外键 |
-| 缓存 | Redis 7 | 授权数据缓存（全局版本号失效）、已注销令牌 |
+| 缓存 | Redis 7 | 授权数据缓存（版本号在 MySQL，与修改同一事务）、已注销令牌 |
 | 认证 | JWT（只证明身份，不带权限）+ BCrypt | |
 | 数据导入 | Apache POI | 三份 xlsx，产出异常清单 |
 | 测试 | JUnit 5 + MockMvc + ArchUnit + **Jacoco** | 集成测试连真实 MySQL 与 Redis |
@@ -135,7 +136,7 @@ docker run -d --name rbac-test-mysql -p 13306:3306 -e MYSQL_ROOT_PASSWORD=root \
   -e MYSQL_DATABASE=rbac_test mysql:8.0 --character-set-server=utf8mb4
 docker run -d --name rbac-test-redis -p 16379:6379 redis:7-alpine
 
-# 构建：编译 + 63 个测试 + Jacoco 门槛（只需装 JDK 21，Maven 由 ./mvnw 下载）
+# 构建：编译 + 65 个测试 + Jacoco 门槛（只需装 JDK 21，Maven 由 ./mvnw 下载）
 ./mvnw -s deploy/maven-settings-huawei.xml verify          # Windows 用 mvnw.cmd
 # Jacoco 报告：rbac-structured/target/site/jacoco/index.html
 
@@ -164,7 +165,7 @@ curl http://localhost:8081/api/v1/actuator/health          # {"status":"UP"}
 | 模块 | 状态 |
 |---|---|
 | `rbac-contract` | ✅ RBAC0 基线 V1；45 个接口的 OpenAPI 契约 |
-| `rbac-structured` | ✅ 45 个接口全部实现；T01–T22 验收用例通过；63 个测试，行覆盖率 97%、分支 83% |
+| `rbac-structured` | ✅ 45 个接口全部实现；T01–T22 验收用例通过；65 个测试，行覆盖率 97%、分支 83% |
 | `rbac-mock-biz` | ✅ 发文拟稿 / 审批、考勤（只限本人）调用权限中心 |
 | `rbac-web` | ✅ 15 个页面；38 个单元测试、9 个连真实后端的端到端测试 |
 | 三台服务器部署 | 🟡 编排已含前端；新版本按组内安排暂未部署（旧库需删库重建） |

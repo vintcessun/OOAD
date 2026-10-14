@@ -185,6 +185,7 @@ class ExcelImportIntegrationTest extends IntegrationTestBase {
         grant(u, leader, org.aFinance());
         String token = login("u1");
         assertTrue(check(token, "oa:doc:f01:approve", org.aFinance().id).path("allowed").asBoolean());
+        assertTrue(check(token, "oa:doc:f01:approve", org.aFinance().id).path("cacheHit").asBoolean());
         String archive = "oa:doc:f02:view";   // 「发文拟稿与审核」沿用夹具里的 oa:doc:draft
         assertTrue(rolePermissionMapper.findPermissionCodesOfRole(leader.id).contains(archive));
 
@@ -216,8 +217,17 @@ class ExcelImportIntegrationTest extends IntegrationTestBase {
         Permission draftView = permissionMapper.findByPermissionCode("oa:doc:draft:view").orElseThrow();
         assertFalse(rolePermissionMapper.findByRoleIdAndPermissionId(employee.id, draftView.id).orElseThrow().selfOnly);
         assertTrue(rolePermissionMapper.findPermissionCodesOfRole(employee.id).contains("rbac:dashboard:view"));
-        // 下一次请求立即生效
-        assertFalse(check(token, "oa:doc:f01:approve", org.aFinance().id).path("allowed").asBoolean());
+        // 下一次请求立即生效：缓存不再命中，按新数据拒绝
+        JsonNode after = check(token, "oa:doc:f01:approve", org.aFinance().id);
+        assertFalse(after.path("allowed").asBoolean());
+        assertFalse(after.path("cacheHit").asBoolean());
+        // 每条回收、每条「只限本人」变化都有审计记录
+        JsonNode revokeLogs = getJson(root, "/audit-logs?eventType=PERMISSION_REVOKE&size=50").data();
+        assertEquals(11, revokeLogs.path("total").asInt());
+        assertTrue(revokeLogs.toString().contains("permission=oa:doc:f01:approve source=import"));
+        JsonNode selfOnlyLogs = getJson(root, "/audit-logs?eventType=PERMISSION_ASSIGN").data();
+        assertEquals(1, selfOnlyLogs.path("total").asInt());
+        assertTrue(selfOnlyLogs.toString().contains("permission=oa:doc:draft:view selfOnly=false source=import"));
 
         // 中间删掉一行：后面的功能点按名称认领原资源，不会挪到别的编码上
         byte[] third = workbook("功能权限", null, new String[][]{

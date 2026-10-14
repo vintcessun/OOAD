@@ -168,7 +168,7 @@ public class RoleManagementService {
         }
         roleMapper.save(r);
         if (!before.equals(r.status)) {
-            authz.invalidateAfterCommit();   // 停用角色后，持有者下一次请求即失去其权限
+            authz.bumpGrantVersion();   // 停用角色后，持有者下一次请求即失去其权限
         }
         audit.record(op, "ROLE_UPDATE", "ROLE", r.id, r.roleCode, "status " + before + " -> " + r.status,
                 AuditService.SUCCESS, null);
@@ -213,7 +213,7 @@ public class RoleManagementService {
         if (missing != null) {
             audit.record(op, "PERMISSION_ASSIGN", "ROLE", r.id, r.roleCode, "permission=" + missing,
                     AuditService.DENIED, "PRIVILEGE_ESCALATION");
-            throw BizException.forbidden(BizException.PRIVILEGE_ESCALATION, "不能授出你自己没有的权限：" + missing);
+            throw BizException.forbidden(BizException.PRIVILEGE_ESCALATION, "不能授出你自己没有的权限（只有「本人」范围也不行）：" + missing);
         }
         int added = 0;
         for (Permission p : perms) {
@@ -231,7 +231,7 @@ public class RoleManagementService {
                     AuditService.SUCCESS, null);
         }
         if (added > 0) {
-            authz.invalidateAfterCommit();
+            authz.bumpGrantVersion();
         }
         return detail(op, roleId);
     }
@@ -245,7 +245,7 @@ public class RoleManagementService {
                 .orElseThrow(() -> BizException.notFound("角色权限"));
         String code = permissionMapper.findById(permissionId).map(p -> p.permissionCode).orElse(null);
         rolePermissionMapper.delete(rp);
-        authz.invalidateAfterCommit();
+        authz.bumpGrantVersion();
         audit.record(op, "PERMISSION_REVOKE", "ROLE", r.id, r.roleCode, "permission=" + code,
                 AuditService.SUCCESS, null);
     }
@@ -267,7 +267,10 @@ public class RoleManagementService {
         authz.requireInScope(op.userId(), permission, root.id);
     }
 
-    /** 授权给公司内角色时，每个权限操作者都必须在公司根部门持有；返回第一个不满足的权限码。 */
+    /**
+     * 授权给公司内角色时，每个权限操作者都必须在公司根部门持有，且不能只限本人
+     * （这里授出的都是完整权限，selfOnly 只由权限清单导入设置）；返回第一个不满足的权限码。
+     */
     private String firstNotHeld(Operator op, Long companyId, List<String> codes) {
         if (authz.isSuperAdmin(op.userId())) {
             return null;
@@ -275,7 +278,7 @@ public class RoleManagementService {
         Department root = departmentMapper.findByCompanyIdAndParentIdIsNull(companyId).orElseThrow();
         List<GrantRow> mine = authz.loadGrants(op.userId()).grants().grants();
         for (String c : codes) {
-            boolean held = mine.stream().anyMatch(g -> g.permissionCode().equals(c)
+            boolean held = mine.stream().anyMatch(g -> g.permissionCode().equals(c) && !g.selfOnly()
                     && AuthorizationService.covers(g.scopePath(), root.path));
             if (!held) {
                 return c;

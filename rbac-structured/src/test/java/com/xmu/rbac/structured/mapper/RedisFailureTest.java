@@ -13,7 +13,6 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -24,7 +23,7 @@ import static org.mockito.Mockito.when;
 
 /**
  * Redis 出故障时的降级口径（docs/02-architecture.md §4.2）：
- * 授权缓存失效 → 当作未命中，直接查库，结论不变；令牌注销查询失败 → 按已注销处理（宁可重新登录）。
+ * 授权缓存失效 → 当作未命中，直接查库，结论不变（版本号在 MySQL，Redis 故障不影响失效，见 AcceptanceTest.t12b）；令牌注销查询失败 → 按已注销处理（宁可重新登录）。
  */
 class RedisFailureTest {
 
@@ -38,24 +37,17 @@ class RedisFailureTest {
         when(redis.opsForValue()).thenReturn(ops);
         RedisConnectionFailureException down = new RedisConnectionFailureException("down");
         when(ops.get(anyString())).thenThrow(down);
-        when(ops.increment(anyString())).thenThrow(down);
         org.mockito.Mockito.doThrow(down).when(ops).set(anyString(), anyString(), any(Duration.class));
         GrantCacheMapper cache = new GrantCacheMapper(redis, json, Duration.ofMinutes(10));
 
-        assertNull(cache.currentVersion());
         assertTrue(cache.find(0, 1L).isEmpty());
         cache.save(0, 1L, new GrantSet(List.of(), List.of()));   // 不抛异常
-        cache.bumpVersion();                                      // 不抛异常
     }
 
     @Test
     void grantCacheRoundTripAndCorruptValue() throws Exception {
         when(redis.opsForValue()).thenReturn(ops);
         GrantCacheMapper cache = new GrantCacheMapper(redis, json, Duration.ofMinutes(10));
-        when(ops.get(GrantCacheMapper.VERSION_KEY)).thenReturn(null, "7");
-        assertEquals(0L, cache.currentVersion());
-        assertEquals(7L, cache.currentVersion());
-
         GrantSet empty = new GrantSet(List.of(), List.of());
         when(ops.get(GrantCacheMapper.key(7, 1L))).thenReturn(json.writeValueAsString(empty));
         assertEquals(empty, cache.find(7, 1L).orElseThrow());

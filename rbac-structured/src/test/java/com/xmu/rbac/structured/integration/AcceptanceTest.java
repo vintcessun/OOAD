@@ -2,6 +2,8 @@ package com.xmu.rbac.structured.integration;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.xmu.rbac.structured.RbacStructuredApplication;
+import com.xmu.rbac.structured.entity.Role;
+import com.xmu.rbac.structured.entity.RolePermission;
 import com.xmu.rbac.structured.entity.User;
 import com.xmu.rbac.structured.entity.UserRole;
 import org.junit.jupiter.api.Test;
@@ -53,6 +55,15 @@ class AcceptanceTest extends IntegrationTestBase {
         assertEquals(401, loginStatus("u2", PASSWORD));
         assertEquals(401, loginStatus("u3", PASSWORD));
         assertEquals(401, loginStatus("nobody", PASSWORD));
+        // 口令错误与已删除不区分（40102），口令正确但已停用才说明（40104）
+        assertEquals(40102, postJson(null, "/auth/login", Map.of("username", "u1", "password", "wrong")).code());
+        assertEquals(40104, postJson(null, "/auth/login", Map.of("username", "u2", "password", PASSWORD)).code());
+
+        // 每次失败都有审计
+        JsonNode logs = getJson(login("root"), "/audit-logs?eventType=LOGIN&result=FAILED&size=50").data();
+        assertEquals(6, logs.path("total").asInt());
+        assertTrue(logs.toString().contains("SUBJECT_DISABLED"), logs.toString());
+        assertTrue(logs.toString().contains("CREDENTIAL_INVALID"), logs.toString());
     }
 
     @Test
@@ -203,6 +214,41 @@ class AcceptanceTest extends IntegrationTestBase {
     }
 
     @Test
+    void t10b_selfOnlyGrantDoesNotLetAdminGrantTheFullPermission() throws Exception {
+        // 操作者的「查看」只限本人（权限清单的「查看本人」）
+        Role selfViewer = role("DOC_SELF_VIEWER", "公文查阅（本人）", null, org.docView());
+        RolePermission rp = rolePermissionMapper.findByRoleIdAndPermissionId(selfViewer.id, org.docView().id).orElseThrow();
+        rp.selfOnly = true;
+        rolePermissionMapper.save(rp);
+        User admin = user("admin", org.aRoot());
+        grant(admin, org.rbacAdmin(), org.aRoot());
+        grant(admin, selfViewer, org.aRoot());
+        User staff = user("staff", org.roadFinance());
+        String token = login(admin.username);
+
+        // 分配含完整「查看」的角色：拒绝
+        Resp r = postJson(token, "/users/" + staff.id + "/roles", Map.of("roleId", org.docViewer().id));
+        assertEquals(403, r.status(), r.toString());
+        assertEquals(40303, r.code());
+        // 同样只限本人的角色可以分配
+        assertEquals(200, postJson(token, "/users/" + staff.id + "/roles",
+                Map.of("roleId", selfViewer.id)).status());
+
+        // 给本公司角色授予完整「查看」：同样拒绝（这里授出的都是完整权限）
+        long id = postJson(token, "/roles", Map.of("roleCode", "A_ROLE", "roleName", "A 公司角色",
+                "companyId", org.a().id)).data().path("id").asLong();
+        Resp g = postJson(token, "/roles/" + id + "/permissions", Map.of("permissionIds", List.of(org.docView().id)));
+        assertEquals(403, g.status(), g.toString());
+        assertEquals(40303, g.code());
+
+        String root = login("root");
+        JsonNode assignLog = getJson(root, "/audit-logs?eventType=ROLE_ASSIGN&result=DENIED").data().path("items");
+        assertEquals("PRIVILEGE_ESCALATION", assignLog.get(0).path("reason").asText());
+        JsonNode grantLog = getJson(root, "/audit-logs?eventType=PERMISSION_ASSIGN&result=DENIED").data().path("items");
+        assertEquals("PRIVILEGE_ESCALATION", grantLog.get(0).path("reason").asText());
+    }
+
+    @Test
     void t11_superAdminBypassesEngineButMustBeActive() throws Exception {
         String root = login("root");
         JsonNode d = check(root, "anything:at:all", org.bFinance().id);
@@ -232,6 +278,34 @@ class AcceptanceTest extends IntegrationTestBase {
         String root = login("root");
         assertEquals(200, deleteReq(root, "/users/" + u.id + "/roles/" + ur.id).status());
         assertFalse(check(token, "oa:doc:draft:view", org.aFinance().id).path("allowed").asBoolean());
+    }
+
+    @Test
+    void t12b_revocationDoesNotDependOnRedis() throws Exception {
+        User u = user("u1", org.aFinance());
+        UserRole ur = grant(u, org.docViewer(), org.aFinance());
+        String token = login("u1");
+        check(token, "oa:doc:draft:view", org.aFinance().id);
+        assertTrue(check(token, "oa:doc:draft:view", org.aFinance().id).path("cacheHit").asBoolean());
+        long before = jdbc.queryForObject("SELECT version FROM sys_grant_version WHERE id = 1", Long.class);
+        String oldKey = "rbac:grants:v" + before + ":u" + u.id;
+        assertTrue(redis.hasKey(oldKey));
+
+        assertEquals(200, deleteReq(login("root"), "/users/" + u.id + "/roles/" + ur.id).status());
+
+        // 回收没有碰 Redis：旧键原样留着（Redis 此刻宕机也一样），版本号随回收一起在 MySQL 里提交
+        assertTrue(redis.hasKey(oldKey));
+        assertEquals(before + 1, jdbc.queryForObject("SELECT version FROM sys_grant_version WHERE id = 1", Long.class));
+        JsonNode d = check(token, "oa:doc:draft:view", org.aFinance().id);
+        assertFalse(d.path("allowed").asBoolean());
+        assertFalse(d.path("cacheHit").asBoolean());
+        assertEquals("MISSING_PERMISSION", d.path("reason").asText());
+
+        // 被拒绝的修改不递增版本号（随事务回滚），缓存照常命中
+        User admin = adminOf(org.road());
+        assertEquals(403, postJson(login(admin.username), "/users/" + u.id + "/roles",
+                Map.of("roleId", org.docViewer().id)).status());
+        assertEquals(before + 1, jdbc.queryForObject("SELECT version FROM sys_grant_version WHERE id = 1", Long.class));
     }
 
     @Test
@@ -380,9 +454,14 @@ class AcceptanceTest extends IntegrationTestBase {
                 Map.of("roleId", org.docViewer().id, "scopeDepartmentId", org.aFinance().id));
         assertEquals(400, r.status());
 
-        // 管理员只能看到本公司的部门树
+        // 公司 A 的管理员给公司 B 的员工授权：超出管理范围
         User admin = adminOf(org.aRoot());
         String adminToken = login(admin.username);
+        Resp cross = postJson(adminToken, "/users/" + bUser.id + "/roles", Map.of("roleId", org.docViewer().id));
+        assertEquals(403, cross.status());
+        assertEquals(40302, cross.code());
+
+        // 管理员只能看到本公司的部门树
         JsonNode companies = getJson(adminToken, "/companies").data();
         assertEquals(1, companies.size());
         assertEquals("SZ", companies.get(0).path("companyCode").asText());

@@ -180,7 +180,7 @@ bash deploy/stack.sh logs                              # rbac-structured 的日�
 | 实验二 | 本项目 |
 |---|---|
 | 进 MySQL 容器 `source /sql/database.sql` 建库、建用户 | MySQL 镜像按 `MYSQL_DATABASE`、`MYSQL_USER`、`MYSQL_PASSWORD` 在**首次启动**时自动建库、建用户 |
-| `source /sql/product.sql` 导入表和数据 | 应用启动时 Flyway 执行 `V1__rbac0_baseline.sql`：建表，并写入操作词汇、权限中心自身的权限、三个内置角色、菜单和超级管理员 `root` |
+| `source /sql/product.sql` 导入表和数据 | 应用启动时 Flyway 执行 `V1__rbac0_baseline.sql`：建表，并写入操作词汇、权限中心自身的权限、三个内置角色、菜单和超级管理员 `root`；再执行 `V2__grant_version.sql` 建授权版本号表（10 月 14 日新增，已部署过 V1 的库启动时自动补上） |
 | `SET PASSWORD ... = PASSWORD('...')` 改口令 | 口令首次部署时由 `.env` 决定。⚠️ 实验指导里的 `PASSWORD()` 函数从 MySQL 8 起已删除，要改用 `ALTER USER 'rbac'@'%' IDENTIFIED BY '新口令';` |
 
 **`MYSQL_ROOT_PASSWORD`、`DB_PASSWORD` 只在数据卷为空时生效。** 已经部署过再改 `.env` 不会改变数据库里的口令，只会让应用连不上库。要改口令，二选一：
@@ -188,7 +188,7 @@ bash deploy/stack.sh logs                              # rbac-structured 的日�
 - 进容器用 `ALTER USER` 改；
 - 清库重来：`stack.sh down`，在 mysql-server 上执行 `docker volume rm rbac_mysql-data`，再 `up`。
 
-**跑过旧版脚本的库必须删库重建。** 10 月 11 日 V1 按 RBAC0 需求重写，旧的 V2、V3 已移出迁移目录。旧库里 `flyway_schema_history` 记的是旧脚本，应用启动会报 `Migration checksum mismatch` 或表已存在。课程环境还没有正式数据，直接清库：
+**跑过旧版脚本的库必须删库重建。** 10 月 11 日 V1 按 RBAC0 需求重写，旧的 V2、V3 已移出迁移目录（现在的 V2 是 10 月 14 日新增的 `V2__grant_version.sql`，与旧 V2 同号不同内容，所以跑过旧 V2 的库更必须重建）。旧库里 `flyway_schema_history` 记的是旧脚本，应用启动会报 `Migration checksum mismatch` 或表已存在。课程环境还没有正式数据，直接清库：
 
 ```bash
 bash deploy/stack.sh down

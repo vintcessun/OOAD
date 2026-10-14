@@ -153,6 +153,10 @@ Allow(u, p, 目标部门 t) = ∃ 指派 (u, r, s) ∈ sys_user_role ：
 
 鉴权事件（`AUTH_SUCCESS` / `AUTH_FAILED`）另带 `permission_code`、`latency_us`、`cache_hit`，Dashboard 与权限使用热力图都从这里统计。旧版把鉴权日志单独建表、按月分区、另建分钟聚合表，是为「每天千万级」准备的；需求明确不做高并发专项设计，因此合并成一张表（见 [12 #19](12-design-log.md)）。
 
+### 3.6 授权数据版本号（V2）
+
+**`sys_grant_version`**：只有一行（`id = 1`），`version` 从 0 开始。授权缓存的 Redis 键带上它（`rbac:grants:v<version>:u<用户 id>`）。任何改变授权数据的事务都在同一事务里把它加一，因此「授权数据已改、版本号没变」的状态不可能被别的请求看到；Redis 故障也不影响失效（[02 §4.2](02-architecture.md)，[12 #37](12-design-log.md)）。
+
 ## 4. 关键设计
 
 ### 4.1 多公司
@@ -171,7 +175,8 @@ Allow(u, p, 目标部门 t) = ∃ 指派 (u, r, s) ∈ sys_user_role ：
 权限清单里有「查看本人」「编辑本人」（6 个单元格）。RBAC0 只回答「能否执行该操作」，不做行级过滤，因此：
 
 - 导入时把它们当作「查看」「编辑」授予，同时在 `sys_role_permission.self_only` 记下「只限本人记录」；
-- 鉴权结果带 `selfOnly = true`，由业务系统按记录归属过滤（外部模拟系统的考勤接口就是这样做的）。
+- 鉴权结果带 `selfOnly = true`，由业务系统按记录归属过滤（外部模拟系统的考勤接口就是这样做的）；
+- 授权上界也比较这个范围：操作者手里的某权限只限本人时，不能分配含该权限完整范围的角色，也不能在角色管理里授出它（`PRIVILEGE_ESCALATION`，T10b）。
 
 ### 4.4 外键与删除
 
@@ -194,7 +199,7 @@ Allow(u, p, 目标部门 t) = ∃ 指派 (u, r, s) ∈ sys_user_role ：
 | `sys_audit_log.idx_event_time (event_type, occurred_at)` | Dashboard 今日统计、热力图、按事件类型查审计 |
 | `sys_audit_log.idx_actor_time`、`idx_time` | 按操作人、时间查审计 |
 
-数据库缓存设计不在表里：用户的授权数据缓存在 Redis，见 [02 §4.2](02-architecture.md)。
+数据库缓存设计：用户的授权数据缓存在 Redis，版本号在 `sys_grant_version`（§3.6），见 [02 §4.2](02-architecture.md)。
 
 ## 5. 初始化数据与导入
 
@@ -260,6 +265,7 @@ Allow(u, p, 目标部门 t) = ∃ 指派 (u, r, s) ∈ sys_user_role ：
 ## 6. 迁移与版本管理
 
 - Flyway 管理表结构，脚本在 `rbac-contract` 的 jar 里；Hibernate 设为 `ddl-auto: none`，不建表、不改表。
+- V2 新增 `sys_grant_version`（只加表，不改 V1），已执行过 V1 的库直接升级即可。
 - V1 在本阶段重写过。此前在测试库执行过旧 V1–V3 的，需要删库重建（`docs/13-deployment.md`）；不要直接删除已执行的 Flyway 记录再假定旧库能用。
 - 集成测试每个测试前把库恢复成只含内置数据的状态（首次 clean + migrate 并给每张表拍快照，之后「清空 + 从快照复制」）。
 

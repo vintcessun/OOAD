@@ -79,8 +79,11 @@ public class AssignmentService {
         this.clock = clock;
     }
 
-    /** 一批校验共用的上下文：角色、操作者的管理范围，以及「这个适用部门能否授出该角色」的判定缓存。 */
-    record Context(Operator op, Role role, List<String> rolePermissions, boolean operatorIsSuperAdmin,
+    /**
+     * 一批校验共用的上下文：角色、操作者的管理范围，以及「这个适用部门能否授出该角色」的判定缓存。
+     * rolePermissions：角色的权限码 → 是否只限本人。
+     */
+    record Context(Operator op, Role role, Map<String, Boolean> rolePermissions, boolean operatorIsSuperAdmin,
                    Scope operatorScope, List<GrantRow> operatorGrants, Map<Long, Department> depts,
                    Map<Long, String> escalationByScope) {
     }
@@ -124,7 +127,7 @@ public class AssignmentService {
         ur.grantedAt = LocalDateTime.now(clock);
         ur.reason = req.reason();
         userRoleMapper.save(ur);
-        authz.invalidateAfterCommit();
+        authz.bumpGrantVersion();
         audit.record(op, "ROLE_ASSIGN", "USER", u.id, u.username, detail, AuditService.SUCCESS, req.reason());
         return userRoleMapper.findAssignmentsOfUser(u.id).stream()
                 .filter(a -> a.assignmentId().equals(ur.id)).findFirst().orElseThrow();
@@ -155,7 +158,7 @@ public class AssignmentService {
             audit.record(op, "ROLE_REVOKE", "USER", u.id, u.username, detail, AuditService.DENIED, "LAST_SUPER_ADMIN");
             throw BizException.conflict(BizException.STATE_CONFLICT, "不能回收最后一个有效的超级管理员");
         }
-        authz.invalidateAfterCommit();
+        authz.bumpGrantVersion();
         audit.record(op, "ROLE_REVOKE", "USER", u.id, u.username, detail, AuditService.SUCCESS, reason);
     }
 
@@ -228,7 +231,7 @@ public class AssignmentService {
                     req.reason());
         }
         if (written > 0) {
-            authz.invalidateAfterCommit();
+            authz.bumpGrantVersion();
         }
         audit.record(op, "ROLE_ASSIGN", "BATCH", role.id, role.roleCode,
                 detail + " succeeded=" + written + " duplicated=" + already.size(),
@@ -295,7 +298,7 @@ public class AssignmentService {
             throw BizException.conflict(BizException.STATE_CONFLICT, "不能回收最后一个有效的超级管理员");
         }
         if (deleted > 0) {
-            authz.invalidateAfterCommit();
+            authz.bumpGrantVersion();
         }
         audit.record(op, "ROLE_REVOKE", "BATCH", role.id, role.roleCode, detail + " revoked=" + deleted,
                 failures.isEmpty() ? AuditService.SUCCESS : AuditService.FAILED, req.reason());
@@ -309,7 +312,11 @@ public class AssignmentService {
     Context context(Operator op, Role role) {
         GrantSet grants = authz.loadGrants(op.userId()).grants();
         boolean opSuper = AuthorizationService.holdsSuperAdmin(grants);
-        return new Context(op, role, rolePermissionMapper.findPermissionCodesOfRole(role.id), opSuper,
+        Map<String, Boolean> rolePermissions = new HashMap<>();
+        for (Object[] row : rolePermissionMapper.findGrantScopesOfRole(role.id)) {
+            rolePermissions.merge((String) row[0], (Boolean) row[1], Boolean::logicalAnd);
+        }
+        return new Context(op, role, rolePermissions, opSuper,
                 authz.scopeOf(op.userId(), PERM_ASSIGN), grants.grants(), new HashMap<>(), new HashMap<>());
     }
 
@@ -351,17 +358,25 @@ public class AssignmentService {
     }
 
     /**
-     * 不能授出自己没有的权限：角色的每个权限，操作者都必须有一条覆盖适用部门的授权。
+     * 不能授出自己没有的权限：角色的每个权限，操作者都必须有一条覆盖适用部门的授权，
+     * 而且范围不能比角色的窄——角色给的是完整权限，操作者手里的只限本人就不够；角色本身只限本人，操作者哪种都行。
      * 与 decide 的 3.4、3.5 步相同，只是一次检查一整组权限，不逐个往返缓存。
      */
     static String escalation(Context ctx, String scopePath) {
-        Set<String> held = new HashSet<>();
+        // 权限码 → 操作者在该部门是否持有不限本人的授权
+        Map<String, Boolean> held = new HashMap<>();
         for (GrantRow g : ctx.operatorGrants()) {
             if (AuthorizationService.covers(g.scopePath(), scopePath)) {
-                held.add(g.permissionCode());
+                held.merge(g.permissionCode(), !g.selfOnly(), Boolean::logicalOr);
             }
         }
-        return held.containsAll(ctx.rolePermissions()) ? null : "PRIVILEGE_ESCALATION";
+        for (Map.Entry<String, Boolean> p : ctx.rolePermissions().entrySet()) {
+            Boolean unrestricted = held.get(p.getKey());
+            if (unrestricted == null || (!p.getValue() && !unrestricted)) {
+                return "PRIVILEGE_ESCALATION";
+            }
+        }
+        return null;
     }
 
     /** 批量目标展开成用户：分公司 → 整棵子树；部门 → 本部门或含下级；员工 → 指定的人。 */
@@ -448,7 +463,7 @@ public class AssignmentService {
             case "OUT_OF_MANAGE_SCOPE" -> BizException.forbidden(BizException.OUT_OF_MANAGE_SCOPE,
                     "用户或适用部门不在你的管理范围内");
             case "PRIVILEGE_ESCALATION" -> BizException.forbidden(BizException.PRIVILEGE_ESCALATION,
-                    "不能分配超出你自身权限的角色：该角色含有你在适用部门不具备的权限");
+                    "不能分配超出你自身权限的角色：该角色含有你在适用部门不具备的权限，或你只有其「本人」范围");
             case "SUPER_ADMIN_ONLY" -> BizException.forbidden(BizException.FORBIDDEN, "只有超级管理员能分配或回收超级管理员角色");
             case "ROLE_DISABLED" -> BizException.conflict(BizException.STATE_CONFLICT, "角色已停用");
             case "SUBJECT_DELETED" -> BizException.conflict(BizException.STATE_CONFLICT, "用户已删除");
