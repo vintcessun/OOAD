@@ -59,3 +59,4 @@ deploy/*.local.md
 
 # 导论题目1：实验用的 Claude Code 安装包（本机下载，体积大）
 intro-spec-coding/bench/docker/vendor/
+.codegraph
