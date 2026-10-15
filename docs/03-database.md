@@ -27,6 +27,7 @@ erDiagram
     sys_department ||--o{ sys_department : "上级"
     sys_company ||--o{ sys_user : "雇佣"
     sys_department ||--o{ sys_user : "所属（一个用户一个部门）"
+    sys_user |o--o{ sys_department : "部门负责人（只是组织信息）"
     sys_user ||--o{ sys_user_role : "被指派"
     sys_role ||--o{ sys_user_role : "指派"
     sys_department ||--o{ sys_user_role : "适用部门（含下级）"

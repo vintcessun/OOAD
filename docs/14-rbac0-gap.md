@@ -15,10 +15,10 @@
 | 需求 | 状态 | 依据 |
 |---|---|---|
 | 后端 Spring MVC | ✅ | `rbac-structured`，Spring Boot 3.3 |
-| 前端 Vue3 + TS | ✅ | [`rbac-web/`](../rbac-web/)：Vue 3 + TypeScript + Element Plus + Pinia + ECharts，15 个页面按 [05-ui.md](05-ui.md) 实现；38 个单元测试 + 9 个连真实后端的端到端测试 |
+| 前端 Vue3 + TS | ✅ | [`rbac-web/`](../rbac-web/)：Vue 3 + TypeScript + Element Plus + Pinia + ECharts，15 个页面按 [05-ui.md](05-ui.md) 实现；39 个单元测试 + 9 个连真实后端的端到端测试 |
 | MySQL + Redis + JPA | ✅ | MySQL 8.0 + Flyway；Redis 存授权缓存与已注销令牌；Spring Data JPA |
 | Docker Swarm 部署和管理 | 🟡 | 编排文件与 `deploy/stack.sh` 沿用实验二的做法；**本次改动后尚未重新部署到三台服务器**，旧库需删库重建（[13 §4.5](13-deployment.md)） |
-| Jacoco 白盒测试，每个功能都有测试 | ✅ | 65 个测试，行 97.4%、分支 83.3%；45 个接口全部经 HTTP 调用过（[09](09-test-plan.md)） |
+| Jacoco 白盒测试，每个功能都有测试 | ✅ | 67 个测试，行 97.5%、分支 83.5%；45 个接口全部经 HTTP 调用过（[09](09-test-plan.md)） |
 | 不能使用 MyBatis | ✅ | 依赖已删除；`ArchitectureTest.noMyBatis` |
 | 只用 Controller + Service + Mapper，不用 DAO 层 | ✅ | 包结构与依赖方向由 `ArchitectureTest` 检查 |
 
@@ -41,6 +41,8 @@
 | 超级管理员越过权限引擎 | ✅ | 判定 3.3 步；账号必须有效；T11 |
 | 管理员管理自身和以下层级员工的权限 | ✅ | 管理范围 = 适用部门子树；Service 按目标对象所在部门判定；T08、T09；另有授权上界（不能授出自己没有的权限，「本人」范围也比较）T10、T10b |
 | 移除管理员权限，不导致分配的权限级联删除 | ✅ | 只删该指派，`granted_by` 只是审计属性；T14 |
+| 管理员可以自己撤销自己权限（10/15 课堂要求） | ✅ | 回收自己的指派不查管理范围，最后一个超级管理员除外；个人中心有回收按钮；T14b（[12 R-16](12-design-log.md)） |
+| 用户编号预留一段给内部用户（10/15 课堂要求） | ✅ | 1–9999 内部账号（`root`、业务系统账号），员工与临时用户从 10000 起；V3 迁移；`internalAccountsUseTheReservedIdRange`（[12 R-17](12-design-log.md)） |
 
 ### 1.4 权限模型
 
@@ -100,7 +102,7 @@
 | P1 | 导入时自动派生角色 | 导入不分配角色 | #18 |
 | P1 | 审计与仪表盘未闭环 | 一张审计表，Dashboard、热力图从中统计 | #19 |
 | P1 | 角色移除、越权管理、批量授权规则需实测 | T08–T10、T14、T16 | #29 |
-| P2 | 表数量、字段、索引偏多 | 13 张表 | [03](03-database.md) |
+| P2 | 表数量、字段、索引偏多 | 14 张表（V1 的 13 张 + V2 的授权版本号表） | [03](03-database.md) |
 | P2 | 接口示例、错误码与需求不匹配 | 错误码收敛为 12 个 | [04 §1.3](04-api.md) |
 | P2 | 前端设计与可运行 API 之间有落差 | 界面设计按 45 个接口重写，并已实现、端到端测试连真实后端 | [05](05-ui.md) |
 | — | Logout 没有让令牌失效 | Redis 登记令牌编号 | #25 |
@@ -116,7 +118,7 @@
 |---|---|---|---|
 | 1 | **新版本（含前端）未部署到三台服务器** | 检查时若要现场演示 Swarm 部署 | 组内安排暂缓。部署时按 [13 §4.5](13-deployment.md)：删库重建 → `build.sh push`（含 `rbac-web` 镜像）→ `stack.sh up` → 改 root 口令 → 导入 → 批量授权 |
 | 2 | 老师国庆后发布的测试尚未接入 | 以老师测试为准 | 发布后对照 45 个接口补适配 |
-| 3 | UML 模型（StarUML `.mdj`）未随本次重写更新 | 检查材料中的图 | 06 中的 DFD、功能层次图已用 Mermaid 画出，可据此在 StarUML 中重画 |
+| 3 | UML 模型须在 StarUML 中核对、导出 | 检查材料中的图 | 10/15 起 `diagrams/` 下有脚本生成的 `rbac.mdj`（E-R 图、用例总图、领域模型）和 Mermaid 导出的 PNG/SVG，见 [diagrams/README](../diagrams/README.md)。生成的模型没有在 StarUML 里打开验证过，须有人打开、调整布局，再从 StarUML 导出；DFD、结构图仍待画 |
 
 已解决（2026-10-12）：用户列表电话脱敏在界面层完成（详情页显示完整号码）；角色详情「用户」改为先按管理范围过滤再分页，总数与每页内容一致。
 

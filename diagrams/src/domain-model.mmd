@@ -1,0 +1,88 @@
+%% 领域模型：取自 docs/01-srs.md §3.1（RBAC0：无角色继承、无约束），每个属性单独一行
+%% Assignment = 一次指派 = 用户 + 角色 + 适用部门（scopeDept 覆盖该部门及全部下级）
+classDiagram
+    direction LR
+    class Company {
+        companyCode
+        companyName
+    }
+    class Department {
+        deptName
+        path
+        level
+        managerName
+    }
+    class User {
+        id「1–9999 内部账号」
+        username
+        realName
+        userType
+        employeeNo
+        phone
+        status
+        expiresAt
+    }
+    class Role {
+        roleCode
+        roleName
+        status
+        builtin
+    }
+    class SoftwareSystem {
+        systemCode
+        systemName
+    }
+    class FunctionModule {
+        moduleCode
+        moduleName
+    }
+    class Resource {
+        resourceCode
+        resourceName
+        resourceType
+    }
+    class Action {
+        actionCode
+        actionName
+    }
+    class Permission {
+        permissionCode
+    }
+    class Assignment {
+        scopeDept
+        grantedBy
+        reason
+    }
+    class RolePermission {
+        selfOnly
+        grantedBy
+    }
+    class Menu {
+        menuName
+        routePath
+    }
+    class AuditLog {
+        谁
+        时间
+        在哪里
+        对谁
+        做了什么
+        结果
+        为什么
+    }
+
+    Company "1" --> "*" Department
+    Department "1" --> "*" Department : 下级
+    Department "1" --> "*" User : 所属
+    Company "0..1" --> "*" Role : 公司内角色
+    SoftwareSystem "1" --> "*" FunctionModule
+    FunctionModule "1" --> "*" Resource
+    Resource "1" --> "*" Permission
+    Action "1" --> "*" Permission
+    User "1" --> "*" Assignment
+    Role "1" --> "*" Assignment
+    Department "1" --> "*" Assignment : 适用部门
+    Role "1" --> "*" RolePermission
+    Permission "1" --> "*" RolePermission
+    Menu "*" --> "0..1" Resource
+    Menu "*" --> "0..1" Menu : 上级

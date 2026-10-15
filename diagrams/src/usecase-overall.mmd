@@ -1,0 +1,89 @@
+%% 用例总图：参与者取自 docs/01-srs.md §4.1.2，用例取自 §4.1.4 / §4.2（RBAC0 阶段）
+%% Mermaid 没有用例图类型，这里用 flowchart 表示：方框 = 参与者，圆角 = 用例，虚线 = «include»，粗实线箭头（标「泛化」）= 参与者泛化（StarUML 模型中为标准空心三角）
+%% 10/15 课堂要求：管理员可以回收自己的指派（归入「回收角色」）；用户编号 1–9999 预留给内部账号（归入「管理用户」）
+flowchart LR
+    subgraph ACT[" "]
+        direction TB
+        U["«参与者» 普通用户"]
+        RA["«参与者» 权限管理员"]
+        AU["«参与者» 审计员"]
+        SA["«参与者» 超级管理员"]
+    end
+
+    subgraph SYS["权限中心"]
+        direction TB
+        UC_LOGIN(["登录"])
+        UC_LOGOUT(["登出"])
+        UC_PWD(["修改口令"])
+        UC_ME(["查看本人信息与权限"])
+        UC_MENU(["获取动态菜单"])
+        UC_EXPLAIN(["权限解释"])
+        UC_AUTHZ(["鉴权"])
+        UC_DECIDE(["授权判定"])
+        UC_USER(["管理用户"])
+        UC_ASSIGN(["分配角色"])
+        UC_REVOKE(["回收角色"])
+        UC_BATCH(["批量分配 / 回收"])
+        UC_ROLE(["管理角色与角色授权"])
+        UC_MENUADM(["管理菜单"])
+        UC_ORG(["浏览组织"])
+        UC_PERMV(["查看权限定义"])
+        UC_AUDIT(["查询审计日志"])
+        UC_DASH(["查看 Dashboard"])
+        UC_HEAT(["查看权限使用热力图"])
+        UC_PERMC(["新建资源与权限"])
+        UC_IMPORG(["导入部门与员工"])
+        UC_IMPPERM(["导入功能权限清单"])
+    end
+
+    BIZ["«参与者» 业务系统"]
+
+    N_REVOKE["注：可回收本人的指派；只删这一条，不级联"]
+    N_USER["注：用户编号 1–9999 预留给内部账号，员工自 10000 起"]
+
+    RA ==>|泛化| U
+    AU ==>|泛化| U
+    SA ==>|泛化| RA
+
+    U --- UC_LOGIN
+    U --- UC_LOGOUT
+    U --- UC_PWD
+    U --- UC_ME
+    U --- UC_MENU
+    U --- UC_EXPLAIN
+
+    RA --- UC_USER
+    RA --- UC_ASSIGN
+    RA --- UC_REVOKE
+    RA --- UC_BATCH
+    RA --- UC_ROLE
+    RA --- UC_MENUADM
+    RA --- UC_ORG
+    RA --- UC_PERMV
+    RA --- UC_AUDIT
+    RA --- UC_DASH
+    RA --- UC_HEAT
+
+    AU --- UC_AUDIT
+    AU --- UC_DASH
+    AU --- UC_HEAT
+
+    SA --- UC_PERMC
+    SA --- UC_IMPORG
+    SA --- UC_IMPPERM
+
+    UC_AUTHZ --- BIZ
+
+    UC_AUTHZ -.->|«include»| UC_DECIDE
+    UC_EXPLAIN -.->|«include»| UC_DECIDE
+    UC_BATCH -.->|«include»| UC_ASSIGN
+    UC_BATCH -.->|«include»| UC_REVOKE
+
+    UC_REVOKE -.- N_REVOKE
+    UC_USER -.- N_USER
+
+    classDef actor fill:#fff7e6,stroke:#d48806,stroke-width:1.5px
+    classDef note fill:#fffbe6,stroke:#8c8c8c,stroke-dasharray:4 3
+    class U,RA,AU,SA,BIZ actor
+    class N_REVOKE,N_USER note
+    style ACT fill:none,stroke:none

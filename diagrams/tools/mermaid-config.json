@@ -1,0 +1,10 @@
+{
+  "theme": "default",
+  "htmlLabels": false,
+  "themeVariables": {
+    "fontFamily": "Microsoft YaHei, PingFang SC, Noto Sans CJK SC, sans-serif"
+  },
+  "flowchart": { "htmlLabels": false, "nodeSpacing": 30, "rankSpacing": 60 },
+  "er": { "useMaxWidth": false },
+  "class": { "useMaxWidth": false, "htmlLabels": false }
+}

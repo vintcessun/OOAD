@@ -1,0 +1,155 @@
+%% ER 图：与 rbac-contract/src/main/resources/db/migration/V1__rbac0_baseline.sql、V2__grant_version.sql、V3__reserve_internal_user_ids.sql 一致
+%% 14 张表、17 个外键；sys_audit_log、sys_grant_version 不建外键。
+%% 渲染：见 diagrams/README.md「重新生成」
+erDiagram
+    sys_company ||--o{ sys_department : "拥有 fk_dept_company"
+    sys_department |o--o{ sys_department : "上级 fk_dept_parent"
+    sys_user |o--o{ sys_department : "负责人 fk_dept_manager"
+    sys_company ||--o{ sys_user : "雇佣 fk_user_company"
+    sys_department ||--o{ sys_user : "所属 fk_user_dept"
+    sys_software_system ||--o{ sys_function_module : "包含 fk_module_system"
+    sys_function_module ||--o{ sys_resource : "包含 fk_resource_module"
+    sys_resource ||--o{ sys_permission : "资源 fk_perm_resource"
+    sys_action ||--o{ sys_permission : "操作 fk_perm_action"
+    sys_company |o--o{ sys_role : "公司内角色（空=全局） fk_role_company"
+    sys_role ||--o{ sys_role_permission : "授予 fk_rp_role（级联删除）"
+    sys_permission ||--o{ sys_role_permission : "被授予 fk_rp_perm"
+    sys_user ||--o{ sys_user_role : "被指派 fk_ur_user"
+    sys_role ||--o{ sys_user_role : "指派 fk_ur_role"
+    sys_department ||--o{ sys_user_role : "适用部门（含下级） fk_ur_scope"
+    sys_resource |o--o{ sys_menu : "菜单挂资源 fk_menu_resource"
+    sys_menu |o--o{ sys_menu : "上级菜单 fk_menu_parent"
+
+    sys_company {
+        BIGINT id PK "自增"
+        VARCHAR(32) company_code UK "公司编码"
+        VARCHAR(128) company_name
+        DATETIME created_at
+    }
+    sys_department {
+        BIGINT id PK "自增"
+        BIGINT company_id FK "UK(company_id, parent_id, dept_name)"
+        BIGINT parent_id FK "可空；根节点为空"
+        VARCHAR(128) dept_name
+        VARCHAR(255) path "物化路径 /祖先id/.../本id/"
+        INT level "根为 1"
+        VARCHAR(64) manager_name "可空"
+        BIGINT manager_user_id FK "可空；只是组织信息"
+        INT sort_order
+        DATETIME created_at
+    }
+    sys_user {
+        BIGINT id PK "1–9999 内部账号；员工自 10000 起自增（V3）"
+        BIGINT company_id FK
+        BIGINT department_id FK "一个用户一个部门"
+        VARCHAR(64) username UK "登录名"
+        VARCHAR(100) password_hash "BCrypt"
+        VARCHAR(64) real_name
+        VARCHAR(16) user_type "EMPLOYEE / TEMPORARY / SYSTEM"
+        VARCHAR(32) employee_no UK "可空"
+        VARCHAR(20) phone "可空"
+        VARCHAR(32) position "可空；不参与鉴权"
+        VARCHAR(16) status "ACTIVE / DISABLED / DELETED"
+        VARCHAR(255) status_reason "可空"
+        DATETIME expires_at "可空；临时用户必填"
+        INT login_fail_count
+        DATETIME locked_until "可空"
+        TINYINT must_change_pwd
+        INT token_version
+        DATETIME created_at
+        DATETIME updated_at
+        DATETIME deleted_at "可空"
+    }
+    sys_software_system {
+        BIGINT id PK "自增"
+        VARCHAR(32) system_code UK "权限码第一段"
+        VARCHAR(64) system_name
+        INT sort_order
+    }
+    sys_function_module {
+        BIGINT id PK "自增"
+        BIGINT system_id FK "UK(system_id, module_code)"
+        VARCHAR(32) module_code
+        VARCHAR(64) module_name
+        INT sort_order
+    }
+    sys_resource {
+        BIGINT id PK "自增"
+        BIGINT module_id FK
+        VARCHAR(96) resource_code UK "如 oa:m01:f02"
+        VARCHAR(128) resource_name
+        VARCHAR(16) resource_type "BUSINESS / MENU / API"
+        VARCHAR(512) description "可空"
+        INT sort_order
+    }
+    sys_action {
+        BIGINT id PK "自增"
+        VARCHAR(32) action_code UK
+        VARCHAR(32) action_name
+        INT sort_order
+    }
+    sys_permission {
+        BIGINT id PK "自增"
+        BIGINT resource_id FK "UK(resource_id, action_id)"
+        BIGINT action_id FK
+        VARCHAR(128) permission_code UK "资源编码:操作编码"
+    }
+    sys_role {
+        BIGINT id PK "自增"
+        BIGINT company_id FK "可空；空 = 全局角色"
+        VARCHAR(64) role_code UK
+        VARCHAR(64) role_name
+        VARCHAR(255) description "可空"
+        VARCHAR(16) status "ENABLED / DISABLED"
+        TINYINT builtin "内置角色不可删除"
+        DATETIME created_at
+        DATETIME updated_at
+    }
+    sys_role_permission {
+        BIGINT id PK "自增"
+        BIGINT role_id FK "UK(role_id, permission_id)"
+        BIGINT permission_id FK
+        TINYINT self_only "只限本人"
+        BIGINT granted_by "可空；仅审计，无外键"
+        DATETIME granted_at
+    }
+    sys_user_role {
+        BIGINT id PK "自增"
+        BIGINT user_id FK "UK(user_id, role_id, scope_dept_id)"
+        BIGINT role_id FK
+        BIGINT scope_dept_id FK "适用部门（含下级）"
+        BIGINT granted_by "可空；仅审计，无外键"
+        DATETIME granted_at
+        VARCHAR(255) reason "可空"
+    }
+    sys_menu {
+        BIGINT id PK "自增"
+        BIGINT parent_id FK "可空"
+        BIGINT resource_id FK "可空；目录节点为空"
+        VARCHAR(64) menu_name
+        VARCHAR(128) route_path "可空"
+        VARCHAR(64) component_key "可空"
+        VARCHAR(32) icon "可空"
+        INT sort_order
+    }
+    sys_audit_log {
+        BIGINT id PK "自增；只插入"
+        DATETIME(3) occurred_at
+        BIGINT actor_id "可空；无外键"
+        VARCHAR(64) actor_name "可空；用户名快照"
+        VARCHAR(45) client_ip "可空"
+        VARCHAR(32) event_type
+        VARCHAR(16) target_type "可空"
+        VARCHAR(64) target_id "可空"
+        VARCHAR(128) target_name "可空"
+        VARCHAR(1000) detail "可空"
+        VARCHAR(16) result "SUCCESS / DENIED / FAILED"
+        VARCHAR(255) reason "可空"
+        VARCHAR(128) permission_code "可空"
+        INT latency_us "可空"
+        TINYINT cache_hit "可空"
+    }
+    sys_grant_version {
+        TINYINT id PK "只有一行，id = 1（V2）"
+        BIGINT version
+    }
