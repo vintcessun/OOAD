@@ -430,6 +430,34 @@ batchAssign(操作者, 请求):
 ### 5.9 审计与统计（6.0）
 
 - `record` 与 `recordDecision` 使用**独立事务**（`REQUIRES_NEW`）：业务操作因拒绝或失败回滚时，审计记录照样留下。
+
+**记录口径**（10/15 组内审查后逐条核对，[12 #39](12-design-log.md)）：凡是改变权限、账号、组织数据的操作，成功要记；被权限规则拦下（越界、越权授予、保护对象）要记；身份核验失败（登录、改口令）要记。输入格式错误（400）、对象不存在（404）、重复提交（409 重复）不记，它们不是安全事件，记下来只会淹没真正的拒绝。
+
+| 操作 | 成功 | 被拒绝 / 失败 | 记在哪里 |
+|---|---|---|---|
+| 登录 | `LOGIN SUCCESS` | `LOGIN FAILED`：口令错、已锁、已停用、不存在 | `AuthenticationService.login` |
+| 登出、修改口令 | `LOGOUT`、`PASSWORD_CHANGE SUCCESS` | `PASSWORD_CHANGE FAILED`：旧口令错 `CREDENTIAL_INVALID`、新口令不合策略 `PASSWORD_POLICY` | `AuthenticationService` |
+| 调用需要权限码的接口 | `AUTH_SUCCESS` | `AUTH_FAILED`（`MISSING_PERMISSION`、`SUBJECT_*`） | 拦截器 `recordDecision` |
+| 业务系统鉴权、权限解释 | `AUTH_SUCCESS` | `AUTH_FAILED`；无权查他人 `AUTHZ_QUERY DENIED` | `AuthzQueryService` |
+| 管理操作的目标超出管理范围 | — | `ACCESS_DENIED`（`OUT_OF_MANAGE_SCOPE`，detail 带所需权限码和判定原因） | `AuthorizationService.requireInScope`，一处覆盖用户修改 / 新增 / 详情、角色的公司级操作 |
+| 修改全局角色、修改超级管理员账号（非超级管理员） | — | `ACCESS_DENIED`（`GLOBAL_ROLE_SUPER_ADMIN_ONLY`、`TARGET_IS_SUPER_ADMIN`） | `RoleManagementService.requireCompanyLevel`、`UserManagementService.requireManageable` |
+| 新增、修改用户 | `USER_CREATE`、`USER_UPDATE` | 越界见上 | `UserManagementService` |
+| 启用、停用、删除用户（含批量） | `USER_STATUS`、`USER_DELETE` 逐人 | 同事件 `DENIED`：越界、操作自己、目标是超级管理员、已删除 | `applyStatus` |
+| 分配、回收角色（含批量） | `ROLE_ASSIGN`、`ROLE_REVOKE` | 同事件 `DENIED`：越界、越权授予、跨公司、最后一个超级管理员；批量 `BATCH_REJECTED` | `AssignmentService` |
+| 新增、修改、删除角色 | `ROLE_CREATE`、`ROLE_UPDATE`、`ROLE_DELETE` | `DENIED`：停用超级管理员角色、删除内置角色、仍有指派 | `RoleManagementService` |
+| 角色授权、回收权限 | `PERMISSION_ASSIGN`、`PERMISSION_REVOKE` 逐条 | `PERMISSION_ASSIGN DENIED`：越权授予、给超级管理员角色授权 | `RoleManagementService`；导入时的回收与「只限本人」变化同样逐条记 |
+| 资源、权限、菜单维护，导入 | `RESOURCE_CREATE`、`PERMISSION_CREATE`、`MENU_*`、`IMPORT_*` | 接口级拒绝由拦截器记 `AUTH_FAILED`；这些操作没有对象级的范围规则 | `CatalogService`、`MenuService`、`ImportService` |
+
+**有意不记的**：
+
+| 情况 | 理由 |
+|---|---|
+| `@self` 接口（`/auth/me`、`/menus/me`、看本人详情） | 只读自己的数据，没有发生权限判定；能看谁由 Service 判断，看别人越界时照样记 `ACCESS_DENIED` |
+| 没带令牌或令牌无效（401）、契约里没有的路由（403） | 还不知道是谁，审计的「谁」无从填写；运行日志里有请求记录 |
+| 首次登录未改口令就调用其他接口（40304） | 身份已知，但只是流程提醒，不是越权 |
+| 查询类接口返回了什么数据 | 审计记的是「能不能做」的判定，不是数据访问明细；RBAC0 需求要求的是七要素与列出的事件类型 |
+
+**不分级**：审计表没有「严重级别」列。`event_type` + `result` + `reason` 已经能筛出要看的记录，Dashboard 的「异常访问」就是按这三列定义的一个级别（登录失败 + 无效主体的鉴权）。代码里 INFO / WARN / ERROR 是运行日志的级别，与审计无关。需要分级时再加，见 [12 R-19](12-design-log.md)。
 - Dashboard 十一项指标、热力图的统计口径见 [05 §3.1](05-ui.md)，全部从审计日志中的真实事件统计。
 
 ## 6. 模块接口规约
@@ -470,7 +498,7 @@ batchAssign(操作者, 请求):
 | 批量权限管理 | 5.5 | T16、`batchAssignByCompanyAndDepartmentThenRevoke` |
 | 下一次访问生效 | 5.2.2 | T12、T13、T22 |
 | 动态菜单 | 5.7 | T18、`menuManagementAndDynamicMenus` |
-| 审计 | 5.9 | T09、`auditDashboardAndHeatmapComeFromRealEvents` |
+| 审计 | 5.9 | T09、`auditDashboardAndHeatmapComeFromRealEvents`、`deniedAndFailedManagementOperationsAreAudited` |
 | 权限解释 | 5.2.3 | T20、T20b |
 | 导入 | 5.8 | T21 ×2 |
 

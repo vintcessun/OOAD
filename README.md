@@ -136,7 +136,7 @@ docker run -d --name rbac-test-mysql -p 13306:3306 -e MYSQL_ROOT_PASSWORD=root \
   -e MYSQL_DATABASE=rbac_test mysql:8.0 --character-set-server=utf8mb4
 docker run -d --name rbac-test-redis -p 16379:6379 redis:7-alpine
 
-# 构建：编译 + 67 个测试 + Jacoco 门槛（只需装 JDK 21，Maven 由 ./mvnw 下载）
+# 构建：编译 + 68 个测试 + Jacoco 门槛（只需装 JDK 21，Maven 由 ./mvnw 下载）
 ./mvnw -s deploy/maven-settings-huawei.xml verify          # Windows 用 mvnw.cmd
 # Jacoco 报告：rbac-structured/target/site/jacoco/index.html
 
@@ -165,7 +165,7 @@ curl http://localhost:8081/api/v1/actuator/health          # {"status":"UP"}
 | 模块 | 状态 |
 |---|---|
 | `rbac-contract` | ✅ RBAC0 基线 V1；45 个接口的 OpenAPI 契约 |
-| `rbac-structured` | ✅ 45 个接口全部实现；T01–T22 验收用例通过；67 个测试，行覆盖率 97%、分支 83% |
+| `rbac-structured` | ✅ 45 个接口全部实现；T01–T22 验收用例通过；68 个测试，行覆盖率 97%、分支 84% |
 | `rbac-mock-biz` | ✅ 发文拟稿 / 审批、考勤（只限本人）调用权限中心 |
 | `rbac-web` | ✅ 15 个页面；39 个单元测试、9 个连真实后端的端到端测试 |
 | 三台服务器部署 | 🟡 编排已含前端；新版本按组内安排暂未部署（旧库需删库重建） |

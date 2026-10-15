@@ -1,16 +1,16 @@
 # 15 验收前 Debug 记录（RBAC0）
 
 > 对应 2026-10-14 的《RBAC0 验收前 Debug 问题清单与实操指南》。范围：第一次课程检查（RBAC0、结构化设计、JPA、Controller + Service + Mapper）。
-> 每个问题按清单 §四 的格式记录；行号指修复后的代码。设计层面的「为什么错、为什么这样改」见 [12 #36–#38](12-design-log.md)。
+> 每个问题按清单 §四 的格式记录；行号指修复后的代码。设计层面的「为什么错、为什么这样改」见 [12 #36–#39](12-design-log.md)。DBG-4 来自 10/15 组内对审计记录的检查。
 
 ## 0. 验收前确认项（清单 §一）
 
 | 确认项 | 状态 |
 |---|---|
-| 最新版本能否在本机完整通过 `mvnw verify` | ✅ 2026-10-14 本机 `./mvnw -s deploy/maven-settings-huawei.xml clean verify` 通过：65 个后端测试全部通过，行覆盖率 97.4%（1,768 / 1,815），分支 83.3%（846 / 1,016），Jacoco 门槛达标；CI 同样执行 |
+| 最新版本能否在本机完整通过 `mvnw verify` | ✅ 2026-10-14 本机 `./mvnw -s deploy/maven-settings-huawei.xml clean verify` 通过：65 个后端测试全部通过，行覆盖率 97.4%（1,768 / 1,815），分支 83.3%（846 / 1,016），Jacoco 门槛达标；CI 同样执行。2026-10-15 补齐审计后复跑：68 个测试全部通过，行 97.5%（1,785 / 1,830），分支 83.8%（856 / 1,022） |
 | 新版本是否已重新部署到三台服务器 | ⏸ 未部署（组内决定暂缓）。部署时 Flyway 会自动执行新增的 `V2__grant_version.sql`；跑过 10 月 11 日之前旧脚本的库须按 [13 §5](13-deployment.md) 重建 |
 | 老师的正式验收测试是否已接入 | ⏸ 尚未发布，发布后接入 |
-| StarUML 模型是否与当前 RBAC0 代码一致 | ⏸ 待重画（以 [03](03-database.md) 的 ER 图与 [06](06-detail-structured.md) 的数据流图为准） |
+| StarUML 模型是否与当前 RBAC0 代码一致 | 🟡 10/15 起 `diagrams/rbac.mdj` 按迁移脚本生成了 E-R 图、用例总图、领域模型，尚未在 StarUML 中打开核对；数据流图仍以 [06](06-detail-structured.md) 的 Mermaid 为准 |
 
 ## 1. 问题记录
 
@@ -141,6 +141,53 @@
   回收 11 条、self_only 更新 1 条、异常 1 个；审计 PERMISSION_REVOKE 共 11 条（含 permission=oa:doc:f01:approve source=import），
   PERMISSION_ASSIGN 1 条（permission=oa:doc:draft:view selfOnly=false source=import）；
   下一次鉴权 allowed = false 且 cacheHit = false；第三次导入不错位；第四次导入回收 0 条并在报告中说明。
+```
+
+### 问题 4
+
+```text
+问题编号：DBG-4
+问题标题：部分被拒绝、失败的管理操作没有审计记录（10/15 组内审查）
+
+前置数据：
+  操作者 admin：道路分公司 RBAC_ADMIN。outside：桥梁分公司-财务部员工。root：唯一的超级管理员。
+
+复现步骤：
+1. admin 修改 outside、在桥梁分公司新增用户、查看 outside 详情；admin 修改全局角色 DOC_VIEWER
+2. admin 用错误的旧口令、不合策略的新口令修改口令
+3. root 停用 SUPER_ADMIN 角色、删除内置角色 RBAC_ADMIN、批量回收自己（最后一个超级管理员）的 SUPER_ADMIN
+4. 查询审计日志
+
+预期结果：
+  每一次被拒绝、失败都有一条记录，写明谁、对谁、需要什么权限、原因；Dashboard「异常访问」口径不变。
+
+实际结果（修复前）：
+  步骤 1–3 全部按预期返回 403 / 400 / 409，但审计里查不到：
+  - Service 里经 requireInScope 拒绝的越界只抛异常（只有新增用户自己补记了一条）；
+  - 修改全局角色、修改超级管理员账号的拒绝没有记录；
+  - 改口令失败没有记录（登录失败有）；
+  - 停用超级管理员角色、删除内置角色、给超级管理员角色授权没有记录；
+  - 单个回收最后一个超级管理员有记录，批量回收没有。
+
+影响：
+  越界尝试、口令猜测这类最需要追溯的事件留不下痕迹；同一条规则经不同入口，审计不一致。
+
+代码定位：
+  rbac-structured/.../service/AuthorizationService.java  requireInScope()（253 行）
+  rbac-structured/.../service/AuthenticationService.java  changePassword()（123 行）
+  rbac-structured/.../service/RoleManagementService.java  update()（155 行）、delete()（186 行）、grant()（214 行）、requireCompanyLevel()（263 行）
+  rbac-structured/.../service/UserManagementService.java  requireManageable()（391 行）
+  rbac-structured/.../service/AssignmentService.java  batchRevoke()（307 行）
+
+唯一修复方案：
+  requireInScope 改为接收 Operator，拒绝时记 ACCESS_DENIED（detail 带所需权限码与判定原因，reason = OUT_OF_MANAGE_SCOPE），
+  所有对象级越界都经过这一处；新增用户去掉原来的重复记录。其余各处在抛出前补记对应事件的 DENIED / FAILED。
+  记录口径与「有意不记的情况」写进 06 §5.9。
+
+修复后验证：
+  ManagementApiTest.deniedAndFailedManagementOperationsAreAudited：ACCESS_DENIED 4 条且操作人都是 admin；
+  PASSWORD_CHANGE FAILED 含 CREDENTIAL_INVALID、PASSWORD_POLICY；DENIED 记录含 SUPER_ADMIN_ROLE_PROTECTED、
+  BUILTIN_ROLE、LAST_SUPER_ADMIN；Dashboard abnormalCount 仍为 0。其余 67 个测试照常通过。
 ```
 
 ## 2. RBAC0 验收场景实测结果（清单 §三）

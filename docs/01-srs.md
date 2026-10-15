@@ -103,7 +103,7 @@ c. **与其他系统的关系**
 | 操作 | Action | 对资源可施加的动作。业务五类：查看 view、新增 create、编辑 edit、审批 approve、导出 export；权限中心另有 delete、assign、revoke、import、invoke、explain |
 | 权限 | Permission | 资源 × 操作。权限码为 `资源编码:操作编码`，如 `oa:m01:f02:approve`、`rbac:user:view` |
 | 角色 | Role | 一组权限的命名集合。全局角色（不属于任何公司）或公司内角色 |
-| 指派 | Assignment | 用户 + 角色 + 适用部门。一条指派表示「该用户在该部门及其下级部门持有该角色」 |
+| 指派 | Assignment | 用户 + 角色 + 适用部门。一条指派表示「该用户在该部门及其下级部门持有该角色」，例如「员工甲在道路工程分公司持有公文审批员」。同一个东西在各处的名字：领域模型 `Assignment`、表 `sys_user_role`、实体 `UserRole`、接口里的 `assignmentId`、权限码 `rbac:assignment:assign / revoke`、界面上的「角色指派」「分配角色」。它是 User 与 Role 多对多关系的关联类，多带了「适用部门」这一属性，所以单独画出来 |
 | 适用部门 | Scope Department | 指派上的部门（`scope_dept_id`）。用来表达「属于一个部门，但拥有多个部门的权限」 |
 | 目标部门 | Target Department | 鉴权请求中被操作数据所属的部门（`targetDeptId`），可为空 |
 | 管理范围 | Management Scope | 管理员持有某项管理权限的那些适用部门及其下级。管理员只能管理范围内的用户 |
@@ -643,7 +643,7 @@ Dashboard
 | 结果如何 | SUCCESS / DENIED / FAILED |
 | 为什么 | 原因（拒绝或失败原因码、操作理由） |
 
-事件类型至少包括：`LOGIN`、`LOGOUT`、`AUTH_SUCCESS`、`AUTH_FAILED`、`ROLE_ASSIGN`、`ROLE_REVOKE`、`PERMISSION_ASSIGN`、`PERMISSION_REVOKE`；另有 `PASSWORD_CHANGE`、`USER_CREATE`、`USER_UPDATE`、`USER_STATUS`、`USER_DELETE`、`ROLE_CREATE`、`ROLE_UPDATE`、`ROLE_DELETE`、`RESOURCE_CREATE`、`PERMISSION_CREATE`、`MENU_CREATE`、`MENU_UPDATE`、`MENU_DELETE`、`IMPORT_ORG`、`IMPORT_PERMISSIONS`、`AUTHZ_QUERY`。
+事件类型至少包括：`LOGIN`、`LOGOUT`、`AUTH_SUCCESS`、`AUTH_FAILED`、`ROLE_ASSIGN`、`ROLE_REVOKE`、`PERMISSION_ASSIGN`、`PERMISSION_REVOKE`；另有 `PASSWORD_CHANGE`、`USER_CREATE`、`USER_UPDATE`、`USER_STATUS`、`USER_DELETE`、`ROLE_CREATE`、`ROLE_UPDATE`、`ROLE_DELETE`、`RESOURCE_CREATE`、`PERMISSION_CREATE`、`MENU_CREATE`、`MENU_UPDATE`、`MENU_DELETE`、`IMPORT_ORG`、`IMPORT_PERMISSIONS`、`AUTHZ_QUERY`、`ACCESS_DENIED`。哪些成功、失败会记录，哪些不记录，见 [06 §5.9](06-detail-structured.md)。
 
 规则：
 - 审计用独立事务写入：业务操作因拒绝或失败回滚时，审计记录照样留下；
