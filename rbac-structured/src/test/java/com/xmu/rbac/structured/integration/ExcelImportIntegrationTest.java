@@ -80,6 +80,9 @@ class ExcelImportIntegrationTest extends IntegrationTestBase {
         User imported = userMapper.findByUsername("T0004").orElseThrow();
         assertTrue(imported.mustChangePwd);
         assertEquals("T0004", imported.employeeNo);
+        // 导入的员工全部编在 10000 段，内部账号段只有 root
+        assertTrue(userMapper.findAll().stream()
+                .allMatch(u -> u.id >= User.INTERNAL_ID_LIMIT || "root".equals(u.username)));
 
         // 导入不分配任何角色
         assertEquals(0, userRoleMapper.findAll().stream().filter(ur -> !ur.userId.equals(1L)).count());

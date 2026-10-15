@@ -354,6 +354,37 @@ class AcceptanceTest extends IntegrationTestBase {
     }
 
     @Test
+    void t14b_adminCanRevokeTheirOwnAssignments() throws Exception {
+        User admin = adminOf(org.road());
+        UserRole adminRole = userRoleMapper.findAll().stream()
+                .filter(x -> x.userId.equals(admin.id)).findFirst().orElseThrow();
+        // 桥梁分公司不在他的管理范围内，但这是他自己的指派，照样可以放弃
+        UserRole outside = grant(admin, org.docViewer(), org.bridge());
+        User other = user("other", org.bridgeFinance());
+        UserRole othersRole = grant(other, org.docViewer(), org.bridge());
+        String token = login(admin.username);
+        assertEquals(403, deleteReq(token, "/users/" + other.id + "/roles/" + othersRole.id).status());
+        assertEquals(200, deleteReq(token, "/users/" + admin.id + "/roles/" + outside.id).status());
+        assertFalse(check(token, "oa:doc:draft:view", org.bridge().id).path("allowed").asBoolean());
+
+        // 撤销自己的管理员角色：成功，下一次访问就没有管理能力
+        assertEquals(200, deleteReq(token, "/users/" + admin.id + "/roles/" + adminRole.id).status());
+        assertEquals(403, getJson(token, "/users").status());
+        assertTrue(userRoleMapper.findAll().stream().noneMatch(x -> x.userId.equals(admin.id)));
+
+        JsonNode logs = getJson(login("root"), "/audit-logs?eventType=ROLE_REVOKE&result=SUCCESS&size=50").data();
+        assertEquals(2, logs.path("total").asInt());
+        logs.path("items").forEach(l -> {
+            assertEquals(admin.id.longValue(), l.path("actorId").asLong());
+            assertEquals(String.valueOf(admin.id), l.path("targetId").asText());
+        });
+
+        // 唯一的超级管理员仍然不能撤销自己
+        UserRole rootRole = userRoleMapper.findAll().stream().filter(x -> x.userId.equals(1L)).findFirst().orElseThrow();
+        assertEquals(409, deleteReq(login("root"), "/users/1/roles/" + rootRole.id).status());
+    }
+
+    @Test
     void t15_duplicateAssignmentCreatesNoSecondRecord() throws Exception {
         User u = user("u1", org.aFinance());
         String root = login("root");

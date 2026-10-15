@@ -42,6 +42,24 @@ public interface UserMapper extends JpaRepository<User, Long>, JpaSpecificationE
     @Query("update User u set u.loginFailCount = 0, u.lockedUntil = null where u.id = :id")
     int resetLoginFailure(@Param("id") Long id);
 
+    /** 内部账号段（id &lt; limit）里的下一个编号。 */
+    @Query(value = "SELECT COALESCE(MAX(id), 0) + 1 FROM sys_user WHERE id < :limit", nativeQuery = true)
+    long nextInternalId(@Param("limit") long limit);
+
+    /**
+     * 按指定编号写入内部账号。实体的 id 由数据库自增生成，save() 不会带上手工设的 id，所以这里用原生 SQL。
+     * 两个请求同时取到同一个编号时，后写的一条主键冲突、整个事务回滚。
+     */
+    @Modifying
+    @Query(value = """
+            INSERT INTO sys_user (id, company_id, department_id, username, password_hash, real_name, user_type,
+                                  employee_no, phone, position, expires_at, must_change_pwd)
+            VALUES (:#{#u.id}, :#{#u.companyId}, :#{#u.departmentId}, :#{#u.username}, :#{#u.passwordHash},
+                    :#{#u.realName}, :#{#u.userType}, :#{#u.employeeNo}, :#{#u.phone}, :#{#u.position},
+                    :#{#u.expiresAt}, :#{#u.mustChangePwd})
+            """, nativeQuery = true)
+    int insertInternal(@Param("u") User u);
+
     /** 某部门子树内未删除的用户（批量授权按部门、分公司展开）。 */
     @Query("""
             select u from User u, Department d

@@ -207,10 +207,22 @@ public class UserManagementService {
             }
             u.passwordHash = passwordEncoder.encode(req.password());
         }
-        userMapper.save(u);
-        audit.record(op, "USER_CREATE", "USER", u.id, u.username,
+        User created = User.SYSTEM.equals(type) ? insertInternal(u) : userMapper.save(u);
+        audit.record(op, "USER_CREATE", "USER", created.id, created.username,
                 "type=" + type + " dept=" + dept.deptName, AuditService.SUCCESS, null);
-        return toView(u, dept.deptName);
+        return toView(created, dept.deptName);
+    }
+
+    /** 业务系统账号是内部账号，编号取在 1–9999 段内（docs/03-database.md §3.1）；员工与临时用户走自增，从 10000 开始。 */
+    private User insertInternal(User u) {
+        long id = userMapper.nextInternalId(User.INTERNAL_ID_LIMIT);
+        if (id >= User.INTERNAL_ID_LIMIT) {
+            throw BizException.conflict(BizException.STATE_CONFLICT,
+                    "内部账号编号已用完（1–" + (User.INTERNAL_ID_LIMIT - 1) + "）");
+        }
+        u.id = id;
+        userMapper.insertInternal(u);
+        return userMapper.findById(id).orElseThrow();
     }
 
     /** 临时用户没有工号、电话等员工信息，但必须有到期时间；正式员工必须有工号。 */

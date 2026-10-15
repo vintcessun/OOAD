@@ -124,6 +124,8 @@ public abstract class IntegrationTestBase {
                     st.execute("INSERT INTO " + t + " SELECT * FROM snap_" + t);
                 }
                 st.execute("SET FOREIGN_KEY_CHECKS = 1");
+                // TRUNCATE 把自增计数器退回起点，补回 V3 迁移设的员工编号起点
+                st.execute("ALTER TABLE sys_user AUTO_INCREMENT = " + User.INTERNAL_ID_LIMIT);
             }
             return null;
         });

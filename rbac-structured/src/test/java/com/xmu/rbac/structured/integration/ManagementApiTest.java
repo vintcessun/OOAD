@@ -173,6 +173,37 @@ class ManagementApiTest extends IntegrationTestBase {
     }
 
     @Test
+    void internalAccountsUseTheReservedIdRange() throws Exception {
+        String root = login("root");
+        Map<String, Object> emp = new HashMap<>(Map.of("username", "e1", "realName", "员工", "employeeNo", "E1",
+                "departmentId", org.aFinance().id, "password", PASSWORD));
+        long empId = postJson(root, "/users", emp).data().path("id").asLong();
+        assertTrue(empId >= User.INTERNAL_ID_LIMIT, "员工编号 " + empId);
+
+        Map<String, Object> sys = new HashMap<>(Map.of("username", "oa-system", "realName", "OA 系统",
+                "userType", "SYSTEM", "departmentId", org.aRoot().id, "password", PASSWORD));
+        Resp first = postJson(root, "/users", sys);
+        assertEquals(200, first.status(), first.toString());
+        assertEquals(2, first.data().path("id").asLong());   // root 是 1
+        assertEquals("SYSTEM", first.data().path("userType").asText());
+        sys.put("username", "hr-system");
+        assertEquals(3, postJson(root, "/users", sys).data().path("id").asLong());
+        // 内部账号照常登录、照常审计
+        assertEquals(200, getJson(login("oa-system"), "/auth/me").status());
+        JsonNode logs = getJson(root, "/audit-logs?eventType=USER_CREATE&size=50").data();
+        assertTrue(logs.toString().contains("\"targetId\":\"2\""), logs.toString());
+
+        // 员工继续在 10000 段自增，不会落进内部段
+        emp.put("username", "e2");
+        emp.put("employeeNo", "E2");
+        assertEquals(empId + 1, postJson(root, "/users", emp).data().path("id").asLong());
+        // 内部段用完时拒绝，而不是越界占用员工编号
+        jdbc.update("UPDATE sys_user SET id = ? WHERE username = 'hr-system'", User.INTERNAL_ID_LIMIT - 1);
+        sys.put("username", "fin-system");
+        assertEquals(409, postJson(root, "/users", sys).status());
+    }
+
+    @Test
     void batchStatusReportsPerUserResults() throws Exception {
         User admin = user("admin", org.road());
         grant(admin, org.rbacAdmin(), org.road());

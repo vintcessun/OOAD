@@ -20,6 +20,9 @@ public class User {
     public static final String TEMPORARY = "TEMPORARY";
     public static final String SYSTEM = "SYSTEM";
 
+    /** 编号小于它的是内部账号（root、业务系统账号），员工与临时用户从它开始自增（V3 迁移） */
+    public static final long INTERNAL_ID_LIMIT = 10000;
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     public Long id;
