@@ -1,0 +1,2869 @@
+{
+  "schema_version": 1,
+  "created_date": "2026-10-15",
+  "baseline_commit": "a42b8018d6a9c9051fd527dcae05a8da04746082",
+  "scope": "权限中心、控制台、契约迁移、测试、模型及相关运行配置",
+  "excluded": [
+    "rbac-mock-biz",
+    "intro-spec-coding",
+    "docs/archive",
+    "生成的构建与覆盖率产物",
+    "本地密钥和真实人员数据"
+  ],
+  "files": [
+    {
+      "path": ".gitattributes",
+      "owner": "F",
+      "related": [],
+      "focus": "权限中心、数据库、缓存及控制台相关构建、测试与运行配置；其余服务段不审查",
+      "layer": "构建与运行配置",
+      "sha256": "91a3ce3b2093eec1dc51d09641fc5309e6d960c15829e5c0ed4612907f9136bc"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "owner": "F",
+      "related": [],
+      "focus": "权限中心、数据库、缓存及控制台相关构建、测试与运行配置；其余服务段不审查",
+      "layer": "构建与运行配置",
+      "sha256": "44e5248c717955a667dddcba989fb90557207b8a64dbe62c237d036e08707ebf"
+    },
+    {
+      "path": ".gitignore",
+      "owner": "F",
+      "related": [],
+      "focus": "权限中心、数据库、缓存及控制台相关构建、测试与运行配置；其余服务段不审查",
+      "layer": "构建与运行配置",
+      "sha256": "441557d823bbb8a1e4fb6c1d3674499ee26711565a4fe3024b52ab41a09479be"
+    },
+    {
+      "path": ".mvn/wrapper/maven-wrapper.properties",
+      "owner": "F",
+      "related": [],
+      "focus": "权限中心、数据库、缓存及控制台相关构建、测试与运行配置；其余服务段不审查",
+      "layer": "构建与运行配置",
+      "sha256": "5957dc368cb4d7d7c0d393a783a080bf955e5054ecc76e4389900aa98045a078"
+    },
+    {
+      "path": "Dockerfile",
+      "owner": "F",
+      "related": [],
+      "focus": "权限中心、数据库、缓存及控制台相关构建、测试与运行配置；其余服务段不审查",
+      "layer": "构建与运行配置",
+      "sha256": "cbc01ca938147a6e16040d8b77c330b28a75a68dadb02b04eb3b7e2619e0d956"
+    },
+    {
+      "path": "deploy/build.sh",
+      "owner": "F",
+      "related": [],
+      "focus": "权限中心、数据库、缓存及控制台相关构建、测试与运行配置；其余服务段不审查",
+      "layer": "构建与运行配置",
+      "sha256": "cf91b31f063f913a7a288ac74aeb3bf98f7d757026a1e34833794ea2406c9312"
+    },
+    {
+      "path": "deploy/env.example",
+      "owner": "F",
+      "related": [
+        "A",
+        "B"
+      ],
+      "focus": "权限中心、数据库、缓存及控制台相关构建、测试与运行配置；其余服务段不审查",
+      "layer": "构建与运行配置",
+      "sha256": "ccd2426611bbb93b25319d10d6110ba5d7ca67367d8acd119ae2ef8dcfeeeabb"
+    },
+    {
+      "path": "deploy/maven-settings-huawei.xml",
+      "owner": "F",
+      "related": [],
+      "focus": "权限中心、数据库、缓存及控制台相关构建、测试与运行配置；其余服务段不审查",
+      "layer": "构建与运行配置",
+      "sha256": "24cdaa2992025f9fd058ec36938d435cc6f602415504a4175dc3f0e710ba5913"
+    },
+    {
+      "path": "deploy/rbac-demo.http",
+      "owner": "F",
+      "related": [],
+      "focus": "权限中心、数据库、缓存及控制台相关构建、测试与运行配置；其余服务段不审查",
+      "layer": "构建与运行配置",
+      "sha256": "69d1cd071e7f30459c1f6cac9f5be8d7654bf09067336883f63c38d45d8886fe"
+    },
+    {
+      "path": "deploy/setup-server.sh",
+      "owner": "F",
+      "related": [],
+      "focus": "权限中心、数据库、缓存及控制台相关构建、测试与运行配置；其余服务段不审查",
+      "layer": "构建与运行配置",
+      "sha256": "bb825c35b1ed6d4e6fbc799129bd9c942e4629a5c9136bff925027f7c82b0251"
+    },
+    {
+      "path": "deploy/stack.sh",
+      "owner": "F",
+      "related": [],
+      "focus": "权限中心、数据库、缓存及控制台相关构建、测试与运行配置；其余服务段不审查",
+      "layer": "构建与运行配置",
+      "sha256": "a1237dd276ba982a4e719e9a5fe3ce11ece59196fdde21492012678757005757"
+    },
+    {
+      "path": "diagrams/README.md",
+      "owner": "E",
+      "related": [
+        "C",
+        "D"
+      ],
+      "focus": "模型与DDL、用例边界一致性；脚本及配置核对模型生成语义",
+      "layer": "设计模型",
+      "sha256": "0bc5efbdc60f5c30747eb5d353285871a8b05fc32994d2e79652ab4d10b57c81"
+    },
+    {
+      "path": "diagrams/rbac.mdj",
+      "owner": "E",
+      "related": [
+        "C",
+        "D"
+      ],
+      "focus": "模型与DDL、用例边界一致性；脚本及配置核对模型生成语义",
+      "layer": "设计模型",
+      "sha256": "8955f4f914c0526b5eed4e603ab1da4e5c4360d9b1a758e340700ea6c47f2847"
+    },
+    {
+      "path": "diagrams/src/domain-model.mmd",
+      "owner": "E",
+      "related": [
+        "C",
+        "D"
+      ],
+      "focus": "模型与DDL、用例边界一致性；脚本及配置核对模型生成语义",
+      "layer": "设计模型",
+      "sha256": "58ca8e2040917f9ff17e8c60f9a365dccc647df146477afd62b587583dd20e68"
+    },
+    {
+      "path": "diagrams/src/er-diagram.mmd",
+      "owner": "E",
+      "related": [
+        "C",
+        "D"
+      ],
+      "focus": "模型与DDL、用例边界一致性；脚本及配置核对模型生成语义",
+      "layer": "设计模型",
+      "sha256": "30c416fe73ddf509b1f5c856af5fab12d5b7b6282aa1472a6734614cbfc025b6"
+    },
+    {
+      "path": "diagrams/src/usecase-overall.mmd",
+      "owner": "E",
+      "related": [
+        "C",
+        "D"
+      ],
+      "focus": "模型与DDL、用例边界一致性；脚本及配置核对模型生成语义",
+      "layer": "设计模型",
+      "sha256": "e8bb2c3307e2ac4dc26515b2f41a4e4d70274ef5c9d13bc6065f94f410b1e4f8"
+    },
+    {
+      "path": "diagrams/tools/gen-mdj.mjs",
+      "owner": "E",
+      "related": [
+        "C",
+        "D"
+      ],
+      "focus": "模型与DDL、用例边界一致性；脚本及配置核对模型生成语义",
+      "layer": "设计模型",
+      "sha256": "c1bebae6a6419a4e577183416124feb0cee1c8d73bb68acc614fce3af8ce58d1"
+    },
+    {
+      "path": "diagrams/tools/mermaid-config.json",
+      "owner": "E",
+      "related": [
+        "C",
+        "D"
+      ],
+      "focus": "模型与DDL、用例边界一致性；脚本及配置核对模型生成语义",
+      "layer": "设计模型",
+      "sha256": "01fb850dee39b8753d9c70ac67eb78e7036a19742296aaed6b1d170649bb2f04"
+    },
+    {
+      "path": "diagrams/tools/puppeteer-config.json",
+      "owner": "E",
+      "related": [
+        "C",
+        "D"
+      ],
+      "focus": "模型与DDL、用例边界一致性；脚本及配置核对模型生成语义",
+      "layer": "设计模型",
+      "sha256": "a88351046b48b0a4020a15147764348ae5091e82b4638857269875450b6a69e1"
+    },
+    {
+      "path": "docker-compose.yml",
+      "owner": "F",
+      "related": [
+        "A",
+        "B"
+      ],
+      "focus": "权限中心、数据库、缓存及控制台相关构建、测试与运行配置；其余服务段不审查",
+      "layer": "构建与运行配置",
+      "sha256": "cc315dc47a48cf5f98d9fcc504709a362bdc5bdbf63193664bfcad75cb8203e8"
+    },
+    {
+      "path": "mvnw",
+      "owner": "F",
+      "related": [],
+      "focus": "权限中心、数据库、缓存及控制台相关构建、测试与运行配置；其余服务段不审查",
+      "layer": "构建与运行配置",
+      "sha256": "cae96cef89ebea3531221f4ae17c23cf8edf67d00eae8306d4186ae1bbed4d02"
+    },
+    {
+      "path": "mvnw.cmd",
+      "owner": "F",
+      "related": [],
+      "focus": "权限中心、数据库、缓存及控制台相关构建、测试与运行配置；其余服务段不审查",
+      "layer": "构建与运行配置",
+      "sha256": "4a361e1374a3e5ad6d03e18e9adc0cf181ac5058ac6203b76f0ba3b456b56481"
+    },
+    {
+      "path": "pom.xml",
+      "owner": "D",
+      "related": [
+        "F"
+      ],
+      "focus": "权限中心/契约依赖及版本锁定；传递依赖按异常差异抽查；不检查外部模拟模块功能",
+      "layer": "构建与运行配置",
+      "sha256": "a502cab876e6b9c6e7223242d518cc2884b3dad71dd7ccd945186b654bd4d826"
+    },
+    {
+      "path": "rbac-contract/pom.xml",
+      "owner": "D",
+      "related": [
+        "F"
+      ],
+      "focus": "权限中心/契约依赖及版本锁定；传递依赖按异常差异抽查；不检查外部模拟模块功能",
+      "layer": "构建与运行配置",
+      "sha256": "6ad691e5a572eb87323b20405174262e0765c842222448d5b4aebc802e7dba68"
+    },
+    {
+      "path": "rbac-contract/src/main/resources/db/migration/V1__rbac0_baseline.sql",
+      "owner": "E",
+      "related": [
+        "A",
+        "B",
+        "C",
+        "D",
+        "F"
+      ],
+      "focus": "DDL/FK/唯一键/索引及初始化E；各业务人复核对应表和初始化",
+      "layer": "数据库迁移",
+      "sha256": "9ef0466789fe8a4d8c7a92afef9f555cf8f30ea7636b481ca7ea10daed7427d1"
+    },
+    {
+      "path": "rbac-contract/src/main/resources/db/migration/V2__grant_version.sql",
+      "owner": "B",
+      "related": [
+        "E",
+        "F"
+      ],
+      "focus": "授权版本结构及初始化B；迁移E；运行验证F",
+      "layer": "数据库迁移",
+      "sha256": "2d1b40248f682c2bb3dfb9bc364fa9f03004a69129b1f4850ca5e22ba4814a8d"
+    },
+    {
+      "path": "rbac-contract/src/main/resources/db/migration/V3__reserve_internal_user_ids.sql",
+      "owner": "C",
+      "related": [
+        "E",
+        "F"
+      ],
+      "focus": "内部1—9999及员工/临时用户10000起；已有库迁移E；测试重置F",
+      "layer": "数据库迁移",
+      "sha256": "ffb36150b4cb1fed16e0cf17f54c9631ca3c5583bfda32922b69bbc5648f1934"
+    },
+    {
+      "path": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
+      "owner": "F",
+      "related": [
+        "A",
+        "B",
+        "C",
+        "D",
+        "E"
+      ],
+      "focus": "契约结构与公共schema；各负责人逐API核对权限、参数及响应",
+      "layer": "接口契约",
+      "sha256": "49e8956fa25f2d8bcbcb04b9dca7a4797748cfe35d6f74e5434dbd4c1acf9fc8"
+    },
+    {
+      "path": "rbac-structured/pom.xml",
+      "owner": "D",
+      "related": [
+        "F"
+      ],
+      "focus": "权限中心/契约依赖及版本锁定；传递依赖按异常差异抽查；不检查外部模拟模块功能",
+      "layer": "构建与运行配置",
+      "sha256": "48e9bc0db25ab0108ad634bca7ef7ed70a90dec5f62f3937ee3ab27871fe0022"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/RbacStructuredApplication.java",
+      "owner": "F",
+      "related": [],
+      "focus": "完整阅读参数、字段、调用方及状态变化",
+      "layer": "构建与运行配置",
+      "sha256": "66e1d44ebacf8051f8e6ff74bb1371e61cbe0c8c47f84dc292431839887069d2"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/config/AppConfig.java",
+      "owner": "A",
+      "related": [
+        "B",
+        "F"
+      ],
+      "focus": "认证和装配A；Clock、Redis与运行语义B/F；重点：完整阅读参数、字段、调用方及状态变化",
+      "layer": "装配与拦截边界",
+      "sha256": "304aff83289cc0498ee9b8c9b403250e02887aafa5873439e8e13a221de1ef71"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/config/WebConfig.java",
+      "owner": "A",
+      "related": [],
+      "focus": "addInterceptors、verifyEveryRouteDeclared及/error排除",
+      "layer": "装配与拦截边界",
+      "sha256": "cae4d0f594d0f9db7180879105b115141bc5645385507cbc3f787b838f23d98d"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/ApiResponse.java",
+      "owner": "A",
+      "related": [],
+      "focus": "完整阅读参数、字段、调用方及状态变化",
+      "layer": "入口与响应",
+      "sha256": "2ef1040da4fb1a98233e3e762ae3c87578097fa412c96e782f3b1c35a12feb65"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/AuthController.java",
+      "owner": "A",
+      "related": [
+        "B"
+      ],
+      "focus": "认证四入口A；check/explain B；重点：完整阅读参数、字段、调用方及状态变化",
+      "layer": "入口与响应",
+      "sha256": "c96bfd89c8a984321d738f8d0997f6c044b6b2947779f8627f99cd3a157e9f8f"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/CatalogController.java",
+      "owner": "E",
+      "related": [
+        "D",
+        "F"
+      ],
+      "focus": "组织与导入E；系统资源操作权限D；菜单F；重点：完整阅读参数、字段、调用方及状态变化",
+      "layer": "入口与响应",
+      "sha256": "e71c4bdbc0d269e30a84580af6e71685b1dc1cfc326c29a4bd0d65db1e45aec9"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/ContractRoutes.java",
+      "owner": "A",
+      "related": [],
+      "focus": "load/fromDocument、路由匹配、undeclared/unimplemented及权限码",
+      "layer": "入口与响应",
+      "sha256": "a9294d6c3368012c5aed858f6a7457950499e89839de680b23bf4fb006ed0b4b"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/GlobalExceptionHandler.java",
+      "owner": "A",
+      "related": [],
+      "focus": "完整阅读参数、字段、调用方及状态变化",
+      "layer": "入口与响应",
+      "sha256": "7aed5a1ab74c266974e2b94bc0267515caf988884065e6345c210091059fcbad"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/PermissionInterceptor.java",
+      "owner": "A",
+      "related": [],
+      "focus": "preHandle、首次改密、@self、bearerToken、clientIp",
+      "layer": "入口与响应",
+      "sha256": "bb849b424cb9f29ce79b356f0af42864b3348ef819a5cdd44bc17c1451ce4220"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/RoleController.java",
+      "owner": "D",
+      "related": [
+        "C"
+      ],
+      "focus": "角色与角色权限D；batchAssign/batchRevoke C；重点：完整阅读参数、字段、调用方及状态变化",
+      "layer": "入口与响应",
+      "sha256": "7710364a2c8212389de732bd318cbeae98968818282ef7ed7717343e70f625b6"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/StatsController.java",
+      "owner": "F",
+      "related": [],
+      "focus": "完整阅读参数、字段、调用方及状态变化",
+      "layer": "入口与响应",
+      "sha256": "f7af1e434eb1b83ae107e8e8470cf1499665a202ea56a26b36d7d7d6764ec2e2"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/UserController.java",
+      "owner": "C",
+      "related": [],
+      "focus": "完整阅读参数、字段、调用方及状态变化",
+      "layer": "入口与响应",
+      "sha256": "ef5bb2ff538f3b97ecb70318ae411506b37f2ab782f52531c4de27012eadd2a0"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/dto/AssignmentRow.java",
+      "owner": "C",
+      "related": [
+        "B",
+        "D"
+      ],
+      "focus": "指派投影C；授权展开B；角色持有者D；重点：完整阅读参数、字段、调用方及状态变化",
+      "layer": "输入输出",
+      "sha256": "b80b5ef18deb62077a902d9e9afd8a0757e7c2bd230284c707361b25aa717574"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/dto/BatchDtos.java",
+      "owner": "C",
+      "related": [],
+      "focus": "完整阅读参数、字段、调用方及状态变化",
+      "layer": "输入输出",
+      "sha256": "497de4bd9d2a5273739d8f195dbc9f23b8f1a123b25da4c310ccb437140f5ccd"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/dto/CatalogDtos.java",
+      "owner": "D",
+      "related": [
+        "E",
+        "F"
+      ],
+      "focus": "目录D；组织E；菜单F；重点：完整阅读参数、字段、调用方及状态变化",
+      "layer": "输入输出",
+      "sha256": "448c8ac3ab0bf6ec20b6c2bfb07eae99afdb97cb989ef2679d1a409a1e0fb24d"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/dto/Decision.java",
+      "owner": "B",
+      "related": [],
+      "focus": "完整阅读参数、字段、调用方及状态变化",
+      "layer": "输入输出",
+      "sha256": "e88326f34536b6423cca49fc74b521ecfdbe6241949e9e48fc7da8e049efe67b"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/dto/GrantRow.java",
+      "owner": "B",
+      "related": [],
+      "focus": "完整阅读参数、字段、调用方及状态变化",
+      "layer": "输入输出",
+      "sha256": "2c2ea33a2d8031c94596cd252a5413d5c79797c956ca1472b17e054d8a18d6d0"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/dto/GrantSet.java",
+      "owner": "B",
+      "related": [],
+      "focus": "完整阅读参数、字段、调用方及状态变化",
+      "layer": "输入输出",
+      "sha256": "97b05ea3bf6071c107d4276a138702a512ca3c5378debfa00fa62c4c3475bb6c"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/dto/ImportReport.java",
+      "owner": "E",
+      "related": [],
+      "focus": "完整阅读参数、字段、调用方及状态变化",
+      "layer": "输入输出",
+      "sha256": "0bc5917b97215de098e1253d071d4db97210bdae34ec4775a2777f0aa25ee410"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/dto/Operator.java",
+      "owner": "A",
+      "related": [],
+      "focus": "完整阅读参数、字段、调用方及状态变化",
+      "layer": "输入输出",
+      "sha256": "2e15548110531bff7c408c0d3bebd6b926f8ac9da66bc1e7b5888d029dc6f5de"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/dto/PageResult.java",
+      "owner": "C",
+      "related": [],
+      "focus": "完整阅读参数、字段、调用方及状态变化",
+      "layer": "输入输出",
+      "sha256": "da67abbb47d9101d5f9465da03a6629bfbfc3635122d15dc36cd3dceac2ab7f1"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/dto/RoleDtos.java",
+      "owner": "D",
+      "related": [],
+      "focus": "完整阅读参数、字段、调用方及状态变化",
+      "layer": "输入输出",
+      "sha256": "83fc61247f63f62f473ed801a6f2a1007e5e875dd3e4d9721aebb3910456934f"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/dto/Scope.java",
+      "owner": "B",
+      "related": [],
+      "focus": "完整阅读参数、字段、调用方及状态变化",
+      "layer": "输入输出",
+      "sha256": "6bbf1835f0137d9e5328134e067c5ad1bae61e5b58f159c9c6bbb1f9b17564ec"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/dto/StatsDtos.java",
+      "owner": "F",
+      "related": [
+        "B"
+      ],
+      "focus": "统计类型F；AuthzRequest B；重点：完整阅读参数、字段、调用方及状态变化",
+      "layer": "输入输出",
+      "sha256": "360ee397f91029c4ee5bd05f596bd42daf951208f435bf2e99a6f356d05846a6"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/dto/UserDtos.java",
+      "owner": "C",
+      "related": [
+        "A"
+      ],
+      "focus": "用户输入输出C；当前用户身份A；重点：完整阅读参数、字段、调用方及状态变化",
+      "layer": "输入输出",
+      "sha256": "1e7660795381dd665ca98c6081cb3017a5882b9cc51da1ccdd8c36ed00645d52"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/entity/Action.java",
+      "owner": "D",
+      "related": [],
+      "focus": "完整阅读参数、字段、调用方及状态变化",
+      "layer": "数据模型",
+      "sha256": "a09b20a55cb06f34ac5c77ecbc069c1560d0458d8bd4950030c6429b81be114f"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/entity/AuditLog.java",
+      "owner": "F",
+      "related": [],
+      "focus": "完整阅读参数、字段、调用方及状态变化",
+      "layer": "数据模型",
+      "sha256": "9a9294942156e2a83ff9cd726af2eb03a05f14f2ba3593589389f3f804c1d4dc"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/entity/Company.java",
+      "owner": "E",
+      "related": [],
+      "focus": "完整阅读参数、字段、调用方及状态变化",
+      "layer": "数据模型",
+      "sha256": "2a9ee069a4ee21b99b5902adf577644497af5e3386babab7d9ad1d42920a4f02"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/entity/Department.java",
+      "owner": "E",
+      "related": [],
+      "focus": "完整阅读参数、字段、调用方及状态变化",
+      "layer": "数据模型",
+      "sha256": "9b5957866cab0b0eedbc83aa82ed28ed3eb16a9baba9743aa58a620282f28ec3"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/entity/FunctionModule.java",
+      "owner": "D",
+      "related": [],
+      "focus": "完整阅读参数、字段、调用方及状态变化",
+      "layer": "数据模型",
+      "sha256": "e76b1c9c56b4058f746a9891ba7d90360ca6eaf35e2ca8219b484fb85a612ec1"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/entity/GrantVersion.java",
+      "owner": "B",
+      "related": [],
+      "focus": "完整阅读参数、字段、调用方及状态变化",
+      "layer": "数据模型",
+      "sha256": "73d83054829bc108a46e41abd6aee0e4ff4a327e3c2e34f9e7a7807f542bef5f"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/entity/Menu.java",
+      "owner": "F",
+      "related": [],
+      "focus": "完整阅读参数、字段、调用方及状态变化",
+      "layer": "数据模型",
+      "sha256": "b81c0d751c2990bcf7ba4e34f226bdb10a54546e2d8a48f8db3441fea3568667"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/entity/Permission.java",
+      "owner": "D",
+      "related": [],
+      "focus": "完整阅读参数、字段、调用方及状态变化",
+      "layer": "数据模型",
+      "sha256": "40aaf51e9f77dd0ebbe2a90a455285e25a723f8ea4f591cfd519a197c5e7a12e"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/entity/Resource.java",
+      "owner": "D",
+      "related": [],
+      "focus": "完整阅读参数、字段、调用方及状态变化",
+      "layer": "数据模型",
+      "sha256": "e0d09cd457d82b23eaaeaaf9e41cf11309305293436e7aabb247234b7634a1b9"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/entity/Role.java",
+      "owner": "D",
+      "related": [],
+      "focus": "完整阅读参数、字段、调用方及状态变化",
+      "layer": "数据模型",
+      "sha256": "4946f3218a719fc607f50e4848ea5684c2f1bc1a8de464ddb1704532b1e5e50d"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/entity/RolePermission.java",
+      "owner": "D",
+      "related": [],
+      "focus": "完整阅读参数、字段、调用方及状态变化",
+      "layer": "数据模型",
+      "sha256": "4333a489c12aa05e39fb51afde045363e511dbdc876d6bb143826314eda425bb"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/entity/SoftwareSystem.java",
+      "owner": "D",
+      "related": [],
+      "focus": "完整阅读参数、字段、调用方及状态变化",
+      "layer": "数据模型",
+      "sha256": "9f172acd4d358a24d465f5877a814385eec7cbe55429f780fd9304341e357e46"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/entity/User.java",
+      "owner": "C",
+      "related": [],
+      "focus": "完整阅读参数、字段、调用方及状态变化",
+      "layer": "数据模型",
+      "sha256": "de54fa41fd16a0f5b8636d3bc77950d9d64684614c959232efcc69f08cb5240a"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/entity/UserRole.java",
+      "owner": "C",
+      "related": [],
+      "focus": "完整阅读参数、字段、调用方及状态变化",
+      "layer": "数据模型",
+      "sha256": "ff96c10694178d3cfdffc6304f9d7cc6f1605823ee8f0feeb83d49c3f6bec53e"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/entity/package-info.java",
+      "owner": "F",
+      "related": [],
+      "focus": "完整阅读参数、字段、调用方及状态变化",
+      "layer": "数据模型",
+      "sha256": "2699233e22df3ccf2ea166dd048a88f9e4273753eb9583cabaefffacc8f628f7"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/mapper/ActionMapper.java",
+      "owner": "D",
+      "related": [],
+      "focus": "完整阅读参数、字段、调用方及状态变化",
+      "layer": "查询与持久化",
+      "sha256": "5bc139715fbcd7720a11bf800911094dfa4020f525b590e352aac495dcbf2eb4"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/mapper/AuditLogMapper.java",
+      "owner": "F",
+      "related": [],
+      "focus": "完整阅读参数、字段、调用方及状态变化",
+      "layer": "查询与持久化",
+      "sha256": "0a61c8c149c141cd4f1ff3f9b1d951524b1b80edea177333e9a70341d44778cc"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/mapper/CompanyMapper.java",
+      "owner": "E",
+      "related": [],
+      "focus": "完整阅读参数、字段、调用方及状态变化",
+      "layer": "查询与持久化",
+      "sha256": "e63c794ba1091feea271e7be2096a03540b53b28a347f8a0605c42b9fdd4d1df"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/mapper/DepartmentMapper.java",
+      "owner": "E",
+      "related": [],
+      "focus": "完整阅读参数、字段、调用方及状态变化",
+      "layer": "查询与持久化",
+      "sha256": "97c6ad820e9654417e92383531710bf3456204d232e6daa7b2324fac8f23c591"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/mapper/FunctionModuleMapper.java",
+      "owner": "D",
+      "related": [],
+      "focus": "完整阅读参数、字段、调用方及状态变化",
+      "layer": "查询与持久化",
+      "sha256": "980693725b88f89df74615c95cbceb9956e2f1e49a4c7fc0e7b7718f97e8f0cb"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/mapper/GrantCacheMapper.java",
+      "owner": "B",
+      "related": [],
+      "focus": "带版本缓存键、读取、写入、损坏值与Redis故障",
+      "layer": "查询与持久化",
+      "sha256": "efd3c45a664ec59a6ead0ba0af66751a58268d7e38f3ee87ad660d1bc6f7c965"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/mapper/GrantVersionMapper.java",
+      "owner": "B",
+      "related": [],
+      "focus": "current、bump与事务内更新",
+      "layer": "查询与持久化",
+      "sha256": "dae63dcfd360aae65b064f3503172a347538db6b8563bc1104011d91039d2d7d"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/mapper/MenuMapper.java",
+      "owner": "F",
+      "related": [],
+      "focus": "完整阅读参数、字段、调用方及状态变化",
+      "layer": "查询与持久化",
+      "sha256": "b06f6b71131438a58e5b04fb76d13863834c324304bb97e085f365b92ac431bf"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/mapper/PermissionMapper.java",
+      "owner": "D",
+      "related": [],
+      "focus": "完整阅读参数、字段、调用方及状态变化",
+      "layer": "查询与持久化",
+      "sha256": "66f90560d4c6aac827601e648ad458f5a023db5ccf7edc4dad92e4c6cb2fcd28"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/mapper/ResourceMapper.java",
+      "owner": "D",
+      "related": [],
+      "focus": "完整阅读参数、字段、调用方及状态变化",
+      "layer": "查询与持久化",
+      "sha256": "95b93c9422412bae20e9dbf9f0627cc7af59142df3bc2542ff659ee3d8254f5b"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/mapper/RoleMapper.java",
+      "owner": "D",
+      "related": [],
+      "focus": "完整阅读参数、字段、调用方及状态变化",
+      "layer": "查询与持久化",
+      "sha256": "56041e0de8bb04ccb9710665035078dee3fa2ca97d0e7693205b91634e8b08a2"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/mapper/RolePermissionMapper.java",
+      "owner": "D",
+      "related": [
+        "C",
+        "E"
+      ],
+      "focus": "手工维护D；导入同步E；指派授权上界C；重点：完整阅读参数、字段、调用方及状态变化",
+      "layer": "查询与持久化",
+      "sha256": "7af09caac06851b5e6c8b65f4b2d387aee5e42b3a215091906f88f27eebd49e5"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/mapper/SoftwareSystemMapper.java",
+      "owner": "D",
+      "related": [],
+      "focus": "完整阅读参数、字段、调用方及状态变化",
+      "layer": "查询与持久化",
+      "sha256": "8106449a61cb08cac8295d3ac9f290b3cfd24cbf5f85e472291e5e76897fa425"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/mapper/TokenRevocationMapper.java",
+      "owner": "A",
+      "related": [],
+      "focus": "完整阅读参数、字段、调用方及状态变化",
+      "layer": "查询与持久化",
+      "sha256": "0646c03d077cce2eeeb353978fa24d63527aa4ba28235aeae0a7e9a87e87e3df"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/mapper/UserMapper.java",
+      "owner": "C",
+      "related": [
+        "A",
+        "E"
+      ],
+      "focus": "用户与内部编号C；登录查询/失败计数/重置A；导入定位E；重点：完整阅读参数、字段、调用方及状态变化",
+      "layer": "查询与持久化",
+      "sha256": "664bab8b63efee3737cedb1fd1d5e0108d66fd2d2c808f0828f0dbcb138641dd"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/mapper/UserRoleMapper.java",
+      "owner": "C",
+      "related": [
+        "B",
+        "D"
+      ],
+      "focus": "指派写入/删除/批量与有效SA计数C；授权展开B；持有者查询D；重点：完整阅读参数、字段、调用方及状态变化",
+      "layer": "查询与持久化",
+      "sha256": "dc23ac096e41bea544b3a1b196ea5f01ddae384706a0a2f1cb9c35e1ae3867ff"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/service/AssignmentService.java",
+      "owner": "C",
+      "related": [],
+      "focus": "assign/revoke、batchAssign/batchRevoke、context/checkOne/checkRevoke、escalation、resolveTargets、chunks",
+      "layer": "业务与事务",
+      "sha256": "794f40b4398991ef507f5e218574e072335a7b6fae8e6339a8c413713e843158"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/service/AuditService.java",
+      "owner": "F",
+      "related": [
+        "A",
+        "B",
+        "C",
+        "D",
+        "E"
+      ],
+      "focus": "独立审计事务及事件F；各业务人复核实际调用时机与内容；重点：record、recordDecision、search、REQUIRES_NEW、truncate",
+      "layer": "业务与事务",
+      "sha256": "1370c63a4a7fc45ba04978786a7330f2507c198fe9796fc118abbb7f264e1df1"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/service/AuthenticationService.java",
+      "owner": "A",
+      "related": [],
+      "focus": "login、authenticate、logout、changePassword、loginFailed、meetsPolicy",
+      "layer": "业务与事务",
+      "sha256": "004c1b58ffb2bd24892baa759e5b0d03b508b6308cd49cf94e74263fd3024969"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/service/AuthorizationService.java",
+      "owner": "B",
+      "related": [
+        "C",
+        "D",
+        "E",
+        "F"
+      ],
+      "focus": "判定、范围与失效B；C/D/E复核各自调用；审计副作用F；重点：decide、subjectDenyReason、covers、loadGrants、scopeOf、requireInScope、bumpGrantVersion",
+      "layer": "业务与事务",
+      "sha256": "f84c3470bc262fe5f273dbc8f096f129d14c39339d513f79e24c1f0141e20f1a"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/service/AuthzQueryService.java",
+      "owner": "B",
+      "related": [],
+      "focus": "check、permissionOf、resolveSubject、denied",
+      "layer": "业务与事务",
+      "sha256": "f4525329f331b86c9faa6a313692934b93c765e746d2040a338d78319d445c9a"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/service/BizException.java",
+      "owner": "A",
+      "related": [],
+      "focus": "完整阅读参数、字段、调用方及状态变化",
+      "layer": "业务与事务",
+      "sha256": "648edd2da2fc662449d0085c7d3b8425b046cf4d20d39d1474a03a5065bbec02"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/service/CatalogService.java",
+      "owner": "D",
+      "related": [],
+      "focus": "目录查询、createResource、createPermission、addPermission、分页参数",
+      "layer": "业务与事务",
+      "sha256": "74cd6a9def9a8aa971b18262268bcd6242a71c90699b6649e0dcff4ccf704a1d"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/service/DashboardService.java",
+      "owner": "F",
+      "related": [],
+      "focus": "metrics、heatmap、percentileMs/percentileOffset、ratio与时间窗",
+      "layer": "业务与事务",
+      "sha256": "b819d24d264f4e2bff7f305a4c6262723a5d353c90f500a4b3f29db852e02246"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/service/ImportService.java",
+      "owner": "E",
+      "related": [],
+      "focus": "importOrganization/importDepartments/importEmployees、locate/linkManagers、importPermissions/revokeMissing/parseCell、roleTemplate/resource/readSheet/findHeaderRow",
+      "layer": "业务与事务",
+      "sha256": "a5e54eb7b794a646a6e49ba65109c38fb35ac6aa65f7a298142f542ee4ed64ee"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/service/MenuService.java",
+      "owner": "F",
+      "related": [],
+      "focus": "myMenus、tree/build、apply、createsCycle、增改删",
+      "layer": "业务与事务",
+      "sha256": "4e9d92fc76003a0d8292f6f9ade0e51c0c5d7303ef284fe8c969689c84d7ee41"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/service/OrgService.java",
+      "owner": "E",
+      "related": [],
+      "focus": "companies、tree、祖先展示与子树过滤",
+      "layer": "业务与事务",
+      "sha256": "1f964c6676e04447f58c8664e3389ed36f75913e10a92ff6279b43c482f886e1"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/service/RoleManagementService.java",
+      "owner": "D",
+      "related": [],
+      "focus": "list/detail/users、create/update/delete、grant/ungrant、requireCompanyLevel、firstNotHeld",
+      "layer": "业务与事务",
+      "sha256": "8865d7f82811c74cf9feec3c1e3775daf3d672631686a6ccbd2ae1c258c1e7c7"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/service/TokenService.java",
+      "owner": "A",
+      "related": [],
+      "focus": "issue、parse、时钟、签名及有效期",
+      "layer": "业务与事务",
+      "sha256": "857fc39c4b427fdfa614d04c1031f5fb17b099afb03a31bfe99a5fc11919f6c0"
+    },
+    {
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/service/UserManagementService.java",
+      "owner": "C",
+      "related": [
+        "A",
+        "E"
+      ],
+      "focus": "用户与编号C；当前用户detail关联A；初始口令与导入关联E；重点：list/buildFilter/deptSubquery、detail、create/insertInternal、validateTypeFields、update、applyStatus、requireManageable",
+      "layer": "业务与事务",
+      "sha256": "657ef796bcb094a67d1f020e92ccde8e821c18d278531a68968964521fd1ec19"
+    },
+    {
+      "path": "rbac-structured/src/main/resources/application.yml",
+      "owner": "F",
+      "related": [
+        "A",
+        "B"
+      ],
+      "focus": "权限中心、数据库、缓存及控制台相关构建、测试与运行配置；其余服务段不审查",
+      "layer": "构建与运行配置",
+      "sha256": "8ec6fded4c708932165c5a4cb94d0092d9784f3c821729fc74d8630c7962f762"
+    },
+    {
+      "path": "rbac-structured/src/test/java/com/xmu/rbac/structured/ArchitectureTest.java",
+      "owner": "F",
+      "related": [],
+      "focus": "架构约束及规则证明边界",
+      "layer": "后端测试",
+      "sha256": "737ab4ef2c698a86760b421d81d2b29ffcd95aa95cc9db0d9df71acbbf41f056"
+    },
+    {
+      "path": "rbac-structured/src/test/java/com/xmu/rbac/structured/controller/ContractRoutesTest.java",
+      "owner": "F",
+      "related": [
+        "A"
+      ],
+      "focus": "契约结构、权限声明、双向路由核对；A复核入口语义",
+      "layer": "后端测试",
+      "sha256": "262fef2c441eae3e100a5b24a388d074c36a7f40f0377ca6dcec892b25587ae5"
+    },
+    {
+      "path": "rbac-structured/src/test/java/com/xmu/rbac/structured/integration/AcceptanceTest.java",
+      "owner": "F",
+      "related": [
+        "A",
+        "B",
+        "C",
+        "D",
+        "E"
+      ],
+      "focus": "公共测试结构F；具体用例按test-matrix逐方法分配，不要求F重读各业务断言",
+      "layer": "后端测试",
+      "sha256": "b7ffb3106d77506719aff90fc1ee7e0b07bc2626f8305584405eb98285f54add"
+    },
+    {
+      "path": "rbac-structured/src/test/java/com/xmu/rbac/structured/integration/ExcelImportIntegrationTest.java",
+      "owner": "E",
+      "related": [
+        "B",
+        "C",
+        "D",
+        "F"
+      ],
+      "focus": "四个导入测试E；B失效、C编号归属、D模板同步、F环境",
+      "layer": "后端测试",
+      "sha256": "43bd7f5b534860979c4698b73c952f5dfb805c22fbc6f5e54e6b23d3cfb6eee7"
+    },
+    {
+      "path": "rbac-structured/src/test/java/com/xmu/rbac/structured/integration/IntegrationTestBase.java",
+      "owner": "F",
+      "related": [
+        "A",
+        "B",
+        "C",
+        "D",
+        "E"
+      ],
+      "focus": "隔离环境、快照和辅助方法；C/E复核V3自增起点恢复",
+      "layer": "后端测试",
+      "sha256": "86681a650b8f52b2ec93f27fcaea73cf9faedc3597378e8e5434e82fdce1b570"
+    },
+    {
+      "path": "rbac-structured/src/test/java/com/xmu/rbac/structured/integration/ManagementApiTest.java",
+      "owner": "F",
+      "related": [
+        "A",
+        "B",
+        "C",
+        "D",
+        "E"
+      ],
+      "focus": "公共测试结构F；各业务人按test-matrix主审断言及目标分支",
+      "layer": "后端测试",
+      "sha256": "24d3b8940474d3ac3f637fe25d6c75f25f463a0485ab51c006ecb7e3eb8c6407"
+    },
+    {
+      "path": "rbac-structured/src/test/java/com/xmu/rbac/structured/mapper/RedisFailureTest.java",
+      "owner": "B",
+      "related": [
+        "A",
+        "F"
+      ],
+      "focus": "授权缓存B；注销失败A；环境与报告F",
+      "layer": "后端测试",
+      "sha256": "5ac04bc4a9a00d04cce12dd6ab78245669044bed4480e3a35c19116563207ef1"
+    },
+    {
+      "path": "rbac-structured/src/test/resources/application-test.yml",
+      "owner": "F",
+      "related": [
+        "A",
+        "B",
+        "C",
+        "E"
+      ],
+      "focus": "测试数据库及Redis隔离；身份、版本、编号测试环境",
+      "layer": "后端测试",
+      "sha256": "32df29da84e4b2afa7a254762f0beef028fdf5515718e46a44ccea369057af39"
+    },
+    {
+      "path": "rbac-web/.dockerignore",
+      "owner": "F",
+      "related": [],
+      "focus": "权限中心、数据库、缓存及控制台相关构建、测试与运行配置；其余服务段不审查",
+      "layer": "构建与运行配置",
+      "sha256": "cb955244b758034449e2bcdb10d3465200f071e60b94cd56b145919ba36d97e0"
+    },
+    {
+      "path": "rbac-web/Dockerfile",
+      "owner": "F",
+      "related": [],
+      "focus": "权限中心、数据库、缓存及控制台相关构建、测试与运行配置；其余服务段不审查",
+      "layer": "构建与运行配置",
+      "sha256": "fefee426c6dbaed468cb699a7d1925b32c1495d63f72ad387fe2c5ffde1cee47"
+    },
+    {
+      "path": "rbac-web/e2e/console.spec.ts",
+      "owner": "F",
+      "related": [
+        "A",
+        "B",
+        "C",
+        "D",
+        "E"
+      ],
+      "focus": "隔离运行与执行顺序F；每一步业务预期归对应负责人",
+      "layer": "端到端测试与样本",
+      "sha256": "6382736458d5362889d9728f8d60d5ff11ab05026b70014de80c3506992f8839"
+    },
+    {
+      "path": "rbac-web/e2e/fixtures/departments.xlsx",
+      "owner": "E",
+      "related": [
+        "C",
+        "D",
+        "F"
+      ],
+      "focus": "导入样本及生成脚本；使用虚构数据，工作簿按内容核对而非逐字节阅读",
+      "layer": "端到端测试与样本",
+      "sha256": "b321ea56912a1889c0ae14c9ae79b8f585c2e18121b262509f92500b9032b62c"
+    },
+    {
+      "path": "rbac-web/e2e/fixtures/employees.xlsx",
+      "owner": "E",
+      "related": [
+        "C",
+        "D",
+        "F"
+      ],
+      "focus": "导入样本及生成脚本；使用虚构数据，工作簿按内容核对而非逐字节阅读",
+      "layer": "端到端测试与样本",
+      "sha256": "b374fcb58614a141c71861b7e82f271e9e9ace28416d4ca66682c287da62083a"
+    },
+    {
+      "path": "rbac-web/e2e/fixtures/generate.py",
+      "owner": "E",
+      "related": [
+        "C",
+        "D",
+        "F"
+      ],
+      "focus": "导入样本及生成脚本；使用虚构数据，工作簿按内容核对而非逐字节阅读",
+      "layer": "端到端测试与样本",
+      "sha256": "9eae39679de36161938c0b247c442a37bf37bac94627f0f26976863863849676"
+    },
+    {
+      "path": "rbac-web/e2e/fixtures/permissions.xlsx",
+      "owner": "E",
+      "related": [
+        "C",
+        "D",
+        "F"
+      ],
+      "focus": "导入样本及生成脚本；使用虚构数据，工作簿按内容核对而非逐字节阅读",
+      "layer": "端到端测试与样本",
+      "sha256": "2a15ac5be1c2902f4a0f314e94f65ede5c52b120591bc2907c355b37d9c7ed65"
+    },
+    {
+      "path": "rbac-web/e2e/global-setup.ts",
+      "owner": "F",
+      "related": [
+        "A",
+        "B",
+        "C",
+        "D",
+        "E"
+      ],
+      "focus": "隔离运行与执行顺序F；每一步业务预期归对应负责人",
+      "layer": "端到端测试与样本",
+      "sha256": "d3a725c3df8a2a22b5b86fa20db2ca19604fc4ab56c192dd4e6ad9936504d884"
+    },
+    {
+      "path": "rbac-web/index.html",
+      "owner": "F",
+      "related": [],
+      "focus": "权限中心、数据库、缓存及控制台相关构建、测试与运行配置；其余服务段不审查",
+      "layer": "构建与运行配置",
+      "sha256": "9700733b58434b247287c61f54c05a46325b2cb840a6c91c4750c23be9d59354"
+    },
+    {
+      "path": "rbac-web/nginx.conf",
+      "owner": "F",
+      "related": [
+        "A",
+        "B"
+      ],
+      "focus": "权限中心、数据库、缓存及控制台相关构建、测试与运行配置；其余服务段不审查",
+      "layer": "构建与运行配置",
+      "sha256": "dcd378660d4f7f4b9d7e1ea4fad637b5eb0cada3e1e05e553bdbbd734fd42a4c"
+    },
+    {
+      "path": "rbac-web/package-lock.json",
+      "owner": "D",
+      "related": [
+        "F"
+      ],
+      "focus": "权限中心/契约依赖及版本锁定；传递依赖按异常差异抽查；不检查外部模拟模块功能",
+      "layer": "构建与运行配置",
+      "sha256": "851ae628b8df75ec6366f8ad3a8764ef06fd7c42b5cec77a21bb4cd2be7fbd30"
+    },
+    {
+      "path": "rbac-web/package.json",
+      "owner": "D",
+      "related": [
+        "F"
+      ],
+      "focus": "权限中心/契约依赖及版本锁定；传递依赖按异常差异抽查；不检查外部模拟模块功能",
+      "layer": "构建与运行配置",
+      "sha256": "477c2a972317d16cba5daa59d866e4fe174408fc5772dfb60b386eed88010236"
+    },
+    {
+      "path": "rbac-web/playwright.config.ts",
+      "owner": "F",
+      "related": [],
+      "focus": "权限中心、数据库、缓存及控制台相关构建、测试与运行配置；其余服务段不审查",
+      "layer": "构建与运行配置",
+      "sha256": "cc4e89d06d77d9cfdf2e5675e3f7a52f6b48fd9439d46d1bb0c8a02c90cbe3c6"
+    },
+    {
+      "path": "rbac-web/src/App.vue",
+      "owner": "F",
+      "related": [],
+      "focus": "组件状态、请求参数、权限控制、错误反馈、请求乱序与刷新",
+      "layer": "前端交互",
+      "sha256": "656e64166110b11cc4da47778d5605a4a495f10d30335172102f105d4b8b33a2"
+    },
+    {
+      "path": "rbac-web/src/api/http.ts",
+      "owner": "A",
+      "related": [],
+      "focus": "组件状态、请求参数、权限控制、错误反馈、请求乱序与刷新",
+      "layer": "前端交互",
+      "sha256": "55a71e561fd6a27ba7834f65023baafd4c78d4fd3b5450320856683fab6ef605"
+    },
+    {
+      "path": "rbac-web/src/api/index.ts",
+      "owner": "F",
+      "related": [
+        "A",
+        "B",
+        "C",
+        "D",
+        "E"
+      ],
+      "focus": "A auth；B authz；C user/assignment；D role/catalog；E org/import；F menu/stats与公共部分",
+      "layer": "前端交互",
+      "sha256": "fc5c7230d9bf8d01df8143170d94f15ef8e90a602fa7b1c1e7aa1a52c2703d79"
+    },
+    {
+      "path": "rbac-web/src/api/types.ts",
+      "owner": "F",
+      "related": [
+        "A",
+        "B",
+        "C",
+        "D",
+        "E"
+      ],
+      "focus": "A auth；B authz；C user/assignment；D role/catalog；E org/import；F menu/stats与公共部分",
+      "layer": "前端交互",
+      "sha256": "522c5b8e2cda13eafd54d614813111de648387832405b6d6b053ebdbeeb8d707"
+    },
+    {
+      "path": "rbac-web/src/components/AssignRoleDialog.vue",
+      "owner": "C",
+      "related": [],
+      "focus": "组件状态、请求参数、权限控制、错误反馈、请求乱序与刷新",
+      "layer": "前端交互",
+      "sha256": "8c55e08d55f8da4deb82ad993c183d903502956983c83d00a7c95c538d85c296"
+    },
+    {
+      "path": "rbac-web/src/components/BatchAssignDialog.vue",
+      "owner": "C",
+      "related": [],
+      "focus": "组件状态、请求参数、权限控制、错误反馈、请求乱序与刷新",
+      "layer": "前端交互",
+      "sha256": "0358dfecfce114735508e29360cdcf5cad843f1b22c2ca727d7cf091964be283"
+    },
+    {
+      "path": "rbac-web/src/components/BatchResultView.vue",
+      "owner": "C",
+      "related": [],
+      "focus": "组件状态、请求参数、权限控制、错误反馈、请求乱序与刷新",
+      "layer": "前端交互",
+      "sha256": "f603605ed1c8238c44f2b05c33ca7f26a08fb2d7e9e0eaf64f386f2077eab35e"
+    },
+    {
+      "path": "rbac-web/src/components/DeptTreeSelect.vue",
+      "owner": "E",
+      "related": [],
+      "focus": "组件状态、请求参数、权限控制、错误反馈、请求乱序与刷新",
+      "layer": "前端交互",
+      "sha256": "f133f806c543b3a462e1e62912c5b05d1ff1768eaa204ab5dd488133055454f2"
+    },
+    {
+      "path": "rbac-web/src/components/GrantPermissionDialog.vue",
+      "owner": "D",
+      "related": [],
+      "focus": "组件状态、请求参数、权限控制、错误反馈、请求乱序与刷新",
+      "layer": "前端交互",
+      "sha256": "95a60606fc9dfad9b1bf098bab60d0891237ed1ac0d3ec05e92f5f3435bbe3cd"
+    },
+    {
+      "path": "rbac-web/src/components/ImportReportView.vue",
+      "owner": "E",
+      "related": [],
+      "focus": "组件状态、请求参数、权限控制、错误反馈、请求乱序与刷新",
+      "layer": "前端交互",
+      "sha256": "42961e13664084c7ac3b2a4e08c0723f753dadbd0ebb64c00287886fb0a45af8"
+    },
+    {
+      "path": "rbac-web/src/components/PermissionCode.vue",
+      "owner": "D",
+      "related": [],
+      "focus": "组件状态、请求参数、权限控制、错误反馈、请求乱序与刷新",
+      "layer": "前端交互",
+      "sha256": "5a91c5dd9e68b5d28019825a72072629b5ffbab14865307a80dc526ed7edd8f4"
+    },
+    {
+      "path": "rbac-web/src/components/UserDetailPanel.vue",
+      "owner": "C",
+      "related": [
+        "A"
+      ],
+      "focus": "用户详情与自我撤权C；个人中心和身份刷新A",
+      "layer": "前端交互",
+      "sha256": "b6053e6bcc27332f29343e63cb516aae387b22b3e70758b489db444fe716d7df"
+    },
+    {
+      "path": "rbac-web/src/components/UserFormDialog.vue",
+      "owner": "C",
+      "related": [],
+      "focus": "组件状态、请求参数、权限控制、错误反馈、请求乱序与刷新",
+      "layer": "前端交互",
+      "sha256": "810f541efbdeabe65ef1ba0aba3b4307b25f373f3b5599db512b5548009c245e"
+    },
+    {
+      "path": "rbac-web/src/directives/perm.ts",
+      "owner": "F",
+      "related": [],
+      "focus": "组件状态、请求参数、权限控制、错误反馈、请求乱序与刷新",
+      "layer": "前端交互",
+      "sha256": "83346a97ed2802e5b6cd260f8d5533ab8cf1b9f688c3f00aff9e19eaa517d592"
+    },
+    {
+      "path": "rbac-web/src/env.d.ts",
+      "owner": "F",
+      "related": [],
+      "focus": "组件状态、请求参数、权限控制、错误反馈、请求乱序与刷新",
+      "layer": "前端交互",
+      "sha256": "b61ba723029bad40d8f46de302240fd24ce70dd3ff906d1822926ef179f69628"
+    },
+    {
+      "path": "rbac-web/src/layouts/AppLayout.vue",
+      "owner": "F",
+      "related": [],
+      "focus": "组件状态、请求参数、权限控制、错误反馈、请求乱序与刷新",
+      "layer": "前端交互",
+      "sha256": "c0d72ce505b20b77820d5a34b58fba090ccdab7619c0336910be51313e78e401"
+    },
+    {
+      "path": "rbac-web/src/main.ts",
+      "owner": "F",
+      "related": [],
+      "focus": "组件状态、请求参数、权限控制、错误反馈、请求乱序与刷新",
+      "layer": "前端交互",
+      "sha256": "73785ca118801f98fe797e21b8ccd385989e5be81949e592535dcc1fe98a2fe8"
+    },
+    {
+      "path": "rbac-web/src/router/index.ts",
+      "owner": "A",
+      "related": [],
+      "focus": "组件状态、请求参数、权限控制、错误反馈、请求乱序与刷新",
+      "layer": "前端交互",
+      "sha256": "deee7d42db33d6f4e8533c8697d9e4bd0fdf03c04b9ec6981466f78903940728"
+    },
+    {
+      "path": "rbac-web/src/router/routes.ts",
+      "owner": "A",
+      "related": [],
+      "focus": "组件状态、请求参数、权限控制、错误反馈、请求乱序与刷新",
+      "layer": "前端交互",
+      "sha256": "20dccf58d7bb688c8cdac6a62889b1d77b4ed34127de61bb1c4ae7c4aa85dd2b"
+    },
+    {
+      "path": "rbac-web/src/stores/auth.ts",
+      "owner": "A",
+      "related": [],
+      "focus": "组件状态、请求参数、权限控制、错误反馈、请求乱序与刷新",
+      "layer": "前端交互",
+      "sha256": "6d8bb658f58fab1fd36728f7755a84d36c2bbc34a733cf3e38f6a2df131c6a0a"
+    },
+    {
+      "path": "rbac-web/src/styles.css",
+      "owner": "F",
+      "related": [],
+      "focus": "组件状态、请求参数、权限控制、错误反馈、请求乱序与刷新",
+      "layer": "前端交互",
+      "sha256": "ec08b97e335710eab89fd61ab701e8e8314e409fb104fa15e9303eac95e464f2"
+    },
+    {
+      "path": "rbac-web/src/utils/format.ts",
+      "owner": "F",
+      "related": [],
+      "focus": "组件状态、请求参数、权限控制、错误反馈、请求乱序与刷新",
+      "layer": "前端交互",
+      "sha256": "cfc1f2e816579ede8d6f1dbccd7acf67d4309b1893053160cdbbafaf90dcebb3"
+    },
+    {
+      "path": "rbac-web/src/utils/heatmap.ts",
+      "owner": "F",
+      "related": [],
+      "focus": "组件状态、请求参数、权限控制、错误反馈、请求乱序与刷新",
+      "layer": "前端交互",
+      "sha256": "2a1dd2d3c7db1268d61268a70b1c365a472435e4b8f94208b5624dc8ec6fc39b"
+    },
+    {
+      "path": "rbac-web/src/utils/password.ts",
+      "owner": "A",
+      "related": [],
+      "focus": "组件状态、请求参数、权限控制、错误反馈、请求乱序与刷新",
+      "layer": "前端交互",
+      "sha256": "36114f2a04eaec4bff1c06f37a361de1dc381a22f26ddf731b25ef6bee00bd6f"
+    },
+    {
+      "path": "rbac-web/src/views/AuditLogView.vue",
+      "owner": "F",
+      "related": [],
+      "focus": "组件状态、请求参数、权限控制、错误反馈、请求乱序与刷新",
+      "layer": "前端交互",
+      "sha256": "20f1a7f0071d7aae3c3d563eab8081b8c231baa02ecabfbd4e1dc9c55b6a5403"
+    },
+    {
+      "path": "rbac-web/src/views/DashboardView.vue",
+      "owner": "F",
+      "related": [],
+      "focus": "组件状态、请求参数、权限控制、错误反馈、请求乱序与刷新",
+      "layer": "前端交互",
+      "sha256": "014555ab264a45b565afd4c76d2b568a1ed5ac0d1c7f20e8c158a063f97ece4d"
+    },
+    {
+      "path": "rbac-web/src/views/ExplainView.vue",
+      "owner": "B",
+      "related": [],
+      "focus": "组件状态、请求参数、权限控制、错误反馈、请求乱序与刷新",
+      "layer": "前端交互",
+      "sha256": "3621a990518b12505ab38ec3f530d0971d8512e234a6dcbc3128529011455c3e"
+    },
+    {
+      "path": "rbac-web/src/views/ForbiddenView.vue",
+      "owner": "A",
+      "related": [],
+      "focus": "组件状态、请求参数、权限控制、错误反馈、请求乱序与刷新",
+      "layer": "前端交互",
+      "sha256": "44df9324dbdf882ce711b11a80a79d402dae3c31584de4c4fb962b56301bdd82"
+    },
+    {
+      "path": "rbac-web/src/views/HeatmapView.vue",
+      "owner": "F",
+      "related": [],
+      "focus": "组件状态、请求参数、权限控制、错误反馈、请求乱序与刷新",
+      "layer": "前端交互",
+      "sha256": "c4615e89af724b6150532bc0335f5a9e2b87f6a4cd730213b3014d54a41cd606"
+    },
+    {
+      "path": "rbac-web/src/views/LoginView.vue",
+      "owner": "A",
+      "related": [],
+      "focus": "组件状态、请求参数、权限控制、错误反馈、请求乱序与刷新",
+      "layer": "前端交互",
+      "sha256": "98adf264dd62f764fe7794b498e6429cf0f39294234dc0686bd6db4541698a82"
+    },
+    {
+      "path": "rbac-web/src/views/MeView.vue",
+      "owner": "A",
+      "related": [],
+      "focus": "组件状态、请求参数、权限控制、错误反馈、请求乱序与刷新",
+      "layer": "前端交互",
+      "sha256": "2b5c857440fdfd4b2769344b4c62e4a0ae3d358fd1e0b954cc7f5ede3a3e7300"
+    },
+    {
+      "path": "rbac-web/src/views/MenuListView.vue",
+      "owner": "F",
+      "related": [],
+      "focus": "组件状态、请求参数、权限控制、错误反馈、请求乱序与刷新",
+      "layer": "前端交互",
+      "sha256": "327371c6c33c0e210aca45ac677d50e7d45c042fdcb2b9a97f651f51d6b09b21"
+    },
+    {
+      "path": "rbac-web/src/views/OrgView.vue",
+      "owner": "E",
+      "related": [],
+      "focus": "组件状态、请求参数、权限控制、错误反馈、请求乱序与刷新",
+      "layer": "前端交互",
+      "sha256": "58a0e6185d494f090486fb1bef12f27c5b7b031efd5fbdf54374144650b8006d"
+    },
+    {
+      "path": "rbac-web/src/views/PasswordView.vue",
+      "owner": "A",
+      "related": [],
+      "focus": "组件状态、请求参数、权限控制、错误反馈、请求乱序与刷新",
+      "layer": "前端交互",
+      "sha256": "ccb322fd9594f2c032f0e8ca0ad24660cf6f4d13bf66e39c84374d83caeb0f9d"
+    },
+    {
+      "path": "rbac-web/src/views/PermissionView.vue",
+      "owner": "D",
+      "related": [
+        "E"
+      ],
+      "focus": "权限目录D；清单导入交互E",
+      "layer": "前端交互",
+      "sha256": "965b1b35d83b4ab5682e3527440e5ffdca14a17ce4f717a27d476ce8a452cdf9"
+    },
+    {
+      "path": "rbac-web/src/views/RoleDetailView.vue",
+      "owner": "D",
+      "related": [],
+      "focus": "组件状态、请求参数、权限控制、错误反馈、请求乱序与刷新",
+      "layer": "前端交互",
+      "sha256": "8ce32b03ce242e2ca50edb8e6ecc8e4b241ea871684a971de402fe7c95a1560b"
+    },
+    {
+      "path": "rbac-web/src/views/RoleListView.vue",
+      "owner": "D",
+      "related": [],
+      "focus": "组件状态、请求参数、权限控制、错误反馈、请求乱序与刷新",
+      "layer": "前端交互",
+      "sha256": "e6c3eb9196083d7ac16da5f33728d5b48fd382eac9c6d9ccfae842caa22ff886"
+    },
+    {
+      "path": "rbac-web/src/views/UserDetailView.vue",
+      "owner": "C",
+      "related": [],
+      "focus": "组件状态、请求参数、权限控制、错误反馈、请求乱序与刷新",
+      "layer": "前端交互",
+      "sha256": "40fb7482cb8e46c01d98ff5c9115f82acb4c56bce667543045802609fbf14e7e"
+    },
+    {
+      "path": "rbac-web/src/views/UserListView.vue",
+      "owner": "C",
+      "related": [],
+      "focus": "组件状态、请求参数、权限控制、错误反馈、请求乱序与刷新",
+      "layer": "前端交互",
+      "sha256": "219fc850dcdf50e68937f6a98ebe34ea83334adc1b889ce843f271fa8afe6d27"
+    },
+    {
+      "path": "rbac-web/tests/auth.spec.ts",
+      "owner": "A",
+      "related": [],
+      "focus": "公共逻辑与环境主审；组件业务断言由各业务负责人按任务书认领",
+      "layer": "前端测试",
+      "sha256": "0e89dbb7e4f499209bf1709a8f13e983ec2e500c95c81656986d062e5351f275"
+    },
+    {
+      "path": "rbac-web/tests/components.spec.ts",
+      "owner": "F",
+      "related": [
+        "A",
+        "B",
+        "C",
+        "D",
+        "E"
+      ],
+      "focus": "公共逻辑与环境主审；组件业务断言由各业务负责人按任务书认领",
+      "layer": "前端测试",
+      "sha256": "49cf7e8dfad764f59a7c4efca21d102cbdc3f6d9a2b589736ca18cae89f79ab3"
+    },
+    {
+      "path": "rbac-web/tests/fixtures.ts",
+      "owner": "F",
+      "related": [],
+      "focus": "公共逻辑与环境主审；组件业务断言由各业务负责人按任务书认领",
+      "layer": "前端测试",
+      "sha256": "67adebbec4d4a9119f8b9ecb3fc58d7d81fd37269f0a09afb8a1bdd3db3ade9f"
+    },
+    {
+      "path": "rbac-web/tests/http.spec.ts",
+      "owner": "A",
+      "related": [],
+      "focus": "公共逻辑与环境主审；组件业务断言由各业务负责人按任务书认领",
+      "layer": "前端测试",
+      "sha256": "2aad1282fb9443a80228c3de5c1887458fe8412d619fc50f46ed954472648df6"
+    },
+    {
+      "path": "rbac-web/tests/router.spec.ts",
+      "owner": "A",
+      "related": [],
+      "focus": "公共逻辑与环境主审；组件业务断言由各业务负责人按任务书认领",
+      "layer": "前端测试",
+      "sha256": "27b83808282d0b8624ffb192b978cc3727512c2d5f028bff2d5a23975b2d0391"
+    },
+    {
+      "path": "rbac-web/tests/setup.ts",
+      "owner": "F",
+      "related": [],
+      "focus": "公共逻辑与环境主审；组件业务断言由各业务负责人按任务书认领",
+      "layer": "前端测试",
+      "sha256": "8263aec2b0b25d8aa6ef88e9e17f1536402e993f1d04454b5b445cdf63a38818"
+    },
+    {
+      "path": "rbac-web/tests/utils.spec.ts",
+      "owner": "F",
+      "related": [],
+      "focus": "公共逻辑与环境主审；组件业务断言由各业务负责人按任务书认领",
+      "layer": "前端测试",
+      "sha256": "7ced802dc4a5b4f8e2500d52e69656b009086e87fdd5769895d59e2e0ff42042"
+    },
+    {
+      "path": "rbac-web/tsconfig.json",
+      "owner": "F",
+      "related": [],
+      "focus": "权限中心、数据库、缓存及控制台相关构建、测试与运行配置；其余服务段不审查",
+      "layer": "构建与运行配置",
+      "sha256": "00b7b18406cb8083aac182510ceadc0cb08db3a3b0f786febdcc115ee90c7c62"
+    },
+    {
+      "path": "rbac-web/vite.config.ts",
+      "owner": "F",
+      "related": [],
+      "focus": "权限中心、数据库、缓存及控制台相关构建、测试与运行配置；其余服务段不审查",
+      "layer": "构建与运行配置",
+      "sha256": "8ff1a5c089d63324ff613563d25790306b348ecda28367b5a594708e731d104a"
+    }
+  ],
+  "apis": [
+    {
+      "id": "A01",
+      "key": "POST /auth/login",
+      "owner": "A",
+      "summary": "登录",
+      "operation_id": "login",
+      "permission": "anonymous",
+      "contract_line": 66,
+      "controller": {
+        "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/AuthController.java",
+        "method": "login",
+        "line": 40,
+        "services": [
+          {
+            "class": "AuthenticationService",
+            "method": "login"
+          }
+        ]
+      }
+    },
+    {
+      "id": "A02",
+      "key": "POST /auth/logout",
+      "owner": "A",
+      "summary": "登出",
+      "operation_id": "logout",
+      "permission": "@self",
+      "contract_line": 99,
+      "controller": {
+        "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/AuthController.java",
+        "method": "logout",
+        "line": 46,
+        "services": [
+          {
+            "class": "AuthenticationService",
+            "method": "logout"
+          }
+        ]
+      }
+    },
+    {
+      "id": "A03",
+      "key": "GET /auth/me",
+      "owner": "A",
+      "summary": "当前用户的基本信息、角色与有效权限",
+      "operation_id": "getCurrentUser",
+      "permission": "@self",
+      "contract_line": 112,
+      "controller": {
+        "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/AuthController.java",
+        "method": "me",
+        "line": 54,
+        "services": [
+          {
+            "class": "UserManagementService",
+            "method": "detail"
+          }
+        ]
+      }
+    },
+    {
+      "id": "A04",
+      "key": "POST /auth/password",
+      "owner": "A",
+      "summary": "修改本人口令",
+      "operation_id": "changeOwnPassword",
+      "permission": "@self",
+      "contract_line": 134,
+      "controller": {
+        "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/AuthController.java",
+        "method": "changePassword",
+        "line": 59,
+        "services": [
+          {
+            "class": "AuthenticationService",
+            "method": "changePassword"
+          }
+        ]
+      }
+    },
+    {
+      "id": "B01",
+      "key": "POST /authz/check",
+      "owner": "B",
+      "summary": "鉴权：某用户能否对某部门的数据执行某操作",
+      "operation_id": "checkAuthorization",
+      "permission": "@self",
+      "contract_line": 160,
+      "controller": {
+        "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/AuthController.java",
+        "method": "check",
+        "line": 67,
+        "services": [
+          {
+            "class": "AuthzQueryService",
+            "method": "check"
+          }
+        ]
+      }
+    },
+    {
+      "id": "B02",
+      "key": "POST /authz/explain",
+      "owner": "B",
+      "summary": "权限解释：与 check 相同的判定，另返回逐步的判定依据（trace）",
+      "operation_id": "explainAuthorization",
+      "permission": "@self",
+      "contract_line": 190,
+      "controller": {
+        "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/AuthController.java",
+        "method": "explain",
+        "line": 74,
+        "services": [
+          {
+            "class": "AuthzQueryService",
+            "method": "check"
+          }
+        ]
+      }
+    },
+    {
+      "id": "C01",
+      "key": "GET /users",
+      "owner": "C",
+      "summary": "用户列表与搜索（只返回管理范围内的用户）",
+      "operation_id": "listUsers",
+      "permission": "rbac:user:view",
+      "contract_line": 219,
+      "controller": {
+        "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/UserController.java",
+        "method": "list",
+        "line": 43,
+        "services": [
+          {
+            "class": "UserManagementService",
+            "method": "list"
+          }
+        ]
+      }
+    },
+    {
+      "id": "C02",
+      "key": "POST /users",
+      "owner": "C",
+      "summary": "新增用户（正式员工、临时用户或业务系统账号）",
+      "operation_id": "createUser",
+      "permission": "rbac:user:create",
+      "contract_line": 251,
+      "controller": {
+        "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/UserController.java",
+        "method": "create",
+        "line": 55,
+        "services": [
+          {
+            "class": "UserManagementService",
+            "method": "create"
+          }
+        ]
+      }
+    },
+    {
+      "id": "C03",
+      "key": "POST /users/batch-status",
+      "owner": "C",
+      "summary": "批量启用 / 停用 / 删除",
+      "operation_id": "batchChangeUserStatus",
+      "permission": "rbac:user:edit",
+      "contract_line": 275,
+      "controller": {
+        "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/UserController.java",
+        "method": "batchStatus",
+        "line": 84,
+        "services": [
+          {
+            "class": "UserManagementService",
+            "method": "batchStatus"
+          }
+        ]
+      }
+    },
+    {
+      "id": "C04",
+      "key": "GET /users/{id}",
+      "owner": "C",
+      "summary": "用户详情：基本信息、角色、有效权限",
+      "operation_id": "getUser",
+      "permission": "@self",
+      "contract_line": 302,
+      "controller": {
+        "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/UserController.java",
+        "method": "detail",
+        "line": 60,
+        "services": [
+          {
+            "class": "UserManagementService",
+            "method": "detail"
+          }
+        ]
+      }
+    },
+    {
+      "id": "C05",
+      "key": "PATCH /users/{id}",
+      "owner": "C",
+      "summary": "修改用户（姓名、部门、电话、岗位、到期时间）",
+      "operation_id": "updateUser",
+      "permission": "rbac:user:edit",
+      "contract_line": 323,
+      "controller": {
+        "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/UserController.java",
+        "method": "update",
+        "line": 65,
+        "services": [
+          {
+            "class": "UserManagementService",
+            "method": "update"
+          }
+        ]
+      }
+    },
+    {
+      "id": "C06",
+      "key": "DELETE /users/{id}",
+      "owner": "C",
+      "summary": "删除用户（逻辑删除，用户名不可复用，指派保留供审计）",
+      "operation_id": "deleteUser",
+      "permission": "rbac:user:delete",
+      "contract_line": 341,
+      "controller": {
+        "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/UserController.java",
+        "method": "delete",
+        "line": 77,
+        "services": [
+          {
+            "class": "UserManagementService",
+            "method": "delete"
+          }
+        ]
+      }
+    },
+    {
+      "id": "C07",
+      "key": "PATCH /users/{id}/status",
+      "owner": "C",
+      "summary": "启用或停用",
+      "operation_id": "changeUserStatus",
+      "permission": "rbac:user:edit",
+      "contract_line": 360,
+      "controller": {
+        "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/UserController.java",
+        "method": "changeStatus",
+        "line": 71,
+        "services": [
+          {
+            "class": "UserManagementService",
+            "method": "changeStatus"
+          }
+        ]
+      }
+    },
+    {
+      "id": "C08",
+      "key": "GET /users/{id}/roles",
+      "owner": "C",
+      "summary": "用户的角色指派",
+      "operation_id": "listUserRoleAssignments",
+      "permission": "@self",
+      "contract_line": 387,
+      "controller": {
+        "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/UserController.java",
+        "method": "roles",
+        "line": 89,
+        "services": [
+          {
+            "class": "AssignmentService",
+            "method": "listOfUser"
+          }
+        ]
+      }
+    },
+    {
+      "id": "C09",
+      "key": "POST /users/{id}/roles",
+      "owner": "C",
+      "summary": "为用户分配角色（ROLE_ASSIGN）",
+      "operation_id": "assignUserRole",
+      "permission": "rbac:assignment:assign",
+      "contract_line": 406,
+      "controller": {
+        "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/UserController.java",
+        "method": "assign",
+        "line": 94,
+        "services": [
+          {
+            "class": "AssignmentService",
+            "method": "assign"
+          }
+        ]
+      }
+    },
+    {
+      "id": "C10",
+      "key": "DELETE /users/{id}/roles/{assignmentId}",
+      "owner": "C",
+      "summary": "回收一次角色指派（ROLE_REVOKE）",
+      "operation_id": "revokeUserRoleAssignment",
+      "permission": "rbac:assignment:revoke",
+      "contract_line": 444,
+      "controller": {
+        "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/UserController.java",
+        "method": "revoke",
+        "line": 100,
+        "services": [
+          {
+            "class": "AssignmentService",
+            "method": "revoke"
+          }
+        ]
+      }
+    },
+    {
+      "id": "C11",
+      "key": "GET /users/{id}/permissions",
+      "owner": "C",
+      "summary": "用户的有效权限（每条带来源角色与适用部门）",
+      "operation_id": "listUserEffectivePermissions",
+      "permission": "@self",
+      "contract_line": 466,
+      "controller": {
+        "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/UserController.java",
+        "method": "permissions",
+        "line": 108,
+        "services": [
+          {
+            "class": "UserManagementService",
+            "method": "detail"
+          }
+        ]
+      }
+    },
+    {
+      "id": "D01",
+      "key": "GET /roles",
+      "owner": "D",
+      "summary": "角色列表：名称、编码、用户数、权限数、状态",
+      "operation_id": "listRoles",
+      "permission": "rbac:role:view",
+      "contract_line": 488,
+      "controller": {
+        "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/RoleController.java",
+        "method": "list",
+        "line": 41,
+        "services": [
+          {
+            "class": "RoleManagementService",
+            "method": "list"
+          }
+        ]
+      }
+    },
+    {
+      "id": "D02",
+      "key": "POST /roles",
+      "owner": "D",
+      "summary": "新增角色",
+      "operation_id": "createRole",
+      "permission": "rbac:role:create",
+      "contract_line": 510,
+      "controller": {
+        "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/RoleController.java",
+        "method": "create",
+        "line": 48,
+        "services": [
+          {
+            "class": "RoleManagementService",
+            "method": "create"
+          }
+        ]
+      }
+    },
+    {
+      "id": "D03",
+      "key": "GET /roles/{id}",
+      "owner": "D",
+      "summary": "角色详情：基本信息与权限",
+      "operation_id": "getRole",
+      "permission": "rbac:role:view",
+      "contract_line": 540,
+      "controller": {
+        "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/RoleController.java",
+        "method": "detail",
+        "line": 53,
+        "services": [
+          {
+            "class": "RoleManagementService",
+            "method": "detail"
+          }
+        ]
+      }
+    },
+    {
+      "id": "D04",
+      "key": "PATCH /roles/{id}",
+      "owner": "D",
+      "summary": "修改角色名称、描述、启用停用",
+      "operation_id": "updateRole",
+      "permission": "rbac:role:edit",
+      "contract_line": 560,
+      "controller": {
+        "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/RoleController.java",
+        "method": "update",
+        "line": 58,
+        "services": [
+          {
+            "class": "RoleManagementService",
+            "method": "update"
+          }
+        ]
+      }
+    },
+    {
+      "id": "D05",
+      "key": "DELETE /roles/{id}",
+      "owner": "D",
+      "summary": "删除角色（内置角色不能删；仍有人持有时 409）",
+      "operation_id": "deleteRole",
+      "permission": "rbac:role:delete",
+      "contract_line": 583,
+      "controller": {
+        "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/RoleController.java",
+        "method": "delete",
+        "line": 64,
+        "services": [
+          {
+            "class": "RoleManagementService",
+            "method": "delete"
+          }
+        ]
+      }
+    },
+    {
+      "id": "D06",
+      "key": "GET /roles/{id}/users",
+      "owner": "D",
+      "summary": "角色详情「用户」：持有该角色的指派",
+      "operation_id": "listRoleUserAssignments",
+      "permission": "rbac:role:view",
+      "contract_line": 599,
+      "controller": {
+        "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/RoleController.java",
+        "method": "users",
+        "line": 70,
+        "services": [
+          {
+            "class": "RoleManagementService",
+            "method": "users"
+          }
+        ]
+      }
+    },
+    {
+      "id": "D07",
+      "key": "POST /roles/{id}/permissions",
+      "owner": "D",
+      "summary": "为角色授予权限（PERMISSION_ASSIGN）",
+      "operation_id": "grantRolePermissions",
+      "permission": "rbac:grant:assign",
+      "contract_line": 629,
+      "controller": {
+        "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/RoleController.java",
+        "method": "grant",
+        "line": 77,
+        "services": [
+          {
+            "class": "RoleManagementService",
+            "method": "grant"
+          }
+        ]
+      }
+    },
+    {
+      "id": "D08",
+      "key": "DELETE /roles/{id}/permissions/{permissionId}",
+      "owner": "D",
+      "summary": "回收角色的一个权限（PERMISSION_REVOKE）",
+      "operation_id": "revokeRolePermission",
+      "permission": "rbac:grant:revoke",
+      "contract_line": 664,
+      "controller": {
+        "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/RoleController.java",
+        "method": "ungrant",
+        "line": 83,
+        "services": [
+          {
+            "class": "RoleManagementService",
+            "method": "ungrant"
+          }
+        ]
+      }
+    },
+    {
+      "id": "C12",
+      "key": "POST /assignments/batch",
+      "owner": "C",
+      "summary": "按分公司 / 部门 / 员工批量分配角色",
+      "operation_id": "batchAssignRole",
+      "permission": "rbac:assignment:assign",
+      "contract_line": 679,
+      "controller": {
+        "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/RoleController.java",
+        "method": "batchAssign",
+        "line": 90,
+        "services": [
+          {
+            "class": "AssignmentService",
+            "method": "batchAssign"
+          }
+        ]
+      }
+    },
+    {
+      "id": "C13",
+      "key": "POST /assignments/batch-revoke",
+      "owner": "C",
+      "summary": "按分公司 / 部门 / 员工批量回收角色",
+      "operation_id": "batchRevokeRole",
+      "permission": "rbac:assignment:revoke",
+      "contract_line": 699,
+      "controller": {
+        "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/RoleController.java",
+        "method": "batchRevoke",
+        "line": 95,
+        "services": [
+          {
+            "class": "AssignmentService",
+            "method": "batchRevoke"
+          }
+        ]
+      }
+    },
+    {
+      "id": "D09",
+      "key": "GET /systems",
+      "owner": "D",
+      "summary": "业务系统与功能模块（权限域）",
+      "operation_id": "listSystems",
+      "permission": "rbac:permission:view",
+      "contract_line": 720,
+      "controller": {
+        "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/CatalogController.java",
+        "method": "systems",
+        "line": 57,
+        "services": [
+          {
+            "class": "CatalogService",
+            "method": "systems"
+          }
+        ]
+      }
+    },
+    {
+      "id": "D10",
+      "key": "GET /resources",
+      "owner": "D",
+      "summary": "资源列表（BUSINESS 业务功能点 / MENU 菜单 / API 接口能力）",
+      "operation_id": "listResources",
+      "permission": "rbac:permission:view",
+      "contract_line": 732,
+      "controller": {
+        "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/CatalogController.java",
+        "method": "resources",
+        "line": 62,
+        "services": [
+          {
+            "class": "CatalogService",
+            "method": "resources"
+          }
+        ]
+      }
+    },
+    {
+      "id": "D11",
+      "key": "POST /resources",
+      "owner": "D",
+      "summary": "新增资源，并为给出的操作建立权限",
+      "operation_id": "createResource",
+      "permission": "rbac:permission:create",
+      "contract_line": 749,
+      "controller": {
+        "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/CatalogController.java",
+        "method": "createResource",
+        "line": 71,
+        "services": [
+          {
+            "class": "CatalogService",
+            "method": "createResource"
+          }
+        ]
+      }
+    },
+    {
+      "id": "D12",
+      "key": "GET /actions",
+      "owner": "D",
+      "summary": "操作词汇表",
+      "operation_id": "listActions",
+      "permission": "rbac:permission:view",
+      "contract_line": 778,
+      "controller": {
+        "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/CatalogController.java",
+        "method": "actions",
+        "line": 77,
+        "services": [
+          {
+            "class": "CatalogService",
+            "method": "actions"
+          }
+        ]
+      }
+    },
+    {
+      "id": "D13",
+      "key": "GET /permissions",
+      "owner": "D",
+      "summary": "权限列表（Permission = Resource × Action）",
+      "operation_id": "listPermissions",
+      "permission": "rbac:permission:view",
+      "contract_line": 790,
+      "controller": {
+        "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/CatalogController.java",
+        "method": "permissions",
+        "line": 82,
+        "services": [
+          {
+            "class": "CatalogService",
+            "method": "permissions"
+          }
+        ]
+      }
+    },
+    {
+      "id": "D14",
+      "key": "POST /permissions",
+      "owner": "D",
+      "summary": "为已有资源新增一个操作的权限",
+      "operation_id": "createPermission",
+      "permission": "rbac:permission:create",
+      "contract_line": 807,
+      "controller": {
+        "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/CatalogController.java",
+        "method": "createPermission",
+        "line": 91,
+        "services": [
+          {
+            "class": "CatalogService",
+            "method": "createPermission"
+          }
+        ]
+      }
+    },
+    {
+      "id": "F01",
+      "key": "GET /permissions/heatmap",
+      "owner": "F",
+      "summary": "权限使用热力图（业务系统 × 操作，成功鉴权次数）",
+      "operation_id": "getPermissionHeatmap",
+      "permission": "rbac:heatmap:view",
+      "contract_line": 831,
+      "controller": {
+        "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/StatsController.java",
+        "method": "heatmap",
+        "line": 48,
+        "services": [
+          {
+            "class": "DashboardService",
+            "method": "heatmap"
+          }
+        ]
+      }
+    },
+    {
+      "id": "F02",
+      "key": "GET /menus/me",
+      "owner": "F",
+      "summary": "当前用户可见的菜单树（按「菜单资源:view」动态生成）",
+      "operation_id": "getCurrentUserMenus",
+      "permission": "@self",
+      "contract_line": 849,
+      "controller": {
+        "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/CatalogController.java",
+        "method": "myMenus",
+        "line": 99,
+        "services": [
+          {
+            "class": "MenuService",
+            "method": "myMenus"
+          }
+        ]
+      }
+    },
+    {
+      "id": "F03",
+      "key": "GET /menus",
+      "owner": "F",
+      "summary": "完整菜单树",
+      "operation_id": "listMenus",
+      "permission": "rbac:menu:view",
+      "contract_line": 862,
+      "controller": {
+        "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/CatalogController.java",
+        "method": "allMenus",
+        "line": 104,
+        "services": [
+          {
+            "class": "MenuService",
+            "method": "all"
+          }
+        ]
+      }
+    },
+    {
+      "id": "F04",
+      "key": "POST /menus",
+      "owner": "F",
+      "summary": "新增菜单",
+      "operation_id": "createMenu",
+      "permission": "rbac:menu:create",
+      "contract_line": 872,
+      "controller": {
+        "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/CatalogController.java",
+        "method": "createMenu",
+        "line": 109,
+        "services": [
+          {
+            "class": "MenuService",
+            "method": "create"
+          }
+        ]
+      }
+    },
+    {
+      "id": "F05",
+      "key": "PATCH /menus/{id}",
+      "owner": "F",
+      "summary": "修改菜单",
+      "operation_id": "updateMenu",
+      "permission": "rbac:menu:edit",
+      "contract_line": 892,
+      "controller": {
+        "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/CatalogController.java",
+        "method": "updateMenu",
+        "line": 114,
+        "services": [
+          {
+            "class": "MenuService",
+            "method": "update"
+          }
+        ]
+      }
+    },
+    {
+      "id": "F06",
+      "key": "DELETE /menus/{id}",
+      "owner": "F",
+      "summary": "删除菜单（有子菜单时 409）",
+      "operation_id": "deleteMenu",
+      "permission": "rbac:menu:delete",
+      "contract_line": 909,
+      "controller": {
+        "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/CatalogController.java",
+        "method": "deleteMenu",
+        "line": 120,
+        "services": [
+          {
+            "class": "MenuService",
+            "method": "delete"
+          }
+        ]
+      }
+    },
+    {
+      "id": "E01",
+      "key": "GET /companies",
+      "owner": "E",
+      "summary": "公司列表（只含管理范围涉及的公司）",
+      "operation_id": "listCompanies",
+      "permission": "rbac:org:view",
+      "contract_line": 923,
+      "controller": {
+        "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/CatalogController.java",
+        "method": "companies",
+        "line": 128,
+        "services": [
+          {
+            "class": "OrgService",
+            "method": "companies"
+          }
+        ]
+      }
+    },
+    {
+      "id": "E02",
+      "key": "GET /departments/tree",
+      "owner": "E",
+      "summary": "部门树（管理范围内的部门及通往它们的祖先）",
+      "operation_id": "getDepartmentTree",
+      "permission": "rbac:org:view",
+      "contract_line": 935,
+      "controller": {
+        "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/CatalogController.java",
+        "method": "departmentTree",
+        "line": 133,
+        "services": [
+          {
+            "class": "OrgService",
+            "method": "tree"
+          }
+        ]
+      }
+    },
+    {
+      "id": "E03",
+      "key": "POST /imports/organization",
+      "owner": "E",
+      "summary": "导入部门信息表与员工信息表",
+      "operation_id": "importOrganization",
+      "permission": "rbac:org:import",
+      "contract_line": 950,
+      "controller": {
+        "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/CatalogController.java",
+        "method": "importOrganization",
+        "line": 139,
+        "services": [
+          {
+            "class": "ImportService",
+            "method": "importOrganization"
+          }
+        ]
+      }
+    },
+    {
+      "id": "E04",
+      "key": "POST /imports/permissions",
+      "owner": "E",
+      "summary": "导入应用软件功能权限清单（业务系统、模块、资源、权限、五类角色模板）",
+      "operation_id": "importPermissions",
+      "permission": "rbac:permission:create",
+      "contract_line": 977,
+      "controller": {
+        "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/CatalogController.java",
+        "method": "importPermissions",
+        "line": 152,
+        "services": [
+          {
+            "class": "ImportService",
+            "method": "importPermissions"
+          }
+        ]
+      }
+    },
+    {
+      "id": "F07",
+      "key": "GET /audit-logs",
+      "owner": "F",
+      "summary": "审计日志：谁、什么时候、在哪里、对谁、做了什么、结果如何、为什么",
+      "operation_id": "listAuditLogs",
+      "permission": "rbac:audit:view",
+      "contract_line": 1002,
+      "controller": {
+        "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/StatsController.java",
+        "method": "auditLogs",
+        "line": 28,
+        "services": [
+          {
+            "class": "AuditService",
+            "method": "search"
+          }
+        ]
+      }
+    },
+    {
+      "id": "F08",
+      "key": "GET /dashboard",
+      "owner": "F",
+      "summary": "Dashboard 十一项指标",
+      "operation_id": "getDashboard",
+      "permission": "rbac:dashboard:view",
+      "contract_line": 1026,
+      "controller": {
+        "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/StatsController.java",
+        "method": "dashboard",
+        "line": 43,
+        "services": [
+          {
+            "class": "DashboardService",
+            "method": "metrics"
+          }
+        ]
+      }
+    }
+  ],
+  "tests": [
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/ArchitectureTest.java",
+      "method": "onlyTheThreeLayersAndHelpers",
+      "owner": "F",
+      "line": 30
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/ArchitectureTest.java",
+      "method": "dependenciesPointDownward",
+      "owner": "F",
+      "line": 39
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/ArchitectureTest.java",
+      "method": "noMyBatis",
+      "owner": "F",
+      "line": 56
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/ArchitectureTest.java",
+      "method": "entitiesAreDataOnly",
+      "owner": "F",
+      "line": 63
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/ArchitectureTest.java",
+      "method": "servicesAreStateless",
+      "owner": "F",
+      "line": 73
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/ArchitectureTest.java",
+      "method": "servicesDoNotInherit",
+      "owner": "F",
+      "line": 82
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/controller/ContractRoutesTest.java",
+      "method": "readsAllOperationsOfTheContract",
+      "owner": "F",
+      "line": 30
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/controller/ContractRoutesTest.java",
+      "method": "onlyLoginIsAnonymous",
+      "owner": "F",
+      "line": 35
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/controller/ContractRoutesTest.java",
+      "method": "everyOperationDeclaresPermissionUnlessAnonymous",
+      "owner": "F",
+      "line": 44
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/controller/ContractRoutesTest.java",
+      "method": "permissionCodesExistInBaselineMigration",
+      "owner": "F",
+      "line": 60
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/controller/ContractRoutesTest.java",
+      "method": "unimplementedReportsContractOnlyRoutes",
+      "owner": "F",
+      "line": 73
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/controller/ContractRoutesTest.java",
+      "method": "undeclaredReportsMissingAndPermissionlessRoutes",
+      "owner": "F",
+      "line": 81
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/integration/AcceptanceTest.java",
+      "method": "t01_loginWithCorrectCredentialsGivesUsableToken",
+      "owner": "A",
+      "line": 35
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/integration/AcceptanceTest.java",
+      "method": "t02_wrongPasswordDisabledAndDeletedAccountsCannotLogin",
+      "owner": "A",
+      "line": 44
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/integration/AcceptanceTest.java",
+      "method": "t03_temporaryUserHasNoEmployeeInfoButExpires",
+      "owner": "C",
+      "line": 69
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/integration/AcceptanceTest.java",
+      "method": "t04_userWithoutRolesIsDeniedByDefault",
+      "owner": "B",
+      "line": 106
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/integration/AcceptanceTest.java",
+      "method": "t05_roleWithoutTargetPermissionIsDenied",
+      "owner": "B",
+      "line": 116
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/integration/AcceptanceTest.java",
+      "method": "t06_multipleRolesAreUnioned",
+      "owner": "B",
+      "line": 126
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/integration/AcceptanceTest.java",
+      "method": "t07_permissionInDepartmentADoesNotReachDepartmentB",
+      "owner": "B",
+      "line": 137
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/integration/AcceptanceTest.java",
+      "method": "t07b_scopeBelongsToTheAssignmentNotToTheUnionOfRoles",
+      "owner": "B",
+      "line": 152
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/integration/AcceptanceTest.java",
+      "method": "t08_adminAssignsRoleToSubordinate",
+      "owner": "C",
+      "line": 165
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/integration/AcceptanceTest.java",
+      "method": "t09_adminCannotGrantToAnotherBranchAndItIsAudited",
+      "owner": "C",
+      "line": 176
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/integration/AcceptanceTest.java",
+      "method": "t10_adminCannotGrantRoleWithPermissionsTheyLack",
+      "owner": "C",
+      "line": 197
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/integration/AcceptanceTest.java",
+      "method": "t10b_selfOnlyGrantDoesNotLetAdminGrantTheFullPermission",
+      "owner": "C",
+      "line": 216
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/integration/AcceptanceTest.java",
+      "method": "t11_superAdminBypassesEngineButMustBeActive",
+      "owner": "B",
+      "line": 251
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/integration/AcceptanceTest.java",
+      "method": "t12_revokedRoleIsDeniedOnTheNextRequest",
+      "owner": "B",
+      "line": 269
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/integration/AcceptanceTest.java",
+      "method": "t12b_revocationDoesNotDependOnRedis",
+      "owner": "B",
+      "line": 283
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/integration/AcceptanceTest.java",
+      "method": "t13_changingRolePermissionsAffectsAllHoldersOnTheNextRequest",
+      "owner": "D",
+      "line": 311
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/integration/AcceptanceTest.java",
+      "method": "t14_removingAnAdminDoesNotCascadeToWhatTheyGranted",
+      "owner": "C",
+      "line": 334
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/integration/AcceptanceTest.java",
+      "method": "t14b_adminCanRevokeTheirOwnAssignments",
+      "owner": "C",
+      "line": 356
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/integration/AcceptanceTest.java",
+      "method": "t15_duplicateAssignmentCreatesNoSecondRecord",
+      "owner": "C",
+      "line": 387
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/integration/AcceptanceTest.java",
+      "method": "t16_batchWithOutOfScopeUsersFollowsTheDeclaredMode",
+      "owner": "C",
+      "line": 402
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/integration/AcceptanceTest.java",
+      "method": "t17_tokenIsRejectedAfterLogout",
+      "owner": "A",
+      "line": 440
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/integration/AcceptanceTest.java",
+      "method": "t18_hiddenMenuDoesNotMeanTheApiIsOpen",
+      "owner": "F",
+      "line": 451
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/integration/AcceptanceTest.java",
+      "method": "t19_sameNamedDepartmentsInTwoCompaniesStaySeparate",
+      "owner": "E",
+      "line": 472
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/integration/AcceptanceTest.java",
+      "method": "t20_explainAndCheckAlwaysAgree",
+      "owner": "B",
+      "line": 502
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/integration/AcceptanceTest.java",
+      "method": "t20b_ordinaryUserCannotProbeOthersThroughAuthzApis",
+      "owner": "B",
+      "line": 533
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/integration/AcceptanceTest.java",
+      "method": "t22_anotherReplicaSeesTheRevocationOnItsNextRequest",
+      "owner": "B",
+      "line": 547
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/integration/ExcelImportIntegrationTest.java",
+      "method": "t21_importsOrganizationWithCorrectDepartmentOwnership",
+      "owner": "E",
+      "line": 33
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/integration/ExcelImportIntegrationTest.java",
+      "method": "t21_importsPermissionMatrixWithNormalizationAndAnomalies",
+      "owner": "E",
+      "line": 111
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/integration/ExcelImportIntegrationTest.java",
+      "method": "reimportingPermissionMatrixRevokesRemovedGrantsAndUpdatesSelfOnly",
+      "owner": "E",
+      "line": 164
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/integration/ExcelImportIntegrationTest.java",
+      "method": "rejectsWrongFiles",
+      "owner": "E",
+      "line": 261
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/integration/ManagementApiTest.java",
+      "method": "firstLoginMustChangePasswordAndOldTokensDie",
+      "owner": "A",
+      "line": 26
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/integration/ManagementApiTest.java",
+      "method": "fiveFailuresLockTheAccountEvenWhenConcurrent",
+      "owner": "A",
+      "line": 45
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/integration/ManagementApiTest.java",
+      "method": "invalidTokensAreRejected",
+      "owner": "A",
+      "line": 73
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/integration/ManagementApiTest.java",
+      "method": "userCrudWithinManagementScope",
+      "owner": "C",
+      "line": 88
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/integration/ManagementApiTest.java",
+      "method": "temporaryUserCannotGetAPhoneLater",
+      "owner": "C",
+      "line": 163
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/integration/ManagementApiTest.java",
+      "method": "internalAccountsUseTheReservedIdRange",
+      "owner": "C",
+      "line": 175
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/integration/ManagementApiTest.java",
+      "method": "batchStatusReportsPerUserResults",
+      "owner": "C",
+      "line": 206
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/integration/ManagementApiTest.java",
+      "method": "onlySuperAdminMayTouchASuperAdmin",
+      "owner": "C",
+      "line": 225
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/integration/ManagementApiTest.java",
+      "method": "userDetailShowsRolesAndEffectivePermissions",
+      "owner": "C",
+      "line": 244
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/integration/ManagementApiTest.java",
+      "method": "roleLifecycleAndPermissions",
+      "owner": "D",
+      "line": 264
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/integration/ManagementApiTest.java",
+      "method": "roleHoldersAreLimitedToManagementScopeWithConsistentTotals",
+      "owner": "D",
+      "line": 313
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/integration/ManagementApiTest.java",
+      "method": "companyAdminManagesOnlyCompanyRoles",
+      "owner": "D",
+      "line": 329
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/integration/ManagementApiTest.java",
+      "method": "batchAssignByCompanyAndDepartmentThenRevoke",
+      "owner": "C",
+      "line": 359
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/integration/ManagementApiTest.java",
+      "method": "outOfScopeRevokeAndDisabledRoleAreRefused",
+      "owner": "C",
+      "line": 409
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/integration/ManagementApiTest.java",
+      "method": "catalogResourcesActionsPermissions",
+      "owner": "D",
+      "line": 431
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/integration/ManagementApiTest.java",
+      "method": "menuManagementAndDynamicMenus",
+      "owner": "F",
+      "line": 467
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/integration/ManagementApiTest.java",
+      "method": "organizationTreeIsLimitedToScope",
+      "owner": "E",
+      "line": 500
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/integration/ManagementApiTest.java",
+      "method": "auditDashboardAndHeatmapComeFromRealEvents",
+      "owner": "F",
+      "line": 520
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/integration/ManagementApiTest.java",
+      "method": "abnormalAuditFilterMatchesDashboardCount",
+      "owner": "F",
+      "line": 559
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/integration/ManagementApiTest.java",
+      "method": "deniedAndFailedManagementOperationsAreAudited",
+      "owner": "F",
+      "line": 587
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/integration/ManagementApiTest.java",
+      "method": "undeclaredRoutesAreDeniedByDefault",
+      "owner": "A",
+      "line": 630
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/mapper/RedisFailureTest.java",
+      "method": "grantCacheTreatsRedisFailureAsMiss",
+      "owner": "B",
+      "line": 35
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/mapper/RedisFailureTest.java",
+      "method": "grantCacheRoundTripAndCorruptValue",
+      "owner": "B",
+      "line": 47
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/mapper/RedisFailureTest.java",
+      "method": "revocationLookupFailsClosed",
+      "owner": "A",
+      "line": 59
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/mapper/RedisFailureTest.java",
+      "method": "revocationLookupRetriesOnceBeforeFailingClosed",
+      "owner": "A",
+      "line": 66
+    },
+    {
+      "file": "rbac-structured/src/test/java/com/xmu/rbac/structured/mapper/RedisFailureTest.java",
+      "method": "revocationOfExpiredTokenIsNotStored",
+      "owner": "A",
+      "line": 74
+    }
+  ]
+}
