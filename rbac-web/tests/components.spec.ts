@@ -169,6 +169,25 @@ describe('「解释某个权限」入口', () => {
   })
 })
 
+describe('撤销自己的指派', () => {
+  const withRole = (detail: ReturnType<typeof me>) => ({ ...detail, roles: [{ assignmentId: 7, userId: detail.user.id,
+    username: detail.user.username, userRealName: detail.user.realName, roleId: 2, roleCode: 'RBAC_ADMIN',
+    roleName: '权限管理员', roleStatus: 'ACTIVE', scopeDeptId: 5, scopeDeptName: '财务部', scopePath: '/2/5/',
+    scopeCompanyId: 2, grantedBy: 1, grantedAt: '2026-10-11T10:00:00', reason: null }] })
+  const revokeButton = async (detail: ReturnType<typeof me>) => {
+    const w = mount(UserDetailPanel, { props: { detail, initialTab: 'roles' }, global })
+    await flushPromises()
+    return w.find('[data-test="revoke"]')
+  }
+
+  it('个人中心（不是管理视图）里，自己的指派有回收按钮，别人的没有', async () => {
+    useAuthStore().me = me(['rbac:assignment:revoke'])
+    expect((await revokeButton(withRole(useAuthStore().me!))).exists()).toBe(true)
+    const other = { ...me([]), user: { ...me([]).user, id: 20, username: 'u20' } }
+    expect((await revokeButton(withRole(other))).exists()).toBe(false)
+  })
+})
+
 describe('权限解释', () => {
   it('展示后端的结论与逐步依据，前端不做推断', async () => {
     useAuthStore().me = me([])

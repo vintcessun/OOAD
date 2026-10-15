@@ -213,7 +213,7 @@ public class UserManagementService {
         return toView(created, dept.deptName);
     }
 
-    /** 业务系统账号是内部账号，编号取在 1–9999 段内（docs/03-database.md §3.1）；员工与临时用户走自增，从 10000 开始。 */
+    /** 业务系统账号是内部账号，编号取在 1–9999 段内（docs/03-database.md §3.2）；员工与临时用户走自增，从 10000 开始。 */
     private User insertInternal(User u) {
         long id = userMapper.nextInternalId(User.INTERNAL_ID_LIMIT);
         if (id >= User.INTERNAL_ID_LIMIT) {

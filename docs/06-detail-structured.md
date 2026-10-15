@@ -2,6 +2,7 @@
 
 > 对应模块：[`rbac-structured`](../rbac-structured/)。本阶段只做 RBAC0，只用结构化（面向功能）方法设计。
 > 写法依照课件 3「结构化软件设计」：先做功能分解与数据流图，再由数据流图导出模块结构，最后给出数据字典与每个加工的处理规约。
+> 章节按 GB/T 8567-2006《计算机软件文档编制规范》中「软件设计说明」的要求组织，对照见 §10。每个功能模块对应的 OpenAPI 接口和前端页面见 §11。
 
 ---
 
@@ -341,7 +342,7 @@ check 与 explain 调用同一个 `decide`，不存在两套判定逻辑（T20�
 |---|---|
 | 列表 `list` | 范围 ← `scopeOf(操作者, rbac:user:view)`；查询条件加「部门 ∈ 范围内的部门」（子查询 `path LIKE '<适用部门路径>%'`）；默认不含已删除 |
 | 详情 `detail` | 本人直接可看；看别人 → `requireInScope(rbac:user:view, 其部门)`。返回基本信息、指派、有效权限（每条带来源角色与适用部门） |
-| 新增 `create` | 类型校验（临时用户无工号电话、必须有到期时间；正式员工必须有工号）→ `requireInScope(rbac:user:create, 目标部门)` → 用户名、工号查重 → 口令为空则用初始口令并要求首次修改 → 写入、审计 |
+| 新增 `create` | 类型校验（临时用户无工号电话、必须有到期时间；正式员工必须有工号）→ `requireInScope(rbac:user:create, 目标部门)` → 用户名、工号查重 → 口令为空则用初始口令并要求首次修改 → 写入、审计。写入时按类型取编号：业务系统账号（`SYSTEM`）在内部段 1–9999 内取「最大编号 + 1」，用原生 SQL 显式写入（`insertInternal`），取到 10000 即 409；其余类型走自增，从 10000 开始（[03 §3.2](03-database.md)） |
 | 修改 `update` | 未删除 → `requireInScope(rbac:user:edit, 当前部门)`；目标是超级管理员而操作者不是 → 403；调部门：同公司、调入部门也须在范围内 |
 | 状态 `applyStatus` | 返回失败原因而不抛异常，供单个与批量共用：已删除 → ALREADY_DELETED；对象是自己 → CANNOT_CHANGE_SELF；不在范围 → OUT_OF_MANAGE_SCOPE；对象是超级管理员而操作者不是 → TARGET_IS_SUPER_ADMIN；否则写状态、审计 |
 | 批量状态 `batchStatus` | 逐个 `applyStatus`，通过的执行，失败逐人列出（状态变更彼此独立，不做整批原子） |
@@ -373,6 +374,7 @@ check 与 explain 调用同一个 `decide`，不存在两套判定逻辑（T20�
 
 ```
 1. 指派存在且属于该用户
+   指派属于操作者本人 → 跳过 2、3（放弃自己的权限不受管理范围限制）
 2. 角色是 SUPER_ADMIN 而操作者不是超级管理员 → SUPER_ADMIN_ONLY
 3. 用户所在部门或指派的适用部门不在操作者的 rbac:assignment:revoke 范围 → OUT_OF_MANAGE_SCOPE
 4. 删除这一条指派
@@ -381,6 +383,8 @@ check 与 explain 调用同一个 `decide`，不存在两套判定逻辑（T20�
 ```
 
 只删这一条：被回收者过去授给别人的指派不受影响。`granted_by` 只是审计属性，不是授权依赖——这就是需求「移除管理员权限，不会导致分配的权限级联删除」（T14）。
+
+回收自己的指派不过管理范围检查，这是 10/15 课堂要求「管理员可以自己撤销自己权限」。回收只会让权限变少，授权上界针对的是授出，不需要检查。第 5 步对本人同样有效，唯一的超级管理员撤不掉自己（T14b，[12 R-16](12-design-log.md)）。批量回收逐人调用同一个 `checkRevoke`，规则相同。
 
 ### 5.5 批量分配与回收（5.4、5.5）
 
@@ -461,6 +465,8 @@ batchAssign(操作者, 请求):
 | 管理员管理自身及以下层级 | 5.3、5.4 第 7 步 | T08、T09、`userCrudWithinManagementScope` |
 | 不能越权授予 | 5.4 第 8 步、5.6 授权 | T10、`companyAdminManagesOnlyCompanyRoles` |
 | 移除管理员不级联 | 5.4 回收 | T14 |
+| 管理员可以撤销自己的权限 | 5.4 回收第 1 步 | T14b |
+| 用户编号预留内部账号段 | 5.3 新增 | `internalAccountsUseTheReservedIdRange`、T21（导入员工编号 ≥ 10000） |
 | 批量权限管理 | 5.5 | T16、`batchAssignByCompanyAndDepartmentThenRevoke` |
 | 下一次访问生效 | 5.2.2 | T12、T13、T22 |
 | 动态菜单 | 5.7 | T18、`menuManagementAndDynamicMenus` |
@@ -479,3 +485,38 @@ batchAssign(操作者, 请求):
 | 带版本号的缓存键 | 「下一次访问生效」；删键有竞争，本地缓存跨副本不一致；Redis 写失败留下旧授权 | 版本号存 MySQL，在查库前读、与修改同一事务加一 | T12、T12b、T13、T22 |
 | 授权上界 | 管理员给下属授予超出自己的权限，再借账号越权 | 角色的每个权限，操作者在适用部门都必须持有，且范围不窄于角色（只限本人授不出完整权限） | T10、T10b |
 | 批量授权的原子性 | 部分人不合规时的语义 | 默认 ATOMIC 预校验，显式 PARTIAL；同一个 `checkOne` | T16 |
+
+## 10. 与 GB/T 8567-2006 的章节对照
+
+GB/T 8567-2006《计算机软件文档编制规范》把设计文档分成三份：软件设计说明（SDD）、数据库设计说明（DBDD）、接口设计说明（IDD）。本项目按功能组织设计，没有为了套格式把内容搬成 Word。SDD 的每一章都能在下表找到对应位置：
+
+| GB/T 8567 软件设计说明（SDD） | 本项目的对应位置 |
+|---|---|
+| 1 范围（标识、系统概述、文档概述、基线） | 本文开头；系统概述见 [01 §2](01-srs.md)；基线是 Git 提交，测试结果见 [09](09-test-plan.md) |
+| 2 引用文件 | [01 §1.4](01-srs.md) 参考资料；课件 3「结构化软件设计」 |
+| 3 CSCI 级设计决策 | [02 概要设计](02-architecture.md) 的架构决策；设计变更与理由见 [12](12-design-log.md) |
+| 4 CSCI 体系结构设计：模块划分与层次、全局数据结构、执行概念、接口 | 本文 §2 功能分解与数据流图，§3 模块结构，§4 数据字典，§6 模块接口规约，§7 事务与异常 |
+| 5 CSCI 详细设计（逐个模块） | 本文 §5 处理规约，按加工（功能模块）逐个给出输入、处理步骤、拒绝条件、输出 |
+| 6 需求的可追踪性 | 本文 §8 需求 — 处理 — 测试追溯；需求编号见 [01 §4.1.4](01-srs.md) |
+| 7 注解 | 本文 §9 答辩设计点；术语见 [01 §1.3](01-srs.md) |
+| 数据库设计说明（DBDD） | [03 数据库设计](03-database.md)，表结构以迁移脚本为准 |
+| 接口设计说明（IDD） | [`rbac-api.yaml`](../rbac-contract/src/main/resources/openapi/rbac-api.yaml)（OpenAPI 3.0，可直接导入 Apifox）+ [04 说明](04-api.md) |
+
+## 11. 功能模块 — 接口 — 界面对照
+
+每个功能模块对应的处理规约、接口和页面如下。接口按 `rbac-api.yaml` 中的 tag 分组；页面在 `rbac-web/src/views/`，交互规则见 [05](05-ui.md)。
+
+| 加工（功能模块） | Service | 处理规约 | OpenAPI 接口（tag） | 前端页面与组件 |
+|---|---|---|---|---|
+| 1.0 认证 | `AuthenticationService`、`TokenService` | §5.1 | `POST /auth/login`、`POST /auth/logout`、`GET /auth/me`、`POST /auth/password`（auth） | `LoginView`、`PasswordView`、`MeView` |
+| 3.0 权限判定 | `AuthorizationService`、`AuthzQueryService` | §5.2 | `POST /authz/check`、`POST /authz/explain`（authz） | `ExplainView`；所有页面经拦截器间接调用判定 |
+| 4.0 用户管理 | `UserManagementService` | §5.3 | `GET/POST /users`、`GET/PATCH/DELETE /users/{id}`、`PATCH /users/{id}/status`、`POST /users/batch-status`、`GET /users/{id}/permissions`（user） | `UserListView`、`UserDetailView`、`UserFormDialog`、`UserDetailPanel` |
+| 5.0 分配与回收 | `AssignmentService` | §5.4、§5.5 | `GET/POST /users/{id}/roles`、`DELETE /users/{id}/roles/{assignmentId}`（user）；`POST /assignments/batch`、`POST /assignments/batch-revoke`（role） | `AssignRoleDialog`、`UserDetailPanel`（回收，含个人中心撤销自己）、`BatchAssignDialog`、`BatchResultView` |
+| 角色管理 | `RoleManagementService` | §5.6 | `GET/POST /roles`、`GET/PATCH/DELETE /roles/{id}`、`GET /roles/{id}/users`、`POST /roles/{id}/permissions`、`DELETE /roles/{id}/permissions/{permissionId}`（role） | `RoleListView`、`RoleDetailView`、`GrantPermissionDialog` |
+| 资源与权限 | `CatalogService` | 查询与维护，规则见 [01 §4.2.13](01-srs.md) | `GET /systems`、`GET/POST /resources`、`GET /actions`、`GET/POST /permissions`（permission） | `PermissionView` |
+| 菜单 | `MenuService` | §5.7 | `GET /menus/me`、`GET/POST /menus`、`PATCH/DELETE /menus/{id}`（menu） | `MenuListView`；`AppLayout` 按 `/menus/me` 生成侧栏 |
+| 组织 | `OrgService` | §5.7 | `GET /companies`、`GET /departments/tree`（org） | `OrgView`、`DeptTreeSelect` |
+| 8.0 数据导入 | `ImportService` | §5.8 | `POST /imports/organization`、`POST /imports/permissions`（org） | `OrgView`、`ImportReportView` |
+| 6.0 审计与统计 | `AuditService`、`DashboardService` | §5.9 | `GET /audit-logs`、`GET /dashboard`、`GET /permissions/heatmap`（stats） | `AuditLogView`、`DashboardView`、`HeatmapView` |
+
+三处对照有自动检查：接口与代码路由由启动时的双向核对保证（[04 §1.4](04-api.md)），接口与权限码由 `ContractRoutesTest` 保证，页面只通过菜单的 `componentKey` 注册（[05 §6.1](05-ui.md)）。

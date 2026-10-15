@@ -12,6 +12,7 @@
 - 基础路径 `/api/v1`，权限中心端口 8081，外部模拟业务系统端口 8090。
 - 请求、响应均为 JSON（导入接口为 `multipart/form-data`）。时间为 ISO-8601 本地时间，如 `2026-10-11T09:30:00`。
 - 分页参数 `page`（从 0 开始）、`size`（默认 20，最大 200）；分页结果 `{items, total, page, size}`。
+- 用户编号分两段：1–9999 是内部账号，即 `root` 和业务系统账号（`userType = SYSTEM`）；员工与临时用户从 10000 起编号。见 [03 §3.2](03-database.md)。
 
 ### 1.2 统一响应
 
@@ -35,7 +36,7 @@
 | 403 | 40304 | 首次登录须先修改口令 | 改口令前只能调用 `/auth/me`、`/auth/logout`、`/auth/password` |
 | 404 | 40401 | 目标不存在 | |
 | 409 | 40901 | 重复 | 同一用户、角色、适用部门的指派已存在；用户名已存在 |
-| 409 | 40902 | 状态冲突 | 删除仍有人持有的角色；回收最后一个超级管理员；停用自己 |
+| 409 | 40902 | 状态冲突 | 删除仍有人持有的角色；回收最后一个超级管理员；停用自己；内部账号编号 1–9999 已用完 |
 
 **鉴权接口判定为「无权限」时返回 200 + `allowed=false`。** 业务系统问「他能不能做」，权限中心答「不能」，这是一次正常完成的调用；403 只表示「调用者自己无权调用这个接口」。两者混在一起，业务系统就分不清「用户没权限」和「我自己的账号配错了」。
 
@@ -57,6 +58,27 @@
 2. 契约里有、代码没实现的接口（防止「YAML 里写了」被当成「已经交付」）。
 
 契约里用到的每个权限码，其资源都在 V1 脚本中建好（`ContractRoutesTest` 检查）。
+
+### 1.5 OpenAPI 文件就是 API 设计文档
+
+API 设计的正式成果是 [`rbac-api.yaml`](../rbac-contract/src/main/resources/openapi/rbac-api.yaml)，不另抄写成 Word。本文只解释约定和关键接口的语义。
+
+这个文件同时满足三种用途：
+
+| 用途 | 怎么用 |
+|---|---|
+| 人看 | 导入 Apifox、Swagger Editor 或 Redocly 浏览 |
+| 机器校验 | `npx @redocly/cli@1.25.0 lint rbac-api.yaml`：0 错误；警告是缺 `operationId`、部分接口未列 4xx、缺 license，不影响导入 |
+| 运行时执行 | 拦截器读每个操作的 `x-required-permission`；启动时与代码路由双向核对（§1.4） |
+
+**导入 Apifox**：
+
+1. 项目设置 → 导入数据 → OpenAPI/Swagger，选择文件 `rbac-contract/src/main/resources/openapi/rbac-api.yaml`。
+2. 接口按 `tags` 分为 auth、authz、user、role、permission、menu、org、stats 八组，共 45 个。
+3. 环境里把前置 URL 设为 `http://<主机>:8081/api/v1`。
+4. 先调 `POST /auth/login` 拿 `token`，再在全局 Auth 里设 Bearer Token。
+
+Apifox 里看到的是 YAML 的副本。改接口要改仓库里的 YAML，再重新导入（选「覆盖」）。不要只在 Apifox 里改：YAML 是拦截器和启动核对的依据，Apifox 里的改动不会生效。
 
 ## 2. 接口总表
 
@@ -195,6 +217,8 @@ POST /api/v1/users/105/roles
 6. 相同（用户、角色、适用部门）已存在 → 40901。
 
 `DELETE /users/{id}/roles/{assignmentId}` 只删这一条指派。被回收者过去授给别人的指派不受影响（`granted_by` 只是审计属性）。不能回收最后一个有效的超级管理员。
+
+回收自己的指派不受管理范围限制。管理员可以撤销自己的任何一条指派，包括自己的管理员角色，下一次请求起失去相应能力。放弃权限不会扩大任何人的能力，所以不需要上界检查。这是 10/15 课堂要求，测试 T14b；接口本身仍要求持有 `rbac:assignment:revoke`。
 
 每次分配、回收、以及被拒绝的尝试都写审计（`ROLE_ASSIGN` / `ROLE_REVOKE`，结果 `SUCCESS` / `DENIED`，原因码）。
 

@@ -204,8 +204,8 @@ paths:
                               items: { type: array, items: { $ref: '#/components/schemas/User' } }
     post:
       tags: [user]
-      summary: 新增用户（正式员工或临时用户）
-      description: 临时用户没有工号、电话，必须给出到期时间。目标部门必须在管理范围内。
+      summary: 新增用户（正式员工、临时用户或业务系统账号）
+      description: 临时用户没有工号、电话，必须给出到期时间。目标部门必须在管理范围内。业务系统账号（SYSTEM）是内部账号，编号取在 1–9999 段内，用完返回 409；员工与临时用户从 10000 起编号。
       x-required-permission: rbac:user:create
       requestBody:
         required: true
@@ -359,7 +359,7 @@ paths:
     delete:
       tags: [user]
       summary: 回收一次角色指派（ROLE_REVOKE）
-      description: 只删这一条；被回收者过去授给别人的指派不受影响。不能回收最后一个有效的超级管理员。
+      description: 只删这一条；被回收者过去授给别人的指派不受影响。回收自己的指派不受管理范围限制。不能回收最后一个有效的超级管理员。
       x-required-permission: rbac:assignment:revoke
       parameters:
         - { name: reason, in: query, schema: { type: string } }

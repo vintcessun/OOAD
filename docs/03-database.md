@@ -1,7 +1,7 @@
 # 数据库设计说明书
 
 > 本阶段只实现 RBAC0：User — Role — Permission（= Resource × Action）。
-> 表结构的唯一来源是 [`V1__rbac0_baseline.sql`](../rbac-contract/src/main/resources/db/migration/V1__rbac0_baseline.sql)，本文说明它为什么这样设计。
+> 表结构的唯一来源是迁移脚本 [`V1__rbac0_baseline.sql`](../rbac-contract/src/main/resources/db/migration/V1__rbac0_baseline.sql)（13 张表）、[`V2__grant_version.sql`](../rbac-contract/src/main/resources/db/migration/V2__grant_version.sql)（版本号表）、[`V3__reserve_internal_user_ids.sql`](../rbac-contract/src/main/resources/db/migration/V3__reserve_internal_user_ids.sql)（用户编号分段），本文说明它为什么这样设计。
 > 旧版 V1–V3（含角色继承、约束、会话等表）已移到 [`docs/archive/sql/`](archive/sql/)，不再执行。
 
 ---
@@ -10,7 +10,7 @@
 
 | 原则 | 做法 | 理由 |
 |---|---|---|
-| 只建 RBAC0 需要的表 | 13 张业务表，不含角色继承、约束、会话 | 需求明确「只实现 RBAC0，不应该实现 RBAC1/RBAC2」 |
+| 只建 RBAC0 需要的表 | 14 张表：V1 的 13 张业务表 + V2 的授权版本号表；不含角色继承、约束、会话 | 需求明确「只实现 RBAC0，不应该实现 RBAC1/RBAC2」 |
 | 组织层级 ≠ 角色层级 | 部门有 `parent_id`，角色没有 | 部门树决定「人在哪、能管到哪」；RBAC0 的角色只决定「有哪些权限」。二者语义不同 |
 | 多部门权限挂在指派上 | `sys_user_role.scope_dept_id` | 「一个用户属于一个部门，但可以有多个部门的权限」 |
 | 一律代理主键，业务唯一键另建唯一索引 | `id BIGINT AUTO_INCREMENT` + `uk_*` | 用户名、角色编码可能改名或复用规则变化，不能做主键 |
@@ -39,7 +39,15 @@ erDiagram
     sys_action ||--o{ sys_permission : "操作"
     sys_resource |o--o{ sys_menu : "菜单挂资源"
     sys_menu |o--o{ sys_menu : "上级菜单"
+    sys_audit_log {
+        BIGINT id PK "只插入；操作人、对象只存 id 与名称，不建外键"
+    }
+    sys_grant_version {
+        TINYINT id PK "只有一行"
+    }
 ```
+
+`sys_audit_log` 不建外键：用户被删除、角色被删除后，审计记录仍要留着。`sys_grant_version` 只有一行，与其他表没有关系。
 
 RBAC0 的四个核心概念对应四张表与两张关联表：
 
@@ -88,6 +96,7 @@ Allow(u, p, 目标部门 t) = ∃ 指派 (u, r, s) ∈ sys_user_role ：
 
 | 列 | 类型 | 说明 |
 |---|---|---|
+| `id` | BIGINT 自增 | **分段编号**：1–9999 留给内部账号（`root` = 1、业务系统账号 `SYSTEM`），由服务层在段内取「最大编号 + 1」显式写入，用完返回 409；员工与临时用户（手工新增、Excel 导入）从 10000 起自增（V3 设 `AUTO_INCREMENT = 10000`）。这是 10/15 课堂要求，见 [12 R-17](12-design-log.md) |
 | `company_id`、`department_id` | FK | 一个用户只属于一个部门 |
 | `username` | VARCHAR(64) UK | 正式员工为工号（如 `SG000001`） |
 | `password_hash` | BCrypt | 导入员工与未指定口令的新用户用初始口令，`must_change_pwd = 1` |
@@ -201,6 +210,17 @@ Allow(u, p, 目标部门 t) = ∃ 指派 (u, r, s) ∈ sys_user_role ：
 
 数据库缓存设计：用户的授权数据缓存在 Redis，版本号在 `sys_grant_version`（§3.6），见 [02 §4.2](02-architecture.md)。
 
+### 4.6 角色不带部门
+
+`sys_role` 没有部门列，只有可空的 `company_id`。`company_id` 只表示这个角色是某家公司私有的，为空就是全局角色。部门挂在指派 `sys_user_role.scope_dept_id` 上，组里讨论过这个问题，结论如下：
+
+| 方案 | 问题 |
+|---|---|
+| 角色带部门（如「道路分公司财务审核员」） | 同一组权限在 111 个部门要建 111 个角色，权限一改要改 111 处；角色数随部门数膨胀 |
+| 角色不带部门，指派带适用部门（现方案） | 角色只回答「有哪些权限」，指派回答「在哪个部门子树内行使」。同一个角色可以指派到任意部门 |
+
+RBAC0 里的角色就是权限的集合。把部门放进角色，等于把「在哪里行使」和「能做什么」混在一起。T07、T07b 验证了作用域跟着指派走，见 [12 R-18](12-design-log.md)。
+
 ## 5. 初始化数据与导入
 
 ### 5.1 内置数据（V1 脚本）
@@ -266,8 +286,9 @@ Allow(u, p, 目标部门 t) = ∃ 指派 (u, r, s) ∈ sys_user_role ：
 
 - Flyway 管理表结构，脚本在 `rbac-contract` 的 jar 里；Hibernate 设为 `ddl-auto: none`，不建表、不改表。
 - V2 新增 `sys_grant_version`（只加表，不改 V1），已执行过 V1 的库直接升级即可。
+- V3 只把 `sys_user` 的自增起点设为 10000，不改已有数据。已有员工编号小于 10000 的库（10/15 之前导入过员工）仍能启动，但那些员工留在内部段里；课程环境没有正式数据，按 13 §5 重建即可让编号分段从头成立。MySQL 8 起自增计数器持久化，重启不会退回。
 - V1 在本阶段重写过。此前在测试库执行过旧 V1–V3 的，需要删库重建（`docs/13-deployment.md`）；不要直接删除已执行的 Flyway 记录再假定旧库能用。
-- 集成测试每个测试前把库恢复成只含内置数据的状态（首次 clean + migrate 并给每张表拍快照，之后「清空 + 从快照复制」）。
+- 集成测试每个测试前把库恢复成只含内置数据的状态（首次 clean + migrate 并给每张表拍快照，之后「清空 + 从快照复制」）。`TRUNCATE` 会把自增起点退回 1，恢复后再执行一次 V3 的 `ALTER`。
 
 ## 7. 本文档对应的答辩设计点
 

@@ -346,14 +346,14 @@ Allow(u, p, d) = 账号有效(u)
 | AUTHZ-004 | 授权数据缓存；权限修改后下一次访问即生效 | 判定过程 | — |
 | AUTHZ-005 | 每个后端接口都受权限控制；未声明权限的接口默认拒绝 | 全部接口（拦截器） | — |
 | IDM-001 | 用户列表与搜索（只含管理范围内的用户） | `GET /users` | `rbac:user:view` |
-| IDM-002 | 新增用户（正式员工、临时用户） | `POST /users` | `rbac:user:create` |
+| IDM-002 | 新增用户（正式员工、临时用户、业务系统账号）；用户编号 1–9999 预留给内部账号 | `POST /users` | `rbac:user:create` |
 | IDM-003 | 修改用户（姓名、部门、电话、岗位、到期时间） | `PATCH /users/{id}` | `rbac:user:edit` |
 | IDM-004 | 启用、停用 | `PATCH /users/{id}/status` | `rbac:user:edit` |
 | IDM-005 | 删除（逻辑删除） | `DELETE /users/{id}` | `rbac:user:delete` |
 | IDM-006 | 批量启用、停用、删除 | `POST /users/batch-status` | `rbac:user:edit` |
 | IDM-007 | 用户详情：基本信息、角色、有效权限 | `GET /users/{id}`、`GET /users/{id}/roles`、`GET /users/{id}/permissions` | 本人或 `rbac:user:view` |
 | ASGN-001 | 为用户分配角色（带适用部门） | `POST /users/{id}/roles` | `rbac:assignment:assign` |
-| ASGN-002 | 回收一次指派；不级联 | `DELETE /users/{id}/roles/{assignmentId}` | `rbac:assignment:revoke` |
+| ASGN-002 | 回收一次指派；不级联；管理员可以撤销自己的指派 | `DELETE /users/{id}/roles/{assignmentId}` | `rbac:assignment:revoke` |
 | ASGN-003 | 按分公司 / 部门 / 员工批量分配 | `POST /assignments/batch` | `rbac:assignment:assign` |
 | ASGN-004 | 按分公司 / 部门 / 员工批量回收 | `POST /assignments/batch-revoke` | `rbac:assignment:revoke` |
 | ROLE-001 | 角色列表：名称、编码、用户数、权限数、状态 | `GET /roles` | `rbac:role:view` |
@@ -500,14 +500,14 @@ Allow(u, p, d) = 账号有效(u)
 
 **主流程**：
 1. 操作者指定用户的一条指派；
-2. 校验操作者对用户所属部门和该指派的适用部门都持有 `rbac:assignment:revoke`；回收超级管理员角色要求操作者是超级管理员；
+2. 回收的是操作者自己的指派时，不检查管理范围，直接进入第 3 步。这是 10/15 课堂要求「管理员可以自己撤销自己权限」，放弃权限不会扩大任何人的能力。否则校验操作者对用户所属部门和该指派的适用部门都持有 `rbac:assignment:revoke`，回收超级管理员角色还要求操作者是超级管理员；
 3. 删除这一条指派；
 4. 若删除后已没有有效的超级管理员，拒绝（409）；
 5. 提交后缓存失效；记审计 `ROLE_REVOKE`。
 
 **不级联**：只删这一条。被回收者过去授给别人的指派不受影响——`granted_by` 只是审计属性，不构成授权依赖。这就是需求「移除管理员权限，不会导致分配的权限级联删除」。
 
-**后置条件**：被回收者的下一次请求即失去该角色的权限（管理员被回收后，管理能力立即失效）。
+**后置条件**：被回收者的下一次请求即失去该角色的权限（管理员被回收后，管理能力立即失效）。管理员撤销了自己的管理员角色，同样从下一次请求起失去管理能力，只能由其他管理员重新分配。唯一的超级管理员不能撤销自己（第 4 步）。
 
 ### 4.2.8 批量授权（ASGN-003、ASGN-004）
 
@@ -536,7 +536,7 @@ Allow(u, p, d) = 账号有效(u)
 3. 目标部门须在操作者 `rbac:user:create` 的管理范围内；
 4. 用户名、工号唯一（已删除用户的用户名也不能复用）；
 5. 口令为空时使用初始口令并要求首次登录修改；不为空须满足口令策略；
-6. 写入；记审计 `USER_CREATE`。
+6. 写入；记审计 `USER_CREATE`。用户编号分两段（10/15 课堂要求）：业务系统账号（`SYSTEM`）是内部账号，取 1–9999 段内的下一个编号，用完返回 409；正式员工、临时用户（含 Excel 导入）从 10000 起编号。内置超级管理员 `root` 的编号是 1。
 
 **后置条件**：新用户没有任何角色，权限须另行人工分配。临时用户到期后无法登录，鉴权结论为 `SUBJECT_EXPIRED`。
 

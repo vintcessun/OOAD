@@ -52,7 +52,7 @@
               <template #default="{ row }">{{ formatTime(row.grantedAt) }}</template>
             </el-table-column>
             <el-table-column prop="reason" label="原因" />
-            <el-table-column v-if="manageable" label="操作" width="90">
+            <el-table-column v-if="manageable || isSelf" label="操作" width="90">
               <template #default="{ row }">
                 <el-button v-perm="'rbac:assignment:revoke'" link type="danger" @click="revoke(row)"
                            data-test="revoke">回收</el-button>
@@ -126,6 +126,9 @@ const auth = useAuthStore()
 const canExplain = computed(() => auth.has('rbac:explain:view')
   && (props.detail.user.id === auth.me?.user.id || auth.has('rbac:authz:explain')))
 
+/** 自己的指派总能回收（后端不查管理范围，docs/01-srs.md §4.2.7），个人中心也给回收按钮 */
+const isSelf = computed(() => props.detail.user.id === auth.me?.user.id)
+
 const assignVisible = ref(false)
 const keyword = ref('')
 const system = ref('')
@@ -145,11 +148,17 @@ const pagedPerms = computed(() => filteredPerms.value.slice((permPage.value - 1)
 const statusType = (s: string) => (s === 'ACTIVE' ? 'success' : s === 'DISABLED' ? 'warning' : 'info')
 
 async function revoke(row: Assignment) {
+  const self = isSelf.value
   await ElMessageBox.confirm(
-    `回收「${row.roleName} @ ${row.scopeDeptName}」？该用户下一次请求即失去这一指派带来的权限。`,
-    '回收角色', { type: 'warning' })
+    self
+      ? `撤销你自己的「${row.roleName} @ ${row.scopeDeptName}」？下一次请求起你就失去这一指派带来的权限，要恢复只能由其他管理员重新分配。`
+      : `回收「${row.roleName} @ ${row.scopeDeptName}」？该用户下一次请求即失去这一指派带来的权限。`,
+    self ? '撤销自己的角色' : '回收角色', { type: 'warning' })
   await userApi.revoke(props.detail.user.id, row.assignmentId)
   ElMessage.success('已回收')
+  if (self) {
+    await auth.refresh()   // 自己的权限和菜单变了
+  }
   emit('changed')
 }
 </script>
