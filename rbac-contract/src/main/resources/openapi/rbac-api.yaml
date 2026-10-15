@@ -22,6 +22,18 @@ info:
        409 = 重复或状态冲突；400 = 参数不合法。
     3. 鉴权接口判定为「无权限」时返回 **200 + allowed=false**：那是一次正常完成的判定，
        不能与「调用者自己无权调用鉴权接口」（403）混淆。
+    4. 除登录外均使用 Bearer JWT。在 Apifox 的认证配置中填写登录返回的 token，
+       后续请求发送 `Authorization: Bearer <YOUR_TOKEN_HERE>`。
+       令牌有效期由登录结果的 expiresIn 给出，修改口令后需要重新登录。
+    5. `x-required-permission` 为接口权限声明：权限码表示需要对应操作权限；
+       `@self` 表示先校验登录状态，再由业务层校验本人或目标对象的管理范围。
+       管理范围由角色指派的适用部门及其下级决定，具体以各接口说明为准。
+    6. mustChangePwd 为 true 时，只能查询当前用户、登出或修改本人口令；
+       调用其他接口返回 403，业务错误码为 40304。
+    7. 分页结果为 `{items, total, page, size}`，page 从 0 开始。
+       用户、角色指派、审计日志默认每页 20 条；资源、权限默认每页 50 条。
+    8. 业务时间使用 ISO-8601 本地时间，如 `2026-10-15T09:30:00`；
+       响应包装的 timestamp 带时区偏移。无返回数据的成功操作中 data 为 null。
   version: 1.0.0
 
 servers:
@@ -53,8 +65,13 @@ paths:
   /auth/login:
     post:
       tags: [auth]
+      operationId: login
       summary: 登录
-      description: 失败一律返回「用户名或口令错误」；连续失败 5 次锁定 15 分钟（计数在数据库中原子累加）。
+      description: |
+        使用用户名和口令登录，无需 Bearer 认证。成功返回 JWT、有效秒数、用户基本信息和 mustChangePwd。
+        用户不存在、已删除或口令错误时返回 40102「用户名或口令错误」；连续口令错误 5 次后锁定 15 分钟，
+        锁定期间返回 40103。口令正确但账号停用或到期时返回 40104。
+        mustChangePwd=true 时须先修改本人口令，再重新登录。登录成功与失败均记录 LOGIN 审计事件。
       security: []
       requestBody:
         required: true
@@ -64,8 +81,8 @@ paths:
               type: object
               required: [username, password]
               properties:
-                username: { type: string, example: root }
-                password: { type: string, format: password }
+                username: { type: string, example: root, description: 登录用户名 }
+                password: { type: string, format: password, description: 账号当前口令 }
       responses:
         '200':
           description: 登录成功
@@ -81,8 +98,11 @@ paths:
   /auth/logout:
     post:
       tags: [auth]
+      operationId: logout
       summary: 登出
-      description: 令牌编号登记到 Redis，令牌原本到期前一直被拒绝。
+      description: |
+        注销当前请求携带的 JWT，无需额外操作权限。令牌编号登记到 Redis，直至原到期时间前均被拒绝。
+        仅注销当前令牌；成功返回 data=null，并记录 LOGOUT 审计事件。已注销令牌再次调用时返回 401。
       x-required-permission: "@self"
       responses:
         '200': { $ref: '#/components/responses/Ok' }
@@ -91,7 +111,12 @@ paths:
   /auth/me:
     get:
       tags: [auth]
+      operationId: getCurrentUser
       summary: 当前用户的基本信息、角色与有效权限
+      description: |
+        根据 Bearer JWT 确定当前用户，无需传入用户 ID 或额外操作权限。
+        data 包含 user、角色指派 roles、超级管理员标识 superAdmin 和带来源角色、适用部门的 permissions。
+        首次登录尚未修改口令时也可调用，前端可据此提示改密并控制功能入口。
       x-required-permission: "@self"
       responses:
         '200':
@@ -108,8 +133,13 @@ paths:
   /auth/password:
     post:
       tags: [auth]
+      operationId: changeOwnPassword
       summary: 修改本人口令
-      description: 成功后此前签发的令牌全部失效。首次登录必须先调用本接口。
+      description: |
+        为当前登录用户修改口令，首次登录尚未改密时也可调用。必须提供正确旧口令；新口令至少 8 位，
+        同时包含大写字母、小写字母、数字和特殊字符，且不能与旧口令相同，否则返回 400。
+        成功后清除 mustChangePwd，当前及此前签发的全部令牌失效，须使用新口令重新登录。
+        成功返回 data=null，并记录 PASSWORD_CHANGE 审计事件。
       x-required-permission: "@self"
       requestBody:
         required: true
@@ -119,8 +149,8 @@ paths:
               type: object
               required: [oldPassword, newPassword]
               properties:
-                oldPassword: { type: string, format: password }
-                newPassword: { type: string, format: password, description: 至少 8 位，含大写、小写、数字与特殊字符 }
+                oldPassword: { type: string, format: password, description: 当前口令，用于校验本人身份 }
+                newPassword: { type: string, format: password, description: 至少 8 位，含大写、小写、数字与特殊字符，且不同于旧口令 }
       responses:
         '200': { $ref: '#/components/responses/Ok' }
         '400': { $ref: '#/components/responses/BadRequest' }
@@ -129,10 +159,15 @@ paths:
   /authz/check:
     post:
       tags: [authz]
+      operationId: checkAuthorization
       summary: 鉴权：某用户能否对某部门的数据执行某操作
       description: |
-        查自己：任何已登录用户都可以。查别人（业务系统代用户鉴权）：调用者必须在被查用户所在部门持有
-        rbac:authz:invoke，否则 403。每次判定记 AUTH_SUCCESS / AUTH_FAILED。
+        主体通过 userId 或 username 指定，都不填则查询调用者本人；同时填写时优先使用 userId。
+        权限优先取 permission，否则由 resource + action 拼接。targetDeptId 表示被操作数据所属部门，
+        不填时只判定是否具有该操作权限，不限定具体部门。
+        查询本人无需额外权限；查询他人时，调用者须在被查用户所属部门持有 rbac:authz:invoke，否则返回 403。
+        判定完成始终返回 200，是否放行见 data.allowed；拒绝原因见 reason。selfOnly=true 时，
+        业务系统还须按记录归属过滤本人数据。每次完成的判定记录 AUTH_SUCCESS 或 AUTH_FAILED。
       x-required-permission: "@self"
       requestBody:
         required: true
@@ -154,8 +189,13 @@ paths:
   /authz/explain:
     post:
       tags: [authz]
+      operationId: explainAuthorization
       summary: 权限解释：与 check 相同的判定，另返回逐步的判定依据（trace）
-      description: 查别人需要在被查用户所在部门持有 rbac:authz:explain。
+      description: |
+        请求参数与 /authz/check 相同，使用同一套权限判定过程，额外通过 data.trace 返回逐步判定依据。
+        查询本人无需额外权限；查询他人时，须在被查用户所属部门持有 rbac:authz:explain，否则返回 403。
+        正常完成的拒绝仍返回 200 + allowed=false；matched 表示放行所依据的授权，超级管理员旁路时为空。
+        每次完成的判定记录 AUTH_SUCCESS 或 AUTH_FAILED。
       x-required-permission: "@self"
       requestBody:
         required: true
@@ -178,14 +218,20 @@ paths:
   /users:
     get:
       tags: [user]
+      operationId: listUsers
       summary: 用户列表与搜索（只返回管理范围内的用户）
+      description: |
+        需要 rbac:user:view。按用户名、姓名或工号模糊搜索，可结合部门、用户状态和用户类型筛选。
+        departmentId 配合 includeDescendants 决定是否查询下级部门，结果始终与调用者的管理范围取交集。
+        不传 status 时排除已删除用户；显式传 DELETED 可查询管理范围内的已删除用户。
+        data 为分页结果，按用户 ID 升序，page 默认 0、size 默认 20，实际每页限制为 1～200。
       x-required-permission: rbac:user:view
       parameters:
         - { name: keyword, in: query, schema: { type: string }, description: 匹配用户名、姓名、工号 }
-        - { name: departmentId, in: query, schema: { type: integer, format: int64 } }
-        - { name: includeDescendants, in: query, schema: { type: boolean, default: true } }
+        - { name: departmentId, in: query, schema: { type: integer, format: int64 }, description: 筛选所属部门；不填则查询全部可管理部门 }
+        - { name: includeDescendants, in: query, schema: { type: boolean, default: true }, description: 指定 departmentId 时是否包含其下级部门 }
         - { name: status, in: query, schema: { $ref: '#/components/schemas/UserStatus' }, description: 默认不含已删除 }
-        - { name: userType, in: query, schema: { $ref: '#/components/schemas/UserType' } }
+        - { name: userType, in: query, schema: { $ref: '#/components/schemas/UserType' }, description: 按用户类型筛选；不填则不限制类型 }
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/Size'
       responses:
@@ -204,8 +250,15 @@ paths:
                               items: { type: array, items: { $ref: '#/components/schemas/User' } }
     post:
       tags: [user]
+      operationId: createUser
       summary: 新增用户（正式员工、临时用户或业务系统账号）
-      description: 临时用户没有工号、电话，必须给出到期时间。目标部门必须在管理范围内。业务系统账号（SYSTEM）是内部账号，编号取在 1–9999 段内，用完返回 409；员工与临时用户从 10000 起编号。
+      description: |
+        需要在目标部门持有 rbac:user:create。公司由目标部门确定，userType 默认 EMPLOYEE，也支持 TEMPORARY、SYSTEM。
+        正式员工必须填写工号；临时用户不能填写工号、电话，且必须给出到期时间。
+        用户名和非空工号必须唯一，已删除用户的用户名也不能复用，否则返回 409。
+        password 为空时采用配置的初始口令并要求首次登录修改；自定义口令须符合复杂度要求。
+        SYSTEM 为内部账号，ID 使用 1～9999，编号用完返回 409；员工与临时用户从 10000 起编号。
+        成功返回新用户基本信息，并记录 USER_CREATE；创建账号后仍需单独指派角色。
       x-required-permission: rbac:user:create
       requestBody:
         required: true
@@ -221,8 +274,13 @@ paths:
   /users/batch-status:
     post:
       tags: [user]
+      operationId: batchChangeUserStatus
       summary: 批量启用 / 停用 / 删除
-      description: 逐个校验，通过的执行，失败的逐人返回原因。
+      description: |
+        接口入口需要 rbac:user:edit；逐人处理时，启用、停用校验 rbac:user:edit，删除校验 rbac:user:delete，
+        均要求权限覆盖该用户所属部门。userIds 不能为空，重复 ID 去重后处理。
+        固定采用 PARTIAL 模式：通过的执行，失败的在 failures 中返回用户 ID 和原因；不能变更本人或已删除账号，
+        普通管理员不能变更超级管理员账号。正常处理返回 200，不表示所有用户均成功，应检查 succeeded、failed 和 failures。
       x-required-permission: rbac:user:edit
       requestBody:
         required: true
@@ -232,9 +290,9 @@ paths:
               type: object
               required: [userIds, status]
               properties:
-                userIds: { type: array, items: { type: integer, format: int64 } }
+                userIds: { type: array, items: { type: integer, format: int64 }, description: 待变更用户 ID 列表，不能为空，重复 ID 去重处理 }
                 status: { $ref: '#/components/schemas/UserStatus' }
-                reason: { type: string }
+                reason: { type: string, description: 本次批量状态变更原因，写入审计日志 }
       responses:
         '200': { $ref: '#/components/responses/BatchOk' }
 
@@ -243,8 +301,12 @@ paths:
       - $ref: '#/components/parameters/Id'
     get:
       tags: [user]
+      operationId: getUser
       summary: 用户详情：基本信息、角色、有效权限
-      description: 本人可查自己；查别人需要在其部门持有 rbac:user:view。
+      description: |
+        本人可直接查询自己；查询其他用户须在其所属部门持有 rbac:user:view，超出管理范围返回 403。
+        data 包含用户基本信息、角色指派、超级管理员标识，以及带来源角色和适用部门的有效权限。
+        角色指派与有效权限分开返回，停用角色的指派仍可见，但不贡献有效权限；用户不存在时返回 404。
       x-required-permission: "@self"
       responses:
         '200':
@@ -260,7 +322,12 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
     patch:
       tags: [user]
+      operationId: updateUser
       summary: 修改用户（姓名、部门、电话、岗位、到期时间）
+      description: |
+        需要在用户当前所属部门持有 rbac:user:edit；普通管理员不能修改其他超级管理员账号，已删除用户不能修改。
+        仅更新非 null 字段；姓名不能是空白，电话和岗位可传空字符串清空，临时用户不能设置非空电话。
+        调整部门时，调入部门须属于同一公司且也在管理范围内。成功返回更新后的用户基本信息，并记录 USER_UPDATE。
       x-required-permission: rbac:user:edit
       requestBody:
         required: true
@@ -273,10 +340,15 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
     delete:
       tags: [user]
+      operationId: deleteUser
       summary: 删除用户（逻辑删除，用户名不可复用，指派保留供审计）
+      description: |
+        需要在目标用户所属部门持有 rbac:user:delete。将状态改为 DELETED 并记录删除时间，保留角色指派供审计，
+        用户名不可复用，既有令牌在下一次请求失效。不能删除本人或再次删除已删除账号，状态冲突返回 409；
+        普通管理员不能删除超级管理员账号。reason 可记录删除原因，成功返回 data=null，并记录 USER_DELETE。
       x-required-permission: rbac:user:delete
       parameters:
-        - { name: reason, in: query, schema: { type: string } }
+        - { name: reason, in: query, schema: { type: string }, description: 删除原因，记录到用户状态和审计日志 }
       responses:
         '200': { $ref: '#/components/responses/Ok' }
         '403': { $ref: '#/components/responses/Forbidden' }
@@ -287,7 +359,12 @@ paths:
       - $ref: '#/components/parameters/Id'
     patch:
       tags: [user]
+      operationId: changeUserStatus
       summary: 启用或停用
+      description: |
+        需要在目标用户所属部门持有 rbac:user:edit，status 只接受 ACTIVE 或 DISABLED，删除应使用 DELETE 接口。
+        不能变更本人的状态，也不能恢复已删除账号；普通管理员不能变更超级管理员账号。
+        停用后既有令牌在下一次请求失效；角色指派保留。成功返回用户基本信息，并记录 USER_STATUS 及 reason。
       x-required-permission: rbac:user:edit
       requestBody:
         required: true
@@ -297,8 +374,8 @@ paths:
               type: object
               required: [status]
               properties:
-                status: { type: string, enum: [ACTIVE, DISABLED] }
-                reason: { type: string }
+                status: { type: string, enum: [ACTIVE, DISABLED], description: 目标状态；ACTIVE 启用，DISABLED 停用 }
+                reason: { type: string, description: 状态变更原因，记录到用户状态和审计日志 }
       responses:
         '200': { $ref: '#/components/responses/UserOk' }
         '403': { $ref: '#/components/responses/Forbidden' }
@@ -309,7 +386,12 @@ paths:
       - $ref: '#/components/parameters/Id'
     get:
       tags: [user]
+      operationId: listUserRoleAssignments
       summary: 用户的角色指派
+      description: |
+        本人可查看自己的指派；查询他人须在其所属部门持有 rbac:user:view。
+        data 为指派数组，每项包含 assignmentId、角色状态、适用部门、授予人、授予时间和原因。
+        同一角色可在不同适用部门分别指派，停用角色的指派仍会返回；回收时使用 assignmentId。
       x-required-permission: "@self"
       responses:
         '200':
@@ -323,10 +405,13 @@ paths:
                       data: { type: array, items: { $ref: '#/components/schemas/Assignment' } }
     post:
       tags: [user]
+      operationId: assignUserRole
       summary: 为用户分配角色（ROLE_ASSIGN）
       description: |
-        校验：用户与适用部门都在管理范围内；适用部门与用户同公司；超级管理员角色只有超级管理员能分配；
-        不能授出自己在适用部门没有的权限。
+        需要在用户所属部门和适用部门均持有 rbac:assignment:assign，scopeDepartmentId 默认取用户所属部门，覆盖其下级。
+        用户须未删除、角色须启用，适用部门须与用户同公司，公司内角色只能分配到本公司。
+        超级管理员角色只有超级管理员能分配；角色中各权限不能超出调用者在适用部门所持有的权限及本人数据限制。
+        相同用户、角色、适用部门的指派重复时返回 409。成功返回指派详情，更新授权缓存版本并记录 ROLE_ASSIGN。
       x-required-permission: rbac:assignment:assign
       requestBody:
         required: true
@@ -336,9 +421,9 @@ paths:
               type: object
               required: [roleId]
               properties:
-                roleId: { type: integer, format: int64 }
+                roleId: { type: integer, format: int64, description: 待分配角色的 ID，角色须已启用 }
                 scopeDepartmentId: { type: integer, format: int64, description: 适用部门（含下级），默认用户所属部门 }
-                reason: { type: string }
+                reason: { type: string, description: 指派原因，保存在指派记录和审计日志中 }
       responses:
         '200':
           description: OK
@@ -355,14 +440,20 @@ paths:
   /users/{id}/roles/{assignmentId}:
     parameters:
       - $ref: '#/components/parameters/Id'
-      - { name: assignmentId, in: path, required: true, schema: { type: integer, format: int64 } }
+      - { name: assignmentId, in: path, required: true, schema: { type: integer, format: int64 }, description: 角色指派记录 ID，须属于路径中 id 指定的用户 }
     delete:
       tags: [user]
+      operationId: revokeUserRoleAssignment
       summary: 回收一次角色指派（ROLE_REVOKE）
-      description: 只删这一条；被回收者过去授给别人的指派不受影响。回收自己的指派不受管理范围限制。不能回收最后一个有效的超级管理员。
+      description: |
+        接口需要 rbac:assignment:revoke；回收他人指派还要求该权限覆盖用户所属部门及指派适用部门，回收本人指派不受管理范围限制。
+        assignmentId 必须属于路径中的用户，
+        不存在或不匹配时返回 404。只回收该条指派，被回收者过去授给其他人的指派保留。
+        他人的超级管理员角色只有超级管理员能回收；不能回收最后一个有效的超级管理员，否则返回 409 并回滚。
+        成功返回 data=null，更新授权缓存版本并记录 ROLE_REVOKE，reason 用于审计。
       x-required-permission: rbac:assignment:revoke
       parameters:
-        - { name: reason, in: query, schema: { type: string } }
+        - { name: reason, in: query, schema: { type: string }, description: 回收指派的原因，写入审计日志 }
       responses:
         '200': { $ref: '#/components/responses/Ok' }
         '403': { $ref: '#/components/responses/Forbidden' }
@@ -374,7 +465,12 @@ paths:
       - $ref: '#/components/parameters/Id'
     get:
       tags: [user]
+      operationId: listUserEffectivePermissions
       summary: 用户的有效权限（每条带来源角色与适用部门）
+      description: |
+        本人可查询自己；查询他人须在其所属部门持有 rbac:user:view。
+        data 为有效权限数组，包含权限码、来源角色、适用部门和 selfOnly。同一权限可因角色或适用部门不同出现多次，
+        按权限码、适用部门 ID 排序。超级管理员的旁路能力不展开为全量权限码，身份标识应查询用户详情的 superAdmin。
       x-required-permission: "@self"
       responses:
         '200':
@@ -391,11 +487,16 @@ paths:
   /roles:
     get:
       tags: [role]
+      operationId: listRoles
       summary: 角色列表：名称、编码、用户数、权限数、状态
+      description: |
+        需要 rbac:role:view。返回全局角色及调用者管理范围涉及公司的角色，超级管理员可查看全部。
+        keyword 匹配角色编码或名称，status 可筛选 ENABLED、DISABLED；结果为按角色 ID 升序的数组，不分页。
+        每项包含角色基本信息、用户数和权限数；列表中的用户数按不同用户去重计算。
       x-required-permission: rbac:role:view
       parameters:
-        - { name: keyword, in: query, schema: { type: string } }
-        - { name: status, in: query, schema: { type: string, enum: [ENABLED, DISABLED] } }
+        - { name: keyword, in: query, schema: { type: string }, description: 模糊匹配角色编码或角色名称 }
+        - { name: status, in: query, schema: { type: string, enum: [ENABLED, DISABLED] }, description: 按角色状态筛选；不填则返回启用和停用角色 }
       responses:
         '200':
           description: OK
@@ -408,8 +509,13 @@ paths:
                       data: { type: array, items: { $ref: '#/components/schemas/Role' } }
     post:
       tags: [role]
+      operationId: createRole
       summary: 新增角色
-      description: companyId 为空 = 全局角色，只有超级管理员能建；否则需要在该公司根部门持有 rbac:role:create。
+      description: |
+        需要 rbac:role:create。companyId 为空表示创建全局角色，仅超级管理员可操作；
+        创建公司内角色时，需要在该公司根部门持有此权限。
+        roleCode 必须以大写字母开头，由大写字母、数字和下划线组成，总长 2～64 位，且全局唯一；roleName 必填。
+        成功返回角色基本信息并记录 ROLE_CREATE，新角色尚无权限和用户指派，须分别授权与分配。
       x-required-permission: rbac:role:create
       requestBody:
         required: true
@@ -419,10 +525,10 @@ paths:
               type: object
               required: [roleCode, roleName]
               properties:
-                roleCode: { type: string, pattern: '^[A-Z][A-Z0-9_]{1,63}$' }
-                roleName: { type: string }
-                description: { type: string }
-                companyId: { type: integer, format: int64 }
+                roleCode: { type: string, pattern: '^[A-Z][A-Z0-9_]{1,63}$', description: 全局唯一角色编码，创建后不可修改 }
+                roleName: { type: string, description: 角色显示名称，不能为空白 }
+                description: { type: string, description: 角色用途说明 }
+                companyId: { type: integer, format: int64, description: 所属公司 ID；不填为全局角色，仅超级管理员可创建 }
       responses:
         '200': { $ref: '#/components/responses/RoleOk' }
         '403': { $ref: '#/components/responses/Forbidden' }
@@ -433,7 +539,12 @@ paths:
       - $ref: '#/components/parameters/Id'
     get:
       tags: [role]
+      operationId: getRole
       summary: 角色详情：基本信息与权限
+      description: |
+        需要 rbac:role:view。全局角色可查看；公司内角色仅向管理范围涉及该公司的调用者或超级管理员开放。
+        data 包含 role 和 permissions，权限项列出资源、操作名称、selfOnly 和授予时间。
+        用户指派另通过 /roles/{id}/users 分页获取；角色不存在时返回 404，超出可见公司范围时返回 403。
       x-required-permission: rbac:role:view
       responses:
         '200':
@@ -448,8 +559,13 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
     patch:
       tags: [role]
+      operationId: updateRole
       summary: 修改角色名称、描述、启用停用
-      description: 停用后持有者在下一次请求即失去该角色的权限。超级管理员角色不能停用。
+      description: |
+        需要 rbac:role:edit。全局角色仅超级管理员可修改；公司内角色要求在公司根部门持有该权限。
+        可修改名称、描述及 ENABLED、DISABLED 状态，不修改角色编码或所属公司；省略字段保留原值。
+        状态变化会更新授权缓存版本，停用后所有持有者在下一次请求失去该角色贡献的权限。
+        超级管理员角色不能停用。成功返回角色基本信息，并记录 ROLE_UPDATE。
       x-required-permission: rbac:role:edit
       requestBody:
         required: true
@@ -458,15 +574,20 @@ paths:
             schema:
               type: object
               properties:
-                roleName: { type: string }
-                description: { type: string }
-                status: { type: string, enum: [ENABLED, DISABLED] }
+                roleName: { type: string, description: 新角色名称；省略或空白时保留原名 }
+                description: { type: string, description: 新描述；省略时保留，空字符串可清空 }
+                status: { type: string, enum: [ENABLED, DISABLED], description: 新角色状态；省略时保留，超级管理员角色不能停用 }
       responses:
         '200': { $ref: '#/components/responses/RoleOk' }
         '403': { $ref: '#/components/responses/Forbidden' }
     delete:
       tags: [role]
+      operationId: deleteRole
       summary: 删除角色（内置角色不能删；仍有人持有时 409）
+      description: |
+        需要 rbac:role:delete。全局角色仅超级管理员可删除；公司内角色要求在公司根部门持有该权限。
+        内置角色或仍存在任何用户指派的角色不能删除，返回 409，应先人工回收指派。
+        成功删除角色及其角色权限关联，返回 data=null，并记录 ROLE_DELETE。
       x-required-permission: rbac:role:delete
       responses:
         '200': { $ref: '#/components/responses/Ok' }
@@ -477,7 +598,12 @@ paths:
       - $ref: '#/components/parameters/Id'
     get:
       tags: [role]
+      operationId: listRoleUserAssignments
       summary: 角色详情「用户」：持有该角色的指派
+      description: |
+        需要 rbac:role:view，并先校验角色的公司可见范围。仅返回适用部门在调用者管理范围内的角色指派，
+        超级管理员可查看全部。data 为分页指派结果，page 默认 0、size 默认 20，实际每页限制为 1～200。
+        total 统计可见指派条数，同一用户在多个适用部门持有该角色时会有多条记录。
       x-required-permission: rbac:role:view
       parameters:
         - $ref: '#/components/parameters/Page'
@@ -502,8 +628,13 @@ paths:
       - $ref: '#/components/parameters/Id'
     post:
       tags: [role]
+      operationId: grantRolePermissions
       summary: 为角色授予权限（PERMISSION_ASSIGN）
-      description: 不能授出自己没有的权限。已有的跳过。
+      description: |
+        需要 rbac:grant:assign。全局角色仅超级管理员可修改；公司内角色要求在公司根部门持有该权限。
+        permissionIds 不能为空，重复 ID 去重，角色已持有的权限跳过；任何权限 ID 不存在时返回 404。
+        非超级管理员须在公司根部门持有每个待授予权限，且不能仅有 selfOnly 的本人范围，否则返回 403。
+        超级管理员角色采用旁路判定，不接受显式授权。成功返回角色详情，新增授权会更新缓存版本并记录 PERMISSION_ASSIGN。
       x-required-permission: rbac:grant:assign
       requestBody:
         required: true
@@ -513,7 +644,7 @@ paths:
               type: object
               required: [permissionIds]
               properties:
-                permissionIds: { type: array, items: { type: integer, format: int64 } }
+                permissionIds: { type: array, items: { type: integer, format: int64 }, description: 待授予的权限 ID 列表，不能为空；重复 ID 和已有授权跳过 }
       responses:
         '200':
           description: OK
@@ -529,10 +660,16 @@ paths:
   /roles/{id}/permissions/{permissionId}:
     parameters:
       - $ref: '#/components/parameters/Id'
-      - { name: permissionId, in: path, required: true, schema: { type: integer, format: int64 } }
+      - { name: permissionId, in: path, required: true, schema: { type: integer, format: int64 }, description: 待回收的权限 ID，须已授予路径中 id 指定的角色 }
     delete:
       tags: [role]
+      operationId: revokeRolePermission
       summary: 回收角色的一个权限（PERMISSION_REVOKE）
+      description: |
+        需要 rbac:grant:revoke。全局角色仅超级管理员可修改；公司内角色要求在公司根部门持有该权限。
+        permissionId 指向权限定义，必须已授予该角色，否则返回 404。
+        成功仅删除该角色与权限的关联，返回 data=null，更新缓存版本并记录 PERMISSION_REVOKE；
+        持有该角色的全部用户在下一次请求失去此角色贡献的该权限。
       x-required-permission: rbac:grant:revoke
       responses:
         '200': { $ref: '#/components/responses/Ok' }
@@ -541,10 +678,14 @@ paths:
   /assignments/batch:
     post:
       tags: [role]
+      operationId: batchAssignRole
       summary: 按分公司 / 部门 / 员工批量分配角色
       description: |
-        默认 ATOMIC：先逐人做完整校验，有任何一人不通过就整批不写（committed=false），返回失败清单；
-        PARTIAL：写入通过的，失败逐人给出原因。已持有相同指派的人计入 duplicated。
+        需要 rbac:assignment:assign。按 targetType 将公司、部门或用户 ID 展开为用户，重叠范围中的用户去重；
+        部门目标默认包含下级。逐人校验用户部门、适用部门的管理权限、公司一致性及禁止越权授予规则。
+        scopeDepartmentId 不填时，各用户以其所属部门为适用部门。
+        默认 ATOMIC：任何一人未通过校验则整批不写，返回 committed=false；PARTIAL 则写入通过的用户。
+        已持有同角色、同适用部门指派的人计入 duplicated，不算失败。200 表示处理完成，须检查 committed 和 failures。
       x-required-permission: rbac:assignment:assign
       requestBody:
         required: true
@@ -557,8 +698,14 @@ paths:
   /assignments/batch-revoke:
     post:
       tags: [role]
+      operationId: batchRevokeRole
       summary: 按分公司 / 部门 / 员工批量回收角色
-      description: scopeDepartmentId 为空时回收这些人持有的该角色的全部指派。规则同批量分配。
+      description: |
+        需要 rbac:assignment:revoke，按公司、部门或用户展开目标，逐人校验用户所属部门和各指派适用部门的回收权限；回收本人指派不受管理范围限制。
+        scopeDepartmentId 为空时回收目标用户持有该角色的全部指派，否则只回收该适用部门的指派。
+        默认 ATOMIC，任一用户校验失败整批不执行；PARTIAL 执行通过者。无匹配指派的用户计入 duplicated，不算失败。
+        succeeded 按成功处理的用户数统计；回收最后一个有效超级管理员返回 409 并回滚。
+        被回收者过去授给他人的指派保留；200 后仍须检查 committed、failed 和 failures。
       x-required-permission: rbac:assignment:revoke
       requestBody:
         required: true
@@ -572,7 +719,11 @@ paths:
   /systems:
     get:
       tags: [permission]
+      operationId: listSystems
       summary: 业务系统与功能模块（权限域）
+      description: |
+        需要 rbac:permission:view。data 为业务系统数组，每项包含系统 ID、编码、名称及所属 modules 数组，
+        模块含 ID、编码和名称。按配置顺序返回，用于资源筛选及新建资源时选择 moduleId，不分页。
       x-required-permission: rbac:permission:view
       responses:
         '200': { $ref: '#/components/responses/Ok' }
@@ -580,19 +731,30 @@ paths:
   /resources:
     get:
       tags: [permission]
+      operationId: listResources
       summary: 资源列表（BUSINESS 业务功能点 / MENU 菜单 / API 接口能力）
+      description: |
+        需要 rbac:permission:view。可按业务系统、资源类型以及资源编码或名称关键字筛选。
+        data 为分页结果，items 包含资源基本信息、所属模块名和系统名。
+        page 默认 0、size 默认 50，实际每页限制为 1～500；资源类型包括 BUSINESS、MENU、API。
       x-required-permission: rbac:permission:view
       parameters:
-        - { name: systemId, in: query, schema: { type: integer, format: int64 } }
-        - { name: type, in: query, schema: { type: string, enum: [BUSINESS, MENU, API] } }
-        - { name: keyword, in: query, schema: { type: string } }
+        - { name: systemId, in: query, schema: { type: integer, format: int64 }, description: 按所属业务系统 ID 筛选 }
+        - { name: type, in: query, schema: { type: string, enum: [BUSINESS, MENU, API] }, description: 资源类型；BUSINESS 业务功能点，MENU 菜单，API 接口能力 }
+        - { name: keyword, in: query, schema: { type: string }, description: 模糊匹配资源编码或资源名称 }
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/Size'
       responses:
         '200': { $ref: '#/components/responses/Ok' }
     post:
       tags: [permission]
+      operationId: createResource
       summary: 新增资源，并为给出的操作建立权限
+      description: |
+        需要 rbac:permission:create。moduleId 必须存在；resourceCode 使用小写字母、数字、连字符及冒号分段，
+        且必须以所属业务系统编码加冒号开头。resourceType 默认 BUSINESS，资源编码重复返回 409。
+        actionCodes 中的每项须已存在于操作词汇表，按「资源编码:操作编码」同时创建权限；省略则只创建资源。
+        整个创建过程在同一事务中完成，成功返回资源基本信息，并记录 RESOURCE_CREATE。
       x-required-permission: rbac:permission:create
       requestBody:
         required: true
@@ -602,12 +764,12 @@ paths:
               type: object
               required: [moduleId, resourceCode, resourceName]
               properties:
-                moduleId: { type: integer, format: int64 }
-                resourceCode: { type: string, example: 'oa:doc:draft' }
-                resourceName: { type: string }
-                resourceType: { type: string, enum: [BUSINESS, MENU, API] }
-                description: { type: string }
-                actionCodes: { type: array, items: { type: string } }
+                moduleId: { type: integer, format: int64, description: 所属功能模块 ID，可通过 /systems 查询 }
+                resourceCode: { type: string, example: 'oa:doc:draft', description: 全局唯一资源编码，须以所属系统编码加冒号开头 }
+                resourceName: { type: string, description: 资源显示名称，不能为空白 }
+                resourceType: { type: string, enum: [BUSINESS, MENU, API], description: 资源类型；省略时使用 BUSINESS }
+                description: { type: string, description: 资源用途说明 }
+                actionCodes: { type: array, items: { type: string }, description: 同时建立权限的操作编码列表；编码须已存在，省略时不创建权限 }
       responses:
         '200': { $ref: '#/components/responses/Ok' }
         '409': { $ref: '#/components/responses/Conflict' }
@@ -615,7 +777,11 @@ paths:
   /actions:
     get:
       tags: [permission]
+      operationId: listActions
       summary: 操作词汇表
+      description: |
+        需要 rbac:permission:view。data 为按配置顺序排列的操作数组，每项包含 id、actionCode、actionName。
+        创建资源或权限时应使用此处已有的 actionCode，例如 view、create、edit、approve、export；本接口不分页。
       x-required-permission: rbac:permission:view
       responses:
         '200': { $ref: '#/components/responses/Ok' }
@@ -623,19 +789,29 @@ paths:
   /permissions:
     get:
       tags: [permission]
+      operationId: listPermissions
       summary: 权限列表（Permission = Resource × Action）
+      description: |
+        需要 rbac:permission:view。可按业务系统、资源以及权限码或资源名称关键字筛选。
+        data 为分页结果，items 包含权限 ID、权限码、资源名称及类型、操作名称和系统名称。
+        权限码由资源编码与操作编码以冒号连接，授权接口使用权限 ID。page 默认 0、size 默认 50，实际每页限制为 1～500。
       x-required-permission: rbac:permission:view
       parameters:
-        - { name: systemId, in: query, schema: { type: integer, format: int64 } }
-        - { name: resourceId, in: query, schema: { type: integer, format: int64 } }
-        - { name: keyword, in: query, schema: { type: string } }
+        - { name: systemId, in: query, schema: { type: integer, format: int64 }, description: 按所属业务系统 ID 筛选 }
+        - { name: resourceId, in: query, schema: { type: integer, format: int64 }, description: 仅查询指定资源的权限 }
+        - { name: keyword, in: query, schema: { type: string }, description: 模糊匹配权限码或资源名称 }
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/Size'
       responses:
         '200': { $ref: '#/components/responses/Ok' }
     post:
       tags: [permission]
+      operationId: createPermission
       summary: 为已有资源新增一个操作的权限
+      description: |
+        需要 rbac:permission:create。resourceId 和 actionCode 必填，资源和操作词汇必须已存在，否则返回 404。
+        权限码自动生成为「资源编码:操作编码」；同资源、同操作只能有一条权限，重复时返回 409。
+        成功返回权限基本信息，并记录 PERMISSION_CREATE；权限定义创建后仍需单独授予角色。
       x-required-permission: rbac:permission:create
       requestBody:
         required: true
@@ -645,8 +821,8 @@ paths:
               type: object
               required: [resourceId, actionCode]
               properties:
-                resourceId: { type: integer, format: int64 }
-                actionCode: { type: string }
+                resourceId: { type: integer, format: int64, description: 已有资源的 ID }
+                actionCode: { type: string, description: 已有操作编码，可通过 /actions 查询 }
       responses:
         '200': { $ref: '#/components/responses/Ok' }
         '409': { $ref: '#/components/responses/Conflict' }
@@ -654,11 +830,17 @@ paths:
   /permissions/heatmap:
     get:
       tags: [stats]
+      operationId: getPermissionHeatmap
       summary: 权限使用热力图（业务系统 × 操作，成功鉴权次数）
+      description: |
+        需要 rbac:heatmap:view。仅统计时间范围内 AUTH_SUCCESS 审计事件，时间区间为 [from, to)。
+        to 默认当前时间，from 默认所选 to 的 7 天前，from 必须早于 to，否则返回 400。
+        data 包含实际 from、to、横轴操作名称 actions、纵轴系统名称 systems，以及 cells。
+        每个 cell 为 [操作下标, 系统下标, 成功次数]，下标从 0 开始，未返回的组合可按 0 展示。
       x-required-permission: rbac:heatmap:view
       parameters:
-        - { name: from, in: query, schema: { type: string, format: date-time }, description: 默认 7 天前 }
-        - { name: to, in: query, schema: { type: string, format: date-time }, description: 默认现在 }
+        - { name: from, in: query, schema: { type: string, format: date-time }, description: 统计起点（含），本地时间；默认 to 的 7 天前，须早于 to }
+        - { name: to, in: query, schema: { type: string, format: date-time }, description: 统计终点（不含），本地时间；默认当前时间 }
       responses:
         '200': { $ref: '#/components/responses/Ok' }
 
@@ -666,7 +848,12 @@ paths:
   /menus/me:
     get:
       tags: [menu]
+      operationId: getCurrentUserMenus
       summary: 当前用户可见的菜单树（按「菜单资源:view」动态生成）
+      description: |
+        登录即可调用，无需额外操作权限。对关联 MENU 资源的节点按「资源编码:view」判定可见性，
+        未关联资源的目录仅在至少一个子节点可见时返回，并按 sortOrder、ID 组织为带 children 的树。
+        data 为菜单节点数组，包含路由、组件、图标和资源信息；接口访问权限仍由服务端独立校验。
       x-required-permission: "@self"
       responses:
         '200': { $ref: '#/components/responses/Ok' }
@@ -674,13 +861,22 @@ paths:
   /menus:
     get:
       tags: [menu]
+      operationId: listMenus
       summary: 完整菜单树
+      description: |
+        需要 rbac:menu:view。返回用于菜单管理的完整菜单树，包含空目录以及调用者个人动态菜单中不可见的节点。
+        data 为按 sortOrder、ID 排列的根节点数组，各节点通过 children 嵌套子节点，不分页。
       x-required-permission: rbac:menu:view
       responses:
         '200': { $ref: '#/components/responses/Ok' }
     post:
       tags: [menu]
+      operationId: createMenu
       summary: 新增菜单
+      description: |
+        需要 rbac:menu:create，menuName 必填。parentId 为空时创建根节点，否则上级菜单须存在。
+        resourceId 为空表示目录，非空时必须关联已有 MENU 类型资源；sortOrder 默认 0。
+        成功返回新菜单节点，children 为空数组，并记录 MENU_CREATE。
       x-required-permission: rbac:menu:create
       requestBody:
         required: true
@@ -695,7 +891,13 @@ paths:
       - $ref: '#/components/parameters/Id'
     patch:
       tags: [menu]
+      operationId: updateMenu
       summary: 修改菜单
+      description: |
+        需要 rbac:menu:edit，目标菜单须存在，menuName 必填。不能移到自身或后代节点下，关联资源必须为 MENU 类型。
+        本接口按 SaveMenu 整体覆盖可编辑字段：省略 parentId 会移为根节点，省略 resourceId 会变为目录，
+        省略路由、组件或图标会清空对应值，省略 sortOrder 会设为 0。提交时应携带需要保留的字段。
+        成功返回更新节点（children 为空数组，需要完整树时重新查询），并记录 MENU_UPDATE。
       x-required-permission: rbac:menu:edit
       requestBody:
         required: true
@@ -706,7 +908,11 @@ paths:
         '200': { $ref: '#/components/responses/Ok' }
     delete:
       tags: [menu]
+      operationId: deleteMenu
       summary: 删除菜单（有子菜单时 409）
+      description: |
+        需要 rbac:menu:delete。目标不存在时返回 404；存在子菜单时返回 409，须先删除子菜单。
+        成功仅删除菜单记录，关联的资源和权限定义保留，返回 data=null，并记录 MENU_DELETE。
       x-required-permission: rbac:menu:delete
       responses:
         '200': { $ref: '#/components/responses/Ok' }
@@ -716,7 +922,11 @@ paths:
   /companies:
     get:
       tags: [org]
+      operationId: listCompanies
       summary: 公司列表（只含管理范围涉及的公司）
+      description: |
+        需要 rbac:org:view。只返回该权限管理范围涉及且已配置根部门的公司，超级管理员可查看所有已配置根部门的公司。
+        data 为包含 id、companyCode、companyName、rootDepartmentId 的数组，用于选择部门树和批量授权目标，不分页。
       x-required-permission: rbac:org:view
       responses:
         '200': { $ref: '#/components/responses/Ok' }
@@ -724,22 +934,32 @@ paths:
   /departments/tree:
     get:
       tags: [org]
+      operationId: getDepartmentTree
       summary: 部门树（管理范围内的部门及通往它们的祖先）
+      description: |
+        需要 rbac:org:view，companyId 必填，公司不存在时返回 404。
+        返回管理范围内部门及下级，并补充通往这些部门的祖先节点以便展示；祖先可见不表示可管理祖先下的其他部门。
+        data 为包含层级、负责人及 children 的部门树；公司没有可见部门时返回空数组。
       x-required-permission: rbac:org:view
       parameters:
-        - { name: companyId, in: query, required: true, schema: { type: integer, format: int64 } }
+        - { name: companyId, in: query, required: true, schema: { type: integer, format: int64 }, description: 待查询部门树的公司 ID，可通过 /companies 获取 }
       responses:
         '200': { $ref: '#/components/responses/Ok' }
 
   /imports/organization:
     post:
       tags: [org]
+      operationId: importOrganization
       summary: 导入部门信息表与员工信息表
-      description: 不分配任何角色；无法唯一定位的行进入异常清单、不写入。可重复执行。
+      description: |
+        需要 rbac:org:import。通过 query 指定公司编码与名称，multipart/form-data 同时上传 departments、employees 两份 xlsx。
+        按项目部门信息表、员工信息表格式读取首个工作表，目标公司不存在时创建，已存在的部门和用户名跳过。
+        无法唯一定位部门、负责人等数据时记录 anomalies，并跳过无法处理的数据；有效数据仍可导入。
+        不自动分配角色，部门负责人也不会因此获得管理权限。200 返回 counts、notes、anomalies，应检查异常后人工授权。
       x-required-permission: rbac:org:import
       parameters:
-        - { name: companyCode, in: query, required: true, schema: { type: string } }
-        - { name: companyName, in: query, required: true, schema: { type: string } }
+        - { name: companyCode, in: query, required: true, schema: { type: string }, description: 目标公司编码，已存在时沿用该公司 }
+        - { name: companyName, in: query, required: true, schema: { type: string }, description: 目标公司名称，创建新公司时使用 }
       requestBody:
         required: true
         content:
@@ -748,15 +968,22 @@ paths:
               type: object
               required: [departments, employees]
               properties:
-                departments: { type: string, format: binary }
-                employees: { type: string, format: binary }
+                departments: { type: string, format: binary, description: 项目格式的部门信息表 xlsx 文件，读取首个工作表 }
+                employees: { type: string, format: binary, description: 项目格式的员工信息表 xlsx 文件，读取首个工作表 }
       responses:
         '200': { $ref: '#/components/responses/ImportOk' }
 
   /imports/permissions:
     post:
       tags: [org]
+      operationId: importPermissions
       summary: 导入应用软件功能权限清单（业务系统、模块、资源、权限、五类角色模板）
+      description: |
+        需要 rbac:permission:create，通过 multipart/form-data 的 file 上传项目格式的功能权限清单 xlsx，读取首个工作表。
+        建立或沿用系统、模块、资源及五类业务操作权限，并按清单同步五类角色模板的业务权限和本人数据限制。
+        重复导入可新增、更新，也会回收清单中移除的模板业务权限；权限中心自身 rbac:* 权限保留。
+        异常单元格对应的原有授权保留；存在无法定位的功能点时暂停本次删除同步。导入不会给用户分配角色。
+        200 返回 counts、notes、anomalies，应检查异常清单及回收统计，变更授权后更新缓存版本。
       x-required-permission: rbac:permission:create
       requestBody:
         required: true
@@ -766,7 +993,7 @@ paths:
               type: object
               required: [file]
               properties:
-                file: { type: string, format: binary }
+                file: { type: string, format: binary, description: 项目格式的应用软件功能权限清单 xlsx 文件，读取首个工作表 }
       responses:
         '200': { $ref: '#/components/responses/ImportOk' }
 
@@ -774,15 +1001,21 @@ paths:
   /audit-logs:
     get:
       tags: [stats]
+      operationId: listAuditLogs
       summary: 审计日志：谁、什么时候、在哪里、对谁、做了什么、结果如何、为什么
+      description: |
+        需要 rbac:audit:view。支持事件类型、操作者用户名、目标名称、结果和时间筛选，按日志 ID 倒序分页。
+        actor 精确匹配用户名，target 模糊匹配目标名称；时间范围为 [from, to)，不填的边界不参与筛选。
+        abnormal=true 仅保留登录失败及不存在、停用、删除、到期主体发起的鉴权失败，仍与其他筛选条件取交集。
+        data 为审计日志分页结果，page 默认 0、size 默认 20；日志仅供查询。
       x-required-permission: rbac:audit:view
       parameters:
         - { name: eventType, in: query, schema: { type: string }, description: 'LOGIN、LOGOUT、AUTH_SUCCESS、AUTH_FAILED、ROLE_ASSIGN、ROLE_REVOKE、PERMISSION_ASSIGN、PERMISSION_REVOKE 等' }
-        - { name: actor, in: query, schema: { type: string } }
-        - { name: target, in: query, schema: { type: string } }
-        - { name: result, in: query, schema: { type: string, enum: [SUCCESS, DENIED, FAILED] } }
-        - { name: from, in: query, schema: { type: string, format: date-time } }
-        - { name: to, in: query, schema: { type: string, format: date-time } }
+        - { name: actor, in: query, schema: { type: string }, description: 精确匹配审计记录中的操作者用户名；代用户鉴权记录的是被判定主体 }
+        - { name: target, in: query, schema: { type: string }, description: 模糊匹配目标名称 }
+        - { name: result, in: query, schema: { type: string, enum: [SUCCESS, DENIED, FAILED] }, description: SUCCESS 成功，DENIED 被拒绝，FAILED 执行失败 }
+        - { name: from, in: query, schema: { type: string, format: date-time }, description: 审计时间下界（含），使用本地时间；不填则不限起点 }
+        - { name: to, in: query, schema: { type: string, format: date-time }, description: 审计时间上界（不含），使用本地时间；不填则不限终点 }
         - { name: abnormal, in: query, schema: { type: boolean, default: false }, description: '只看异常访问，口径与 Dashboard 的 abnormalCount 相同：登录失败，以及已停用、已删除、已到期或不存在的主体发起的鉴权' }
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/Size'
@@ -792,7 +1025,13 @@ paths:
   /dashboard:
     get:
       tags: [stats]
+      operationId: getDashboard
       summary: Dashboard 十一项指标
+      description: |
+        需要 rbac:dashboard:view。返回用户、角色、权限总量，以及今日鉴权次数、成功率、失败率、P95/P99 延迟、
+        QPS、缓存命中率、异常访问次数和生成时间。用户总数不含已删除账号，包含停用和临时账号。
+        今日按服务端当天零点起算；QPS 为最近 60 秒的鉴权次数除以 60，比率为 0～1，延迟单位为毫秒。
+        异常访问含登录失败及无效主体鉴权，口径与审计日志 abnormal 筛选相同；无样本的比率、延迟返回 0。
       x-required-permission: rbac:dashboard:view
       responses:
         '200':
@@ -811,20 +1050,26 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+      description: |
+        使用 /auth/login 返回的 JWT，请求头为 `Authorization: Bearer <YOUR_TOKEN_HERE>`。
+        登出使当前令牌失效，修改口令使该用户此前签发的全部令牌失效。
 
   parameters:
     Id:
       name: id
       in: path
       required: true
+      description: 当前路径所操作的实体 ID；/users 为用户，/roles 为角色，/menus 为菜单
       schema: { type: integer, format: int64 }
     Page:
       name: page
       in: query
+      description: 页码，从 0 开始，0 表示第一页
       schema: { type: integer, default: 0, minimum: 0 }
     Size:
       name: size
       in: query
+      description: 每页条数；用户、角色指派、审计日志默认 20 且上限 200，资源、权限实际默认 50 且上限 500
       schema: { type: integer, default: 20, maximum: 200 }
 
   responses:
@@ -898,248 +1143,272 @@ components:
   schemas:
     ApiResponse:
       type: object
+      description: 统一响应包装；code 为业务状态码，HTTP 状态见各接口响应，实际结果位于 data
       properties:
-        code: { type: integer, example: 0 }
-        message: { type: string }
-        data: {}
-        timestamp: { type: string, format: date-time }
+        code: { type: integer, example: 0, description: 业务状态码；0 表示成功，非 0 见通用错误响应 }
+        message: { type: string, description: 成功时为 success，失败时为可读错误说明 }
+        data: { description: 接口返回数据；无数据时为 null，具体结构见各接口定义和说明 }
+        timestamp: { type: string, format: date-time, description: 响应生成时间，带时区偏移 }
 
     Page:
       type: object
+      description: 分页结果；total 为满足查询条件的总条数，items 仅包含当前页
       properties:
-        items: { type: array, items: {} }
-        total: { type: integer, format: int64 }
-        page: { type: integer }
-        size: { type: integer }
+        items: { type: array, items: {}, description: 当前页数据，元素类型由接口定义 }
+        total: { type: integer, format: int64, description: 应用筛选条件和可见范围后的总条数 }
+        page: { type: integer, description: 实际页码，从 0 开始 }
+        size: { type: integer, description: 实际每页条数 }
 
     UserStatus:
       type: string
+      description: 用户状态；ACTIVE 启用，DISABLED 停用，DELETED 逻辑删除且不可恢复
       enum: [ACTIVE, DISABLED, DELETED]
 
     UserType:
       type: string
+      description: 用户类型；EMPLOYEE 正式员工，TEMPORARY 临时用户，SYSTEM 业务系统账号
       enum: [EMPLOYEE, TEMPORARY, SYSTEM]
 
     LoginResult:
       type: object
+      description: 登录结果；后续请求使用 token 进行 Bearer 认证，mustChangePwd 决定是否须先改密
       properties:
-        token: { type: string }
-        expiresIn: { type: integer, description: 秒 }
-        userId: { type: integer, format: int64 }
-        username: { type: string }
-        realName: { type: string }
-        mustChangePwd: { type: boolean }
+        token: { type: string, description: JWT 访问令牌，放入后续请求的 Bearer 认证配置 }
+        expiresIn: { type: integer, description: 令牌有效秒数，当前为 7200 秒 }
+        userId: { type: integer, format: int64, description: 当前登录用户 ID }
+        username: { type: string, description: 登录用户名 }
+        realName: { type: string, description: 用户姓名 }
+        mustChangePwd: { type: boolean, description: 是否必须先修改口令；为 true 时仅允许当前用户查询、登出和改密 }
 
     User:
       type: object
+      description: 用户基本信息，不返回口令或口令哈希
       properties:
-        id: { type: integer, format: int64 }
-        username: { type: string }
-        realName: { type: string }
+        id: { type: integer, format: int64, description: 用户 ID }
+        username: { type: string, description: 唯一登录用户名，逻辑删除后也不可复用 }
+        realName: { type: string, description: 用户姓名 }
         userType: { $ref: '#/components/schemas/UserType' }
-        employeeNo: { type: string, nullable: true }
-        phone: { type: string, nullable: true }
-        position: { type: string, nullable: true }
+        employeeNo: { type: string, nullable: true, description: 唯一员工工号，临时用户为空 }
+        phone: { type: string, nullable: true, description: 联系电话，临时用户为空 }
+        position: { type: string, nullable: true, description: 岗位名称，仅作人员信息，不自动关联角色 }
         status: { $ref: '#/components/schemas/UserStatus' }
-        statusReason: { type: string, nullable: true }
-        companyId: { type: integer, format: int64 }
-        departmentId: { type: integer, format: int64 }
-        departmentName: { type: string }
-        expiresAt: { type: string, format: date-time, nullable: true }
-        mustChangePwd: { type: boolean }
-        createdAt: { type: string, format: date-time }
+        statusReason: { type: string, nullable: true, description: 最近一次启用、停用或删除操作的原因 }
+        companyId: { type: integer, format: int64, description: 所属公司 ID，由所属部门确定 }
+        departmentId: { type: integer, format: int64, description: 所属部门 ID，与角色指派的适用部门分别定义 }
+        departmentName: { type: string, description: 所属部门名称 }
+        expiresAt: { type: string, format: date-time, nullable: true, description: 账号到期时间；到达后不可登录或通过认证，空表示未设到期时间 }
+        mustChangePwd: { type: boolean, description: 是否必须先修改口令 }
+        createdAt: { type: string, format: date-time, description: 账号创建时间 }
 
     CreateUser:
       type: object
+      description: 新增用户参数；用户类型决定工号、电话、到期时间的条件约束，创建不会自动指派角色
       required: [username, realName, departmentId]
       properties:
-        username: { type: string }
-        realName: { type: string }
-        departmentId: { type: integer, format: int64 }
+        username: { type: string, description: 全局唯一登录用户名，不能为空白 }
+        realName: { type: string, description: 用户姓名，不能为空白 }
+        departmentId: { type: integer, format: int64, description: 所属部门 ID，调用者须在该部门持有创建用户权限 }
         userType: { $ref: '#/components/schemas/UserType' }
         employeeNo: { type: string, description: 正式员工必填；临时用户不能填 }
         phone: { type: string, description: 临时用户不能填 }
-        position: { type: string }
+        position: { type: string, description: 岗位名称，不决定用户的系统角色 }
         expiresAt: { type: string, format: date-time, description: 临时用户必填 }
-        password: { type: string, description: 为空时使用初始口令并要求首次登录修改 }
+        password: { type: string, description: 为空时使用配置的初始口令并要求首次登录修改；自定义时至少 8 位且含大写、小写、数字和特殊字符 }
 
     UpdateUser:
       type: object
+      description: 用户可修改字段；仅更新非 null 字段，不能修改用户名、用户类型或工号
       properties:
-        realName: { type: string }
+        realName: { type: string, description: 新姓名，提供时不能为空白 }
         departmentId: { type: integer, format: int64, description: 调入部门也必须在管理范围内，且不能跨公司 }
-        phone: { type: string }
-        position: { type: string }
-        expiresAt: { type: string, format: date-time }
+        phone: { type: string, description: 新联系电话；空字符串清空，临时用户不能填写非空电话 }
+        position: { type: string, description: 新岗位名称；空字符串清空 }
+        expiresAt: { type: string, format: date-time, description: 新到期时间；省略或 null 时保留，不能通过 null 清空 }
 
     Assignment:
       type: object
-      description: 一次角色指派（用户 + 角色 + 适用部门）
+      description: 一次角色指派（用户 + 角色 + 适用部门），同一角色在不同适用部门的指派分别记录
       properties:
-        assignmentId: { type: integer, format: int64 }
-        userId: { type: integer, format: int64 }
-        username: { type: string }
-        userRealName: { type: string }
-        roleId: { type: integer, format: int64 }
-        roleCode: { type: string }
-        roleName: { type: string }
-        roleStatus: { type: string }
-        scopeDeptId: { type: integer, format: int64 }
-        scopeDeptName: { type: string }
-        scopePath: { type: string }
-        scopeCompanyId: { type: integer, format: int64 }
-        grantedBy: { type: integer, format: int64 }
-        grantedAt: { type: string, format: date-time }
-        reason: { type: string }
+        assignmentId: { type: integer, format: int64, description: 指派记录 ID，回收单条指派时使用 }
+        userId: { type: integer, format: int64, description: 被分配角色的用户 ID }
+        username: { type: string, description: 被分配用户的登录名 }
+        userRealName: { type: string, description: 被分配用户的姓名 }
+        roleId: { type: integer, format: int64, description: 角色 ID }
+        roleCode: { type: string, description: 角色编码 }
+        roleName: { type: string, description: 角色名称 }
+        roleStatus: { type: string, description: 角色状态；ENABLED 启用，DISABLED 停用，停用后指派不贡献有效权限 }
+        scopeDeptId: { type: integer, format: int64, description: 适用部门 ID，授权覆盖该部门及其下级 }
+        scopeDeptName: { type: string, description: 适用部门名称 }
+        scopePath: { type: string, description: 适用部门的物化路径，用于判断部门上下级覆盖关系 }
+        scopeCompanyId: { type: integer, format: int64, description: 适用部门所属公司 ID }
+        grantedBy: { type: integer, format: int64, description: 授予人用户 ID，仅作审计，不建立级联回收关系 }
+        grantedAt: { type: string, format: date-time, description: 指派授予时间 }
+        reason: { type: string, description: 指派原因 }
 
     EffectivePermission:
       type: object
+      description: 一条有效授权来源；同一权限可因角色或适用部门不同出现多次
       properties:
-        permissionCode: { type: string }
-        roleCode: { type: string }
-        roleName: { type: string }
-        scopeDeptId: { type: integer, format: int64 }
-        scopeDeptName: { type: string }
-        selfOnly: { type: boolean }
+        permissionCode: { type: string, description: 权限码，由资源编码和操作编码以冒号连接 }
+        roleCode: { type: string, description: 贡献该权限的角色编码 }
+        roleName: { type: string, description: 贡献该权限的角色名称 }
+        scopeDeptId: { type: integer, format: int64, description: 该授权的适用部门 ID，包含其下级部门 }
+        scopeDeptName: { type: string, description: 适用部门名称 }
+        selfOnly: { type: boolean, description: 该授权是否仅限本人记录；为 true 时业务系统须按记录归属过滤 }
 
     UserDetail:
       type: object
+      description: 用户详情，包含基本信息、全部角色指派及启用角色贡献的有效权限
       properties:
         user: { $ref: '#/components/schemas/User' }
         roles: { type: array, items: { $ref: '#/components/schemas/Assignment' } }
-        superAdmin: { type: boolean }
+        superAdmin: { type: boolean, description: 是否持有有效超级管理员角色；旁路能力不展开为全量 permissions }
         permissions: { type: array, items: { $ref: '#/components/schemas/EffectivePermission' } }
 
     Role:
       type: object
+      description: 角色基本信息及用户、权限数量；角色列表的用户数按用户去重，详情及修改响应按指派条数统计
       properties:
-        id: { type: integer, format: int64 }
-        roleCode: { type: string }
-        roleName: { type: string }
-        description: { type: string }
-        status: { type: string, enum: [ENABLED, DISABLED] }
-        builtin: { type: boolean }
+        id: { type: integer, format: int64, description: 角色 ID }
+        roleCode: { type: string, description: 全局唯一角色编码，创建后不可修改 }
+        roleName: { type: string, description: 角色显示名称 }
+        description: { type: string, description: 角色用途说明 }
+        status: { type: string, enum: [ENABLED, DISABLED], description: 角色启用状态；停用时保留指派但不贡献有效权限 }
+        builtin: { type: boolean, description: 是否为内置角色；内置角色不能删除 }
         companyId: { type: integer, format: int64, nullable: true, description: 空 = 全局角色 }
-        userCount: { type: integer, format: int64 }
-        permissionCount: { type: integer, format: int64 }
+        userCount: { type: integer, format: int64, description: 持有者数量；列表按用户去重，详情及修改响应按指派条数统计 }
+        permissionCount: { type: integer, format: int64, description: 角色显式关联的权限条数，不包含超级管理员旁路能力 }
 
     RoleDetail:
       type: object
+      description: 角色基本信息及已授予权限；用户指派通过角色用户分页接口查询
       properties:
         role: { $ref: '#/components/schemas/Role' }
         permissions:
           type: array
+          description: 已授予该角色的权限明细
           items:
             type: object
             properties:
-              permissionId: { type: integer, format: int64 }
-              permissionCode: { type: string }
-              resourceName: { type: string }
-              actionName: { type: string }
-              selfOnly: { type: boolean }
-              grantedAt: { type: string, format: date-time }
+              permissionId: { type: integer, format: int64, description: 权限 ID，回收角色权限时使用 }
+              permissionCode: { type: string, description: 权限码 }
+              resourceName: { type: string, description: 资源名称 }
+              actionName: { type: string, description: 操作名称 }
+              selfOnly: { type: boolean, description: 是否仅限本人记录，由权限清单模板导入设置 }
+              grantedAt: { type: string, format: date-time, description: 该权限授予角色的时间 }
 
     BatchAssign:
       type: object
+      description: 批量分配与回收角色共用参数；scopeDepartmentId 为空时，两种操作的含义不同
       required: [targetType, targetIds, roleId]
       properties:
-        targetType: { type: string, enum: [COMPANY, DEPARTMENT, USER] }
-        targetIds: { type: array, items: { type: integer, format: int64 } }
-        includeDescendants: { type: boolean, default: true }
-        roleId: { type: integer, format: int64 }
-        scopeDepartmentId: { type: integer, format: int64, description: 为空 = 各自所属部门 }
-        reason: { type: string }
-        mode: { type: string, enum: [ATOMIC, PARTIAL], default: ATOMIC }
+        targetType: { type: string, enum: [COMPANY, DEPARTMENT, USER], description: 目标 ID 类型；公司、部门或用户 }
+        targetIds: { type: array, items: { type: integer, format: int64 }, description: 对应 targetType 的非空 ID 列表，展开后用户去重 }
+        includeDescendants: { type: boolean, default: true, description: 仅部门目标生效，是否包含下级部门的用户 }
+        roleId: { type: integer, format: int64, description: 待分配或回收的角色 ID }
+        scopeDepartmentId: { type: integer, format: int64, description: 分配时为空表示各自所属部门；回收时为空表示该角色的全部适用部门指派 }
+        reason: { type: string, description: 本次分配或回收原因，用于指派记录和审计 }
+        mode: { type: string, enum: [ATOMIC, PARTIAL], default: ATOMIC, description: ATOMIC 任一用户校验失败整批不写；PARTIAL 执行通过的用户并返回失败清单 }
 
     BatchResult:
       type: object
+      description: 批量处理结果；HTTP 200 不代表全部成功，应结合 committed、failed 和 failures 判断
       properties:
-        mode: { type: string }
-        committed: { type: boolean }
-        requested: { type: integer }
-        succeeded: { type: integer }
-        duplicated: { type: integer }
-        failed: { type: integer }
+        mode: { type: string, description: 实际执行模式；角色分配或回收为 ATOMIC 或 PARTIAL，用户状态批量变更固定为 PARTIAL }
+        committed: { type: boolean, description: 是否进入提交结果；角色批量校验拒绝时为 false，用户状态批量变更仅有成功项时为 true，实际变更数仍看 succeeded }
+        requested: { type: integer, description: 处理的目标用户数，按目标展开后统计 }
+        succeeded: { type: integer, description: 成功处理的用户数；整批校验拒绝时为 0，已跳过的用户不计入 }
+        duplicated: { type: integer, description: 跳过用户数；分配时已持有相同指派，回收时无匹配指派，状态批量变更时为 0 }
+        failed: { type: integer, description: 失败项数量，对应 failures 长度 }
         failures:
           type: array
+          description: 逐项失败清单；例如超出管理范围、用户不存在或越权授予
           items:
             type: object
             properties:
-              userId: { type: integer, format: int64 }
-              reason: { type: string, example: OUT_OF_MANAGE_SCOPE }
+              userId: { type: integer, format: int64, description: 处理失败的目标用户 ID }
+              reason: { type: string, example: OUT_OF_MANAGE_SCOPE, description: 失败原因码，可用于定位管理范围、状态或越权授予问题 }
 
     AuthzRequest:
       type: object
-      description: 主体用 userId 或 username 指定，都为空表示调用者本人；权限用 permission 或 resource + action 指定。
+      description: 主体优先使用 userId，其次 username，都为空表示调用者本人；权限优先使用 permission，否则必须提供 resource 和 action。
       properties:
-        userId: { type: integer, format: int64 }
-        username: { type: string }
-        permission: { type: string, example: 'oa:m01:f02:approve' }
-        resource: { type: string, example: 'oa:m01:f02' }
-        action: { type: string, example: approve }
+        userId: { type: integer, format: int64, description: 被判定用户 ID，与 username 同时提供时优先使用 }
+        username: { type: string, description: 被判定用户名，未提供 userId 时生效；两者都不填则查询本人 }
+        permission: { type: string, example: 'oa:m01:f02:approve', description: 完整权限码，非空时优先于 resource 和 action }
+        resource: { type: string, example: 'oa:m01:f02', description: 资源编码，未提供 permission 时须与 action 同时填写 }
+        action: { type: string, example: approve, description: 操作编码，未提供 permission 时用于拼接完整权限码 }
         targetDeptId: { type: integer, format: int64, description: 被操作数据所属部门；为空表示不涉及具体部门 }
 
     Decision:
       type: object
+      description: 正常完成的权限判定结果；allowed=false 仍是 HTTP 200，调用者无权查询时才返回 403
       properties:
-        allowed: { type: boolean }
+        allowed: { type: boolean, description: 是否允许主体执行指定操作；selfOnly=true 时业务系统仍须过滤本人记录 }
         reason:
           type: string
+          description: |
+            ROLE_GRANTED 为角色授权放行，SUPER_ADMIN_BYPASS 为超级管理员旁路放行；
+            SUBJECT_NOT_FOUND、SUBJECT_DISABLED、SUBJECT_DELETED、SUBJECT_EXPIRED 分别为主体不存在、停用、删除、到期；
+            MISSING_PERMISSION 为缺少权限，OUT_OF_DATA_SCOPE 为超出数据范围，TARGET_DEPT_NOT_FOUND 为目标部门不存在。
           enum: [ROLE_GRANTED, SUPER_ADMIN_BYPASS, SUBJECT_NOT_FOUND, SUBJECT_DISABLED, SUBJECT_DELETED,
                  SUBJECT_EXPIRED, MISSING_PERMISSION, OUT_OF_DATA_SCOPE, TARGET_DEPT_NOT_FOUND]
-        userId: { type: integer, format: int64 }
-        username: { type: string }
-        permissionCode: { type: string }
-        targetDeptId: { type: integer, format: int64 }
+        userId: { type: integer, format: int64, description: 实际参与判定的主体用户 ID }
+        username: { type: string, description: 主体用户名，主体不存在时可能为空 }
+        permissionCode: { type: string, description: 实际参与判定的完整权限码 }
+        targetDeptId: { type: integer, format: int64, description: 被操作数据所属部门；未限定具体部门时为空 }
         matched:
           type: object
           nullable: true
-          description: 放行所依据的授权（角色 + 适用部门）
+          description: 放行所依据的授权，含权限码、assignmentId、角色、适用部门、路径、公司及 selfOnly；拒绝或超级管理员旁路时为空
         selfOnly: { type: boolean, description: 只限本人记录，由业务系统按记录归属过滤 }
-        cacheHit: { type: boolean }
-        latencyUs: { type: integer, format: int64 }
+        cacheHit: { type: boolean, description: 本次授权数据加载是否命中 Redis 缓存 }
+        latencyUs: { type: integer, format: int64, description: 本次权限判定耗时，单位微秒 }
         trace: { type: array, nullable: true, items: { type: string }, description: 仅解释接口返回 }
 
     SaveMenu:
       type: object
+      description: 新建与修改菜单共用参数；修改时覆盖全部可编辑字段，省略可选字段会清空或使用默认值
       required: [menuName]
       properties:
-        parentId: { type: integer, format: int64 }
+        parentId: { type: integer, format: int64, description: 上级菜单 ID；空表示根节点，修改时不能指向自身或后代 }
         resourceId: { type: integer, format: int64, description: 必须是 MENU 类型资源；为空表示目录 }
-        menuName: { type: string }
-        routePath: { type: string }
-        componentKey: { type: string }
-        icon: { type: string }
-        sortOrder: { type: integer }
+        menuName: { type: string, description: 菜单或目录显示名称，不能为空白 }
+        routePath: { type: string, description: 前端路由路径；省略时存为空 }
+        componentKey: { type: string, description: 前端预定义组件标识，须与前端组件注册表匹配 }
+        icon: { type: string, description: 菜单图标标识；省略时存为空 }
+        sortOrder: { type: integer, description: 同级节点排序值，升序排列；省略时设为 0 }
 
     ImportReport:
       type: object
+      description: 导入报告；有效数据可已写入，须检查 anomalies，HTTP 200 不表示所有行均被接受
       properties:
-        counts: { type: object, additionalProperties: { type: integer } }
-        notes: { type: array, items: { type: string } }
+        counts: { type: object, additionalProperties: { type: integer }, description: 分类数量统计；组织导入含新增部门和用户数，权限导入含资源、授权新增及回收等数量 }
+        notes: { type: array, items: { type: string }, description: 标准化处理和本次导入规则说明 }
         anomalies:
           type: array
+          description: 无法处理的行或单元格，异常对应的数据不按猜测写入
           items:
             type: object
             properties:
-              sheet: { type: string }
-              row: { type: integer }
-              reason: { type: string }
-              value: { type: string }
+              sheet: { type: string, description: 异常所在数据表名称 }
+              row: { type: integer, description: 异常行号，从 1 开始，便于定位原表 }
+              reason: { type: string, description: 异常原因，如部门无法唯一定位或操作词汇不认识 }
+              value: { type: string, description: 触发异常的原始单元格或行内容 }
 
     Dashboard:
       type: object
-      description: 统计口径见 docs/05-ui.md §3.1
+      description: 实时总量及今日鉴权统计；比率为 0～1，延迟为毫秒，无样本时比率和延迟为 0，详细口径见 docs/05-ui.md §3.1
       properties:
         userCount: { type: integer, format: int64, description: 未删除的用户（含停用、临时） }
-        roleCount: { type: integer, format: int64 }
-        permissionCount: { type: integer, format: int64 }
-        todayAuthzCount: { type: integer, format: int64 }
-        successRate: { type: number }
-        failureRate: { type: number }
-        p95LatencyMs: { type: number }
-        p99LatencyMs: { type: number }
+        roleCount: { type: integer, format: int64, description: 当前角色总数，包含停用角色 }
+        permissionCount: { type: integer, format: int64, description: 当前权限定义总数 }
+        todayAuthzCount: { type: integer, format: int64, description: 服务端今日零点以来 AUTH_SUCCESS 与 AUTH_FAILED 事件总数 }
+        successRate: { type: number, description: 今日成功鉴权次数除以今日鉴权总数 }
+        failureRate: { type: number, description: 今日失败鉴权次数除以今日鉴权总数 }
+        p95LatencyMs: { type: number, description: 今日有耗时记录的鉴权事件第 95 百分位延迟，采用最近秩法，单位毫秒 }
+        p99LatencyMs: { type: number, description: 今日有耗时记录的鉴权事件第 99 百分位延迟，采用最近秩法，单位毫秒 }
         qps: { type: number, description: 最近 60 秒的鉴权次数 / 60 }
-        cacheHitRate: { type: number }
-        abnormalCount: { type: integer, format: int64 }
-        generatedAt: { type: string, format: date-time }
+        cacheHitRate: { type: number, description: 今日缓存命中次数除以有缓存信息的鉴权事件数 }
+        abnormalCount: { type: integer, format: int64, description: 今日登录失败及主体不存在、停用、删除或到期的鉴权失败次数 }
+        generatedAt: { type: string, format: date-time, description: 本次指标生成的服务端本地时间 }
