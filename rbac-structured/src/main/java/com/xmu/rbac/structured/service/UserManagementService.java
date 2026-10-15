@@ -150,7 +150,7 @@ public class UserManagementService {
     public UserDetail detail(Operator op, Long userId) {
         User u = requireUser(userId);
         if (!op.userId().equals(userId)) {
-            authz.requireInScope(op.userId(), PERM_VIEW, u.departmentId);
+            authz.requireInScope(op, PERM_VIEW, u.departmentId);
         }
         List<AssignmentRow> roles = userRoleMapper.findAssignmentsOfUser(userId);
         GrantSet grants = authz.loadGrants(userId).grants();
@@ -175,13 +175,8 @@ public class UserManagementService {
         validateTypeFields(type, req.employeeNo(), req.phone(), req.expiresAt());
         Department dept = departmentMapper.findById(req.departmentId())
                 .orElseThrow(() -> BizException.notFound("部门"));
-        try {
-            authz.requireInScope(op.userId(), PERM_CREATE, dept.id);
-        } catch (BizException e) {
-            audit.record(op, "USER_CREATE", "USER", null, req.username(), "dept=" + dept.deptName,
-                    AuditService.DENIED, "OUT_OF_MANAGE_SCOPE");
-            throw e;
-        }
+        authz.requireInScope(op, PERM_CREATE, dept.id);
+
         if (userMapper.existsByUsername(req.username())) {
             throw BizException.conflict(BizException.DUPLICATE, "用户名已存在（已删除用户的用户名也不能复用）");
         }
@@ -262,7 +257,7 @@ public class UserManagementService {
             if (!target.companyId.equals(u.companyId)) {
                 throw BizException.badRequest("不能把用户调到其他公司的部门");
             }
-            authz.requireInScope(op.userId(), PERM_EDIT, target.id);   // 调入的部门也必须在管理范围内
+            authz.requireInScope(op, PERM_EDIT, target.id);   // 调入的部门也必须在管理范围内
             u.departmentId = target.id;
             dept = target;
         }
@@ -394,8 +389,10 @@ public class UserManagementService {
     }
 
     private void requireManageable(Operator op, String perm, User u) {
-        authz.requireInScope(op.userId(), perm, u.departmentId);
+        authz.requireInScope(op, perm, u.departmentId);
         if (!u.id.equals(op.userId()) && authz.isSuperAdmin(u.id) && !authz.isSuperAdmin(op.userId())) {
+            audit.record(op, AuthorizationService.ACCESS_DENIED, "USER", u.id, u.username, "permission=" + perm,
+                    AuditService.DENIED, "TARGET_IS_SUPER_ADMIN");
             throw BizException.forbidden(BizException.FORBIDDEN, "只有超级管理员能修改超级管理员的账号");
         }
     }

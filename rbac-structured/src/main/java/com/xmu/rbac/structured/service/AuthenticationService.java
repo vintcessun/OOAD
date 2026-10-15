@@ -123,9 +123,13 @@ public class AuthenticationService {
     public void changePassword(Operator op, String oldPassword, String newPassword) {
         User user = userMapper.findById(op.userId()).orElseThrow(() -> BizException.notFound("用户"));
         if (oldPassword == null || !passwordEncoder.matches(oldPassword, user.passwordHash)) {
+            auditService.record(op, "PASSWORD_CHANGE", "USER", user.id, user.username, null, AuditService.FAILED,
+                    "CREDENTIAL_INVALID");
             throw BizException.badRequest("旧口令错误");
         }
         if (!meetsPolicy(newPassword) || newPassword.equals(oldPassword)) {
+            auditService.record(op, "PASSWORD_CHANGE", "USER", user.id, user.username, null, AuditService.FAILED,
+                    "PASSWORD_POLICY");
             throw BizException.badRequest("新口令须至少 8 位，含大写、小写、数字与特殊字符，且不同于旧口令");
         }
         user.passwordHash = passwordEncoder.encode(newPassword);

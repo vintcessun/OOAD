@@ -4,6 +4,7 @@ import com.xmu.rbac.structured.dto.AssignmentRow;
 import com.xmu.rbac.structured.dto.Decision;
 import com.xmu.rbac.structured.dto.GrantRow;
 import com.xmu.rbac.structured.dto.GrantSet;
+import com.xmu.rbac.structured.dto.Operator;
 import com.xmu.rbac.structured.dto.Scope;
 import com.xmu.rbac.structured.entity.Role;
 import com.xmu.rbac.structured.entity.User;
@@ -45,21 +46,26 @@ public class AuthorizationService {
     public static final String OUT_OF_DATA_SCOPE = "OUT_OF_DATA_SCOPE";
     public static final String TARGET_DEPT_NOT_FOUND = "TARGET_DEPT_NOT_FOUND";
 
+    /** 审计事件：管理操作的目标超出管理范围，或碰到只有超级管理员能动的对象 */
+    public static final String ACCESS_DENIED = "ACCESS_DENIED";
+
     private final UserMapper userMapper;
     private final UserRoleMapper userRoleMapper;
     private final DepartmentMapper departmentMapper;
     private final GrantCacheMapper grantCacheMapper;
     private final GrantVersionMapper grantVersionMapper;
+    private final AuditService audit;
     private final Clock clock;
 
     public AuthorizationService(UserMapper userMapper, UserRoleMapper userRoleMapper,
                                 DepartmentMapper departmentMapper, GrantCacheMapper grantCacheMapper,
-                                GrantVersionMapper grantVersionMapper, Clock clock) {
+                                GrantVersionMapper grantVersionMapper, AuditService audit, Clock clock) {
         this.userMapper = userMapper;
         this.userRoleMapper = userRoleMapper;
         this.departmentMapper = departmentMapper;
         this.grantCacheMapper = grantCacheMapper;
         this.grantVersionMapper = grantVersionMapper;
+        this.audit = audit;
         this.clock = clock;
     }
 
@@ -242,10 +248,14 @@ public class AuthorizationService {
     /**
      * 管理操作的目标对象检查：操作者对目标部门持有该权限，否则 403。
      * 拦截器只确认「能执行这一类操作」，具体对象是否在管理范围内由这里确认（docs/06 §5.4）。
+     * 拒绝时记一条 ACCESS_DENIED：用户、角色管理里所有「目标超出管理范围」都经过这里，一处记录即可（docs/06 §5.9）。
      */
-    public void requireInScope(Long operatorId, String permissionCode, Long targetDeptId) {
-        Decision d = decide(operatorId, permissionCode, targetDeptId, false);
+    public void requireInScope(Operator op, String permissionCode, Long targetDeptId) {
+        Decision d = decide(op.userId(), permissionCode, targetDeptId, false);
         if (!d.allowed()) {
+            audit.record(op, ACCESS_DENIED, "DEPARTMENT", targetDeptId, null,
+                    "permission=" + permissionCode + " decision=" + d.reason(), AuditService.DENIED,
+                    "OUT_OF_MANAGE_SCOPE");
             throw BizException.forbidden(BizException.OUT_OF_MANAGE_SCOPE,
                     "目标不在你的管理范围内（需要在该部门持有 " + permissionCode + "）");
         }

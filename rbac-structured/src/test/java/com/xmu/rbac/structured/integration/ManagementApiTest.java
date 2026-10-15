@@ -585,6 +585,49 @@ class ManagementApiTest extends IntegrationTestBase {
     }
 
     @Test
+    void deniedAndFailedManagementOperationsAreAudited() throws Exception {
+        User admin = user("admin", org.road());
+        grant(admin, org.rbacAdmin(), org.road());
+        User outside = user("outside", org.bridgeFinance());
+        String token = login("admin");
+        String root = login("root");
+
+        // 目标超出管理范围：修改、新增、看详情都在 requireInScope 一处记 ACCESS_DENIED
+        assertEquals(403, patchJson(token, "/users/" + outside.id, Map.of("realName", "x")).status());
+        assertEquals(403, postJson(token, "/users", Map.of("username", "n1", "realName", "n", "employeeNo", "N1",
+                "departmentId", org.bridge().id)).status());
+        assertEquals(403, getJson(token, "/users/" + outside.id).status());
+        // 修改全局角色只有超级管理员能做
+        assertEquals(403, patchJson(token, "/roles/" + org.docViewer().id, Map.of("roleName", "x")).status());
+        JsonNode denied = getJson(root, "/audit-logs?eventType=ACCESS_DENIED&size=50").data();
+        assertEquals(4, denied.path("total").asInt(), denied.toString());
+        String deniedText = denied.toString();
+        assertTrue(deniedText.contains("permission=rbac:user:edit"), deniedText);
+        assertTrue(deniedText.contains("permission=rbac:user:create"), deniedText);
+        assertTrue(deniedText.contains("GLOBAL_ROLE_SUPER_ADMIN_ONLY"), deniedText);
+        denied.path("items").forEach(a -> assertEquals("admin", a.path("actorName").asText()));
+
+        // 修改口令失败
+        assertEquals(400, postJson(token, "/auth/password", Map.of("oldPassword", "bad", "newPassword", "N3w-Passw0rd")).status());
+        assertEquals(400, postJson(token, "/auth/password", Map.of("oldPassword", PASSWORD, "newPassword", "short")).status());
+        String pwd = getJson(root, "/audit-logs?eventType=PASSWORD_CHANGE&result=FAILED").data().toString();
+        assertTrue(pwd.contains("CREDENTIAL_INVALID") && pwd.contains("PASSWORD_POLICY"), pwd);
+
+        // 受保护对象：停用超级管理员角色、删除内置角色、批量回收最后一个超级管理员
+        assertEquals(409, patchJson(root, "/roles/" + org.superAdmin().id, Map.of("status", "DISABLED")).status());
+        assertEquals(409, deleteReq(root, "/roles/" + org.rbacAdmin().id).status());
+        assertEquals(409, postJson(root, "/assignments/batch-revoke", Map.of("targetType", "USER",
+                "targetIds", List.of(1), "roleId", org.superAdmin().id)).status());
+        String roleLogs = getJson(root, "/audit-logs?result=DENIED&size=200").data().toString();
+        for (String reason : List.of("SUPER_ADMIN_ROLE_PROTECTED", "BUILTIN_ROLE", "LAST_SUPER_ADMIN")) {
+            assertTrue(roleLogs.contains(reason), reason);
+        }
+
+        // 这些都是管理操作被拦下，不是「异常访问」，不改变 Dashboard 的口径
+        assertEquals(0, getJson(root, "/dashboard").data().path("abnormalCount").asLong());
+    }
+
+    @Test
     void undeclaredRoutesAreDeniedByDefault() throws Exception {
         String root = login("root");
         assertEquals(403, getJson(root, "/not/in/contract").status());

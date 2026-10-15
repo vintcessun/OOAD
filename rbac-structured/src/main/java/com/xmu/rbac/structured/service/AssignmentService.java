@@ -95,7 +95,7 @@ public class AssignmentService {
     public List<AssignmentRow> listOfUser(Operator op, Long userId) {
         User u = userMapper.findById(userId).orElseThrow(() -> BizException.notFound("用户"));
         if (!op.userId().equals(userId)) {
-            authz.requireInScope(op.userId(), UserManagementService.PERM_VIEW, u.departmentId);
+            authz.requireInScope(op, UserManagementService.PERM_VIEW, u.departmentId);
         }
         return userRoleMapper.findAssignmentsOfUser(userId);
     }
@@ -303,6 +303,8 @@ public class AssignmentService {
             deleted += userRoleMapper.deleteByIds(chunk);
         }
         if (Role.SUPER_ADMIN.equals(role.roleCode) && deleted > 0 && userRoleMapper.countActiveSuperAdmins() == 0) {
+            audit.record(op, "ROLE_REVOKE", "BATCH", role.id, role.roleCode, detail, AuditService.DENIED,
+                    "LAST_SUPER_ADMIN");
             throw BizException.conflict(BizException.STATE_CONFLICT, "不能回收最后一个有效的超级管理员");
         }
         if (deleted > 0) {

@@ -151,6 +151,8 @@ public class RoleManagementService {
         Role r = roleMapper.findById(roleId).orElseThrow(() -> BizException.notFound("角色"));
         requireCompanyLevel(op, PERM_EDIT, r.companyId);
         if (Role.SUPER_ADMIN.equals(r.roleCode) && req.status() != null && !Role.ENABLED.equals(req.status())) {
+            audit.record(op, "ROLE_UPDATE", "ROLE", r.id, r.roleCode, "status -> " + req.status(),
+                    AuditService.DENIED, "SUPER_ADMIN_ROLE_PROTECTED");
             throw BizException.conflict(BizException.STATE_CONFLICT, "超级管理员角色不能停用");
         }
         String before = r.status;
@@ -181,6 +183,7 @@ public class RoleManagementService {
         Role r = roleMapper.findById(roleId).orElseThrow(() -> BizException.notFound("角色"));
         requireCompanyLevel(op, PERM_DELETE, r.companyId);
         if (r.builtin) {
+            audit.record(op, "ROLE_DELETE", "ROLE", r.id, r.roleCode, null, AuditService.DENIED, "BUILTIN_ROLE");
             throw BizException.conflict(BizException.STATE_CONFLICT, "内置角色不能删除");
         }
         long holders = userRoleMapper.countByRoleId(roleId);
@@ -207,6 +210,8 @@ public class RoleManagementService {
             throw BizException.notFound("部分权限");
         }
         if (Role.SUPER_ADMIN.equals(r.roleCode)) {
+            audit.record(op, "PERMISSION_ASSIGN", "ROLE", r.id, r.roleCode, null, AuditService.DENIED,
+                    "SUPER_ADMIN_ROLE_PROTECTED");
             throw BizException.conflict(BizException.STATE_CONFLICT, "超级管理员越过权限引擎，不需要也不接受授权");
         }
         String missing = firstNotHeld(op, r.companyId, perms.stream().map(p -> p.permissionCode).toList());
@@ -260,11 +265,13 @@ public class RoleManagementService {
             return;
         }
         if (companyId == null) {
+            audit.record(op, AuthorizationService.ACCESS_DENIED, "ROLE", null, null, "permission=" + permission,
+                    AuditService.DENIED, "GLOBAL_ROLE_SUPER_ADMIN_ONLY");
             throw BizException.forbidden(BizException.FORBIDDEN, "全局角色只有超级管理员能修改");
         }
         Department root = departmentMapper.findByCompanyIdAndParentIdIsNull(companyId)
                 .orElseThrow(() -> BizException.notFound("公司"));
-        authz.requireInScope(op.userId(), permission, root.id);
+        authz.requireInScope(op, permission, root.id);
     }
 
     /**

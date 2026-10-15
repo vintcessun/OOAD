@@ -88,7 +88,7 @@ const router = useRouter()
 
 const EVENT_GROUPS = [
   { label: '登录', events: ['LOGIN', 'LOGOUT', 'PASSWORD_CHANGE'] },
-  { label: '鉴权', events: ['AUTH_SUCCESS', 'AUTH_FAILED', 'AUTHZ_QUERY'] },
+  { label: '鉴权', events: ['AUTH_SUCCESS', 'AUTH_FAILED', 'AUTHZ_QUERY', 'ACCESS_DENIED'] },
   { label: '授权', events: ['ROLE_ASSIGN', 'ROLE_REVOKE', 'PERMISSION_ASSIGN', 'PERMISSION_REVOKE'] },
   { label: '用户', events: ['USER_CREATE', 'USER_UPDATE', 'USER_STATUS', 'USER_DELETE'] },
   { label: '角色', events: ['ROLE_CREATE', 'ROLE_UPDATE', 'ROLE_DELETE'] },
