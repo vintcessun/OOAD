@@ -1,0 +1,10 @@
+.git
+.env*
+data/raw/*.xls*
+intro-spec-coding
+**/node_modules
+**/dist
+**/coverage
+**/test-results
+**/playwright-report
+logs

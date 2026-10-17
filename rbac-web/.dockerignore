@@ -4,3 +4,5 @@ coverage
 test-results
 playwright-report
 e2e/fixtures/*.py
+.env*
+*.log

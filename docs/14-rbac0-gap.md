@@ -118,7 +118,7 @@
 |---|---|---|---|
 | 1 | **新版本（含前端）未部署到三台服务器** | 检查时若要现场演示 Swarm 部署 | 组内安排暂缓。部署时按 [13 §4.5](13-deployment.md)：删库重建 → `build.sh push`（含 `rbac-web` 镜像）→ `stack.sh up` → 改 root 口令 → 导入 → 批量授权 |
 | 2 | 老师国庆后发布的测试尚未接入 | 以老师测试为准 | 发布后对照 45 个接口补适配 |
-| 3 | UML 模型须在 StarUML 中核对、导出 | 检查材料中的图 | 10/15 起 `diagrams/` 下有脚本生成的 `rbac.mdj`（E-R 图、用例总图、领域模型）和 Mermaid 导出的 PNG/SVG，见 [diagrams/README](../diagrams/README.md)。生成的模型没有在 StarUML 里打开验证过，须有人打开、调整布局，再从 StarUML 导出；DFD、结构图仍待画 |
+| 3 | 组合后的 UML 模型须在 StarUML 中核对、导出 | 检查材料中的图 | 10/18 已将本地 StarUML 原生 ER 模型与导出图、远端用例总图及领域模型合入 `diagrams/rbac.mdj`；结构与引用校验通过。组合模型尚未重新打开，用例、领域模型仍须在 StarUML 内核对并原生导出；DFD、结构图仍待画。见 [diagrams/README](../diagrams/README.md) 与 [更新比较记录](17-update-comparison.md) |
 
 已解决（2026-10-12）：用户列表电话脱敏在界面层完成（详情页显示完整号码）；角色详情「用户」改为先按管理范围过滤再分页，总数与每页内容一致。
 

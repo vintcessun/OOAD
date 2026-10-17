@@ -655,7 +655,7 @@ function validate(root) {
     }
     if (isView(o._type)) {
       if (o.model) { const m = res(o.model); if (m && (isView(m._type) || isDiagram(m._type))) err(`${tag}.model 指向的不是模型元素`); }
-      else if (!['LabelView', 'EdgeLabelView', 'UMLNoteView', 'UMLNoteLinkView'].includes(o._type)) err(`${tag} 缺少 model`);
+      else if (!['LabelView', 'EdgeLabelView', 'UMLNoteView', 'UMLNoteLinkView', 'UMLTextView'].includes(o._type)) err(`${tag} 缺少 model`);
       for (const k of ['head', 'tail', 'hostEdge']) if (o[k]) { const t = res(o[k]); if (t && (!isView(t._type) || diagramOf.get(t) !== diagramOf.get(o))) err(`${tag}.${k} 不是同一张图上的视图`); }
       for (const k of SUBVIEW_REFS) if (o[k]) { const t = res(o[k]); if (t && !(o.subViews ?? []).includes(t)) err(`${tag}.${k} 不是自己的子视图`); }
       if (o.points !== undefined && !/^-?\d+(\.\d+)?:-?\d+(\.\d+)?(;-?\d+(\.\d+)?:-?\d+(\.\d+)?)+$/.test(o.points)) err(`${tag}.points 格式不对`);
@@ -666,9 +666,9 @@ function validate(root) {
     if (o.target && !res(o.target)) err(`${tag}.target 无法解析`);
     if (o._type === 'ERDColumn' && o.foreignKey && !res(o.referenceTo)) err(`${tag} 外键列缺少 referenceTo`);
   }
-  // 节点视图互不重叠（同一张图的顶层节点；系统边界框可以包含用例）
+  // 节点视图互不重叠（系统边界可包含用例；文字标注的空白边界不算节点）
   for (const d of [...byId.values()].filter((o) => isDiagram(o._type))) {
-    const nodes = d.ownedViews.filter((v) => v.width !== undefined && v.points === undefined && v._type !== 'UMLUseCaseSubjectView');
+    const nodes = d.ownedViews.filter((v) => v.width !== undefined && v.points === undefined && !['UMLUseCaseSubjectView', 'UMLTextView'].includes(v._type));
     for (let i = 0; i < nodes.length; i++) for (let j = i + 1; j < nodes.length; j++) {
       const a = nodes[i], b = nodes[j];
       if (a.left < b.left + b.width && b.left < a.left + a.width && a.top < b.top + b.height && b.top < a.top + a.height) err(`${d.name}：${a._type} ${a._id} 与 ${b._type} ${b._id} 重叠`);
