@@ -295,6 +295,7 @@ public class AssignmentService {
         }
         int requested = targets.users().size() + targets.failures().size();
         String detail = "role=" + role.roleCode + " target=" + req.targetType() + req.targetIds()
+                + " scopeDeptId=" + (req.scopeDepartmentId() == null ? "全部" : req.scopeDepartmentId())
                 + " requested=" + requested + " failed=" + failures.size();
         if (BatchDtos.ATOMIC.equals(mode) && !failures.isEmpty()) {
             audit.record(op, "ROLE_REVOKE", "BATCH", role.id, role.roleCode, detail, AuditService.DENIED,

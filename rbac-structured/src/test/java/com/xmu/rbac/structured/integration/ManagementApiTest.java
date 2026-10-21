@@ -461,6 +461,8 @@ class ManagementApiTest extends IntegrationTestBase {
         JsonNode aBatch = postJson(aToken, "/assignments/batch-revoke", Map.of("targetType", "USER",
                 "targetIds", List.of(bUser.id), "roleId", aRole.id, "scopeDepartmentId", org.bridge().id)).data();
         assertEquals(1, aBatch.path("succeeded").asInt(), aBatch.toString());
+        String revokeLog = getJson(root, "/audit-logs?eventType=ROLE_REVOKE&result=SUCCESS").data().toString();
+        assertTrue(revokeLog.contains("scopeDeptId=" + org.bridge().id), revokeLog);
 
         // 回收：适用部门所在公司的管理员能收回 B 公司员工在 A 的权限；只管 A 的管理员仍不能停用 B 公司的人
         assertEquals(200, deleteReq(aToken, "/users/" + bUser.id + "/roles/"
