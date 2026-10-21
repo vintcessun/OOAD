@@ -356,6 +356,84 @@ class ManagementApiTest extends IntegrationTestBase {
                 Map.of("roleId", id)).status());
     }
 
+    /**
+     * 跨公司授权（docs/12-design-log.md R-20）：用户只属于一家公司，但可以持有别家公司部门的指派。
+     * 能否授出照常看管理范围（用户所属部门与适用部门都要在范围内）与越权检查，不再看两边是否同公司。
+     */
+    @Test
+    void assignmentsMayCrossCompaniesWithinManagementScope() throws Exception {
+        User aUser = user("a1", org.aFinance());
+        User bUser = user("b1", org.bFinance());
+        String root = login("root");
+        var aRole = role("A_ROLE", "A 公司角色", org.a().id, org.docView());
+
+        // 同一个人同时持有 A、B 两家公司的指派
+        Resp inA = postJson(root, "/users/" + bUser.id + "/roles",
+                Map.of("roleId", aRole.id, "scopeDepartmentId", org.road().id, "reason", "支援 A 公司"));
+        assertEquals(200, inA.status(), inA.body().toString());
+        assertEquals(org.a().id, inA.data().path("scopeCompanyId").asLong());
+        assertEquals(200, postJson(root, "/users/" + bUser.id + "/roles", Map.of("roleId", org.docApprover().id)).status());
+        JsonNode held = getJson(root, "/users/" + bUser.id + "/roles").data();
+        assertEquals(2, held.size(), held.toString());
+        String bToken = login("b1");
+        assertTrue(check(bToken, "oa:doc:draft:view", org.roadProject().id).path("allowed").asBoolean());
+        assertFalse(check(bToken, "oa:doc:draft:approve", org.roadProject().id).path("allowed").asBoolean());
+        assertTrue(check(bToken, "oa:doc:draft:approve", org.bFinance().id).path("allowed").asBoolean());
+        assertFalse(check(bToken, "oa:doc:draft:view", org.aFinance().id).path("allowed").asBoolean());
+        String ok = getJson(root, "/audit-logs?eventType=ROLE_ASSIGN&result=SUCCESS").data().toString();
+        assertTrue(ok.contains("role=A_ROLE scope=道路分公司"), ok);
+        // 公司内角色仍只能落在本公司的部门
+        assertEquals(400, postJson(root, "/users/" + aUser.id + "/roles",
+                Map.of("roleId", aRole.id, "scopeDepartmentId", org.bFinance().id)).status());
+
+        // 只管 A 公司的管理员：B 公司的员工不在范围内，即使适用部门在 A 也不行
+        User aAdmin = user("a_admin", org.aRoot());
+        grant(aAdmin, org.rbacAdmin(), org.aRoot());
+        grant(aAdmin, org.docViewer(), org.aRoot());
+        String aToken = login("a_admin");
+        Resp denied = postJson(aToken, "/users/" + bUser.id + "/roles",
+                Map.of("roleId", org.docViewer().id, "scopeDepartmentId", org.aFinance().id));
+        assertEquals(403, denied.status());
+        assertEquals(40302, denied.code());
+
+        // 同时管两家公司的管理员（A 公司的人，另持 B 公司根部门的管理指派）可以跨公司授权、回收
+        User groupAdmin = user("group_admin", org.aRoot());
+        grant(groupAdmin, org.rbacAdmin(), org.aRoot());
+        grant(groupAdmin, org.docViewer(), org.aRoot());
+        assertEquals(200, postJson(root, "/users/" + groupAdmin.id + "/roles",
+                Map.of("roleId", org.rbacAdmin().id, "scopeDepartmentId", org.bRoot().id)).status());
+        String gToken = login("group_admin");
+        assertEquals(2, getJson(gToken, "/companies").data().size());
+        Resp granted = postJson(gToken, "/users/" + bUser.id + "/roles",
+                Map.of("roleId", org.docViewer().id, "scopeDepartmentId", org.aFinance().id));
+        assertEquals(200, granted.status(), granted.body().toString());
+        assertTrue(check(bToken, "oa:doc:draft:view", org.aFinance().id).path("allowed").asBoolean());
+        // 越权检查照旧：他在 A 公司没有审批权限，就不能把审批角色授到 A
+        Resp escalate = postJson(gToken, "/users/" + bUser.id + "/roles",
+                Map.of("roleId", org.docApprover().id, "scopeDepartmentId", org.aFinance().id));
+        assertEquals(403, escalate.status());
+        assertEquals(40303, escalate.code());
+        assertEquals(200, deleteReq(gToken, "/users/" + bUser.id + "/roles/"
+                + granted.data().path("assignmentId").asLong()).status());
+        assertFalse(check(bToken, "oa:doc:draft:view", org.aFinance().id).path("allowed").asBoolean());
+        // 只管 A 的管理员回收不了 B 公司员工的指派
+        assertEquals(403, deleteReq(aToken, "/users/" + bUser.id + "/roles/"
+                + inA.data().path("assignmentId").asLong()).status());
+
+        // 批量：按员工把两家公司的人一起授到 A 公司的部门
+        JsonNode batch = postJson(root, "/assignments/batch", Map.of("targetType", "USER",
+                "targetIds", List.of(aUser.id, bUser.id), "roleId", org.docViewer().id,
+                "scopeDepartmentId", org.bridge().id)).data();
+        assertTrue(batch.path("committed").asBoolean(), batch.toString());
+        assertEquals(2, batch.path("succeeded").asInt());
+        assertTrue(check(bToken, "oa:doc:draft:view", org.bridgeFinance().id).path("allowed").asBoolean());
+        JsonNode back = postJson(root, "/assignments/batch-revoke", Map.of("targetType", "USER",
+                "targetIds", List.of(aUser.id, bUser.id), "roleId", org.docViewer().id,
+                "scopeDepartmentId", org.bridge().id)).data();
+        assertEquals(2, back.path("succeeded").asInt(), back.toString());
+        assertFalse(check(bToken, "oa:doc:draft:view", org.bridgeFinance().id).path("allowed").asBoolean());
+    }
+
     @Test
     void batchAssignByCompanyAndDepartmentThenRevoke() throws Exception {
         user("a1", org.aFinance());

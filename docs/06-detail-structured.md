@@ -356,7 +356,7 @@ check 与 explain 调用同一个 `decide`，不存在两套判定逻辑（T20�
 ```
 1. 用户已删除 → SUBJECT_DELETED；角色停用 → ROLE_DISABLED
 2. 适用部门 ← 给定值，或用户所属部门；不存在 → SCOPE_DEPT_NOT_FOUND
-3. 适用部门与用户不同公司 → CROSS_COMPANY
+3. （已取消）适用部门与用户不同公司不再拒绝：允许跨公司授权，由第 7 步的管理范围把关（12 R-20）
 4. 角色是公司内角色且不属于适用部门的公司 → ROLE_COMPANY_MISMATCH
 5. 操作者是超级管理员 → 通过
 6. 角色是 SUPER_ADMIN → SUPER_ADMIN_ONLY
@@ -443,7 +443,7 @@ batchAssign(操作者, 请求):
 | 修改全局角色、修改超级管理员账号（非超级管理员） | — | `ACCESS_DENIED`（`GLOBAL_ROLE_SUPER_ADMIN_ONLY`、`TARGET_IS_SUPER_ADMIN`） | `RoleManagementService.requireCompanyLevel`、`UserManagementService.requireManageable` |
 | 新增、修改用户 | `USER_CREATE`、`USER_UPDATE` | 越界见上 | `UserManagementService` |
 | 启用、停用、删除用户（含批量） | `USER_STATUS`、`USER_DELETE` 逐人 | 同事件 `DENIED`：越界、操作自己、目标是超级管理员、已删除 | `applyStatus` |
-| 分配、回收角色（含批量） | `ROLE_ASSIGN`、`ROLE_REVOKE` | 同事件 `DENIED`：越界、越权授予、跨公司、最后一个超级管理员；批量 `BATCH_REJECTED` | `AssignmentService` |
+| 分配、回收角色（含批量） | `ROLE_ASSIGN`、`ROLE_REVOKE` | 同事件 `DENIED`：越界、越权授予、公司内角色指派到别的公司、最后一个超级管理员；批量 `BATCH_REJECTED` | `AssignmentService` |
 | 新增、修改、删除角色 | `ROLE_CREATE`、`ROLE_UPDATE`、`ROLE_DELETE` | `DENIED`：停用超级管理员角色、删除内置角色、仍有指派 | `RoleManagementService` |
 | 角色授权、回收权限 | `PERMISSION_ASSIGN`、`PERMISSION_REVOKE` 逐条 | `PERMISSION_ASSIGN DENIED`：越权授予、给超级管理员角色授权 | `RoleManagementService`；导入时的回收与「只限本人」变化同样逐条记 |
 | 资源、权限、菜单维护，导入 | `RESOURCE_CREATE`、`PERMISSION_CREATE`、`MENU_*`、`IMPORT_*` | 接口级拒绝由拦截器记 `AUTH_FAILED`；这些操作没有对象级的范围规则 | `CatalogService`、`MenuService`、`ImportService` |

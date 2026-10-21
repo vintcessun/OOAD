@@ -1,7 +1,7 @@
 <template>
   <div class="dept-select">
     <el-select v-model="companyId" placeholder="公司" class="company" :disabled="companies.length <= 1"
-               data-test="company-select" @change="loadTree">
+               data-test="company-select" @change="switchCompany">
       <el-option v-for="c in companies" :key="c.id" :label="`${c.companyName}（${c.companyCode}）`" :value="c.id" />
     </el-select>
     <el-tree-select v-model="model" :data="tree" :props="treeProps" node-key="id" check-strictly filterable clearable
@@ -26,6 +26,12 @@ const companies = ref<CompanyView[]>([])
 const companyId = ref<number>()
 const tree = ref<DeptNode[]>([])
 const treeProps = { label: 'deptName', children: 'children', value: 'id' }
+
+/** 换公司时清掉已选部门：旧公司的部门不在新树里，留着会把看不见的部门提交上去 */
+async function switchCompany() {
+  model.value = null
+  await loadTree()
+}
 
 async function loadTree() {
   emit('company', companyId.value)

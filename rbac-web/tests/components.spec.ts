@@ -26,6 +26,7 @@ import BatchResultView from '@/components/BatchResultView.vue'
 import ImportReportView from '@/components/ImportReportView.vue'
 import PermissionCode from '@/components/PermissionCode.vue'
 import UserDetailPanel from '@/components/UserDetailPanel.vue'
+import DeptTreeSelect from '@/components/DeptTreeSelect.vue'
 import AuditLogView from '@/views/AuditLogView.vue'
 import DashboardView from '@/views/DashboardView.vue'
 import ExplainView from '@/views/ExplainView.vue'
@@ -185,6 +186,34 @@ describe('撤销自己的指派', () => {
     expect((await revokeButton(withRole(useAuthStore().me!))).exists()).toBe(true)
     const other = { ...me([]), user: { ...me([]).user, id: 20, username: 'u20' } }
     expect((await revokeButton(withRole(other))).exists()).toBe(false)
+  })
+})
+
+describe('跨公司授权', () => {
+  const assignment = (id: number, scopeCompanyId: number) => ({ assignmentId: id, userId: 9, username: 'u9',
+    userRealName: '测试员', roleId: 3, roleCode: 'DOC_VIEWER', roleName: '公文查阅', roleStatus: 'ENABLED',
+    scopeDeptId: 30 + id, scopeDeptName: '财务部', scopePath: '/1/', scopeCompanyId, grantedBy: 1,
+    grantedAt: '2026-10-21T10:00:00', reason: null })
+
+  it('适用部门在其他公司的指派带标记，本公司的不带', async () => {
+    useAuthStore().me = me([])
+    const detail = { ...me([]), roles: [assignment(1, 2), assignment(2, 3)] }
+    const w = mount(UserDetailPanel, { props: { detail, initialTab: 'roles' }, global })
+    await flushPromises()
+    expect(w.findAll('[data-test="cross-company"]')).toHaveLength(1)
+  })
+
+  it('部门选择器换公司时清掉已选部门，并加载新公司的部门树', async () => {
+    api.orgApi.companies.mockResolvedValue([{ id: 2, companyCode: 'SZ', companyName: '市政公司' },
+      { id: 3, companyCode: 'SZ2', companyName: '第二市政公司' }] as never)
+    const w = mount(DeptTreeSelect, { props: { modelValue: 31, initialCompanyId: 2 }, global })
+    await flushPromises()
+    expect(api.orgApi.tree).toHaveBeenLastCalledWith(2)
+    ;(w.vm as unknown as { companyId: number }).companyId = 3
+    w.findComponent({ name: 'ElSelect' }).vm.$emit('change', 3)
+    await flushPromises()
+    expect(w.emitted('update:modelValue')?.at(-1)).toEqual([null])
+    expect(api.orgApi.tree).toHaveBeenLastCalledWith(3)
   })
 })
 

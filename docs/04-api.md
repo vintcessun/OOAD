@@ -68,7 +68,7 @@ API 设计的正式成果是 [`rbac-api.yaml`](../rbac-contract/src/main/resourc
 | 用途 | 怎么用 |
 |---|---|
 | 人看 | 导入 Apifox、Swagger Editor 或 Redocly 浏览 |
-| 机器校验 | `npx @redocly/cli@1.25.0 lint rbac-api.yaml`：0 错误；警告是缺 `operationId`、部分接口未列 4xx、缺 license，不影响导入 |
+| 机器校验 | `npx @redocly/cli@1.25.0 lint rbac-api.yaml`：0 错误；25 个警告（10/21 复跑）：23 个接口未列 4xx、缺 license、示例服务器地址，不影响导入。45 个接口都已有 `operationId` |
 | 运行时执行 | 拦截器读每个操作的 `x-required-permission`；启动时与代码路由双向核对（§1.4） |
 
 **导入 Apifox**：

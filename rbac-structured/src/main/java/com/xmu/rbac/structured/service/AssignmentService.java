@@ -40,7 +40,7 @@ import java.util.Set;
  * <p>一次指派需要通过的校验（单个与批量共用 {@link #checkOne}）：
  * <ol>
  *   <li>用户存在且未删除；角色存在且启用；</li>
- *   <li>适用部门与用户在同一家公司；公司内角色只能指派到本公司；</li>
+ *   <li>公司内角色只能指派到本公司的部门；适用部门可以在别的公司（跨公司授权，docs/12-design-log.md R-20）；</li>
  *   <li>操作者对用户所属部门、对适用部门都持有 rbac:assignment:assign（管理范围）；</li>
  *   <li>超级管理员角色只有超级管理员能分配；</li>
  *   <li>不能授出自己没有的权限：角色的每个权限，操作者在适用部门都必须持有。</li>
@@ -340,11 +340,9 @@ public class AssignmentService {
         }
         Department scope = dept(ctx, scopeDeptId);
         Department home = dept(ctx, u.departmentId);
+        // 适用部门不要求与用户同公司：用户只属于一家公司，但可以在别的公司工作；能否授出由下面的管理范围与越权检查决定
         if (scope == null) {
             return "SCOPE_DEPT_NOT_FOUND";
-        }
-        if (!scope.companyId.equals(u.companyId)) {
-            return "CROSS_COMPANY";
         }
         if (ctx.role().companyId != null && !ctx.role().companyId.equals(scope.companyId)) {
             return "ROLE_COMPANY_MISMATCH";
@@ -477,7 +475,6 @@ public class AssignmentService {
             case "SUPER_ADMIN_ONLY" -> BizException.forbidden(BizException.FORBIDDEN, "只有超级管理员能分配或回收超级管理员角色");
             case "ROLE_DISABLED" -> BizException.conflict(BizException.STATE_CONFLICT, "角色已停用");
             case "SUBJECT_DELETED" -> BizException.conflict(BizException.STATE_CONFLICT, "用户已删除");
-            case "CROSS_COMPANY" -> BizException.badRequest("适用部门必须与用户在同一家公司");
             case "ROLE_COMPANY_MISMATCH" -> BizException.badRequest("公司内角色只能指派到本公司的部门");
             default -> BizException.badRequest(failure);
         };

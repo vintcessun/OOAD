@@ -49,7 +49,6 @@ export const FAILURE_LABEL: Record<string, string> = {
   SUBJECT_DELETED: '用户已删除',
   ROLE_DISABLED: '角色已停用',
   SCOPE_DEPT_NOT_FOUND: '适用部门不存在',
-  CROSS_COMPANY: '适用部门与用户不在同一家公司',
   ROLE_COMPANY_MISMATCH: '公司内角色只能指派到本公司',
   SUPER_ADMIN_ONLY: '只有超级管理员能操作超级管理员角色',
   OUT_OF_MANAGE_SCOPE: '不在你的管理范围内',

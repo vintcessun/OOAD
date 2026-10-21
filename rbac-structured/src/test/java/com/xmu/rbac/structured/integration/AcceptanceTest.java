@@ -478,12 +478,19 @@ class AcceptanceTest extends IntegrationTestBase {
         assertTrue(check(token, "oa:doc:draft:approve", org.aFinance().id).path("allowed").asBoolean());
         assertFalse(check(token, "oa:doc:draft:approve", org.bFinance().id).path("allowed").asBoolean());
 
-        // 跨公司指派被拒绝
+        // 跨公司授权：B 公司的员工可以拿到 A 公司某部门的权限，只覆盖那个部门，不串到 B 的同名部门
         User bUser = user("b1", org.bFinance());
         String root = login("root");
         Resp r = postJson(root, "/users/" + bUser.id + "/roles",
                 Map.of("roleId", org.docViewer().id, "scopeDepartmentId", org.aFinance().id));
-        assertEquals(400, r.status());
+        assertEquals(200, r.status(), r.body().toString());
+        assertEquals(org.a().id, r.data().path("scopeCompanyId").asLong());
+        String bToken = login("b1");
+        assertTrue(check(bToken, "oa:doc:draft:view", org.aFinance().id).path("allowed").asBoolean());
+        assertFalse(check(bToken, "oa:doc:draft:view", org.bFinance().id).path("allowed").asBoolean());
+        assertEquals(200, deleteReq(root, "/users/" + bUser.id + "/roles/"
+                + r.data().path("assignmentId").asLong()).status());
+        assertFalse(check(bToken, "oa:doc:draft:view", org.aFinance().id).path("allowed").asBoolean());
 
         // 公司 A 的管理员给公司 B 的员工授权：超出管理范围
         User admin = adminOf(org.aRoot());

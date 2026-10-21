@@ -409,7 +409,7 @@ paths:
       summary: 为用户分配角色（ROLE_ASSIGN）
       description: |
         需要在用户所属部门和适用部门均持有 rbac:assignment:assign，scopeDepartmentId 默认取用户所属部门，覆盖其下级。
-        用户须未删除、角色须启用，适用部门须与用户同公司，公司内角色只能分配到本公司。
+        用户须未删除、角色须启用，公司内角色只能分配到本公司的部门；适用部门可以在用户所属公司以外（跨公司授权），但用户所属部门与适用部门都须在调用者的管理范围内。
         超级管理员角色只有超级管理员能分配；角色中各权限不能超出调用者在适用部门所持有的权限及本人数据限制。
         相同用户、角色、适用部门的指派重复时返回 409。成功返回指派详情，更新授权缓存版本并记录 ROLE_ASSIGN。
       x-required-permission: rbac:assignment:assign
@@ -682,7 +682,7 @@ paths:
       summary: 按分公司 / 部门 / 员工批量分配角色
       description: |
         需要 rbac:assignment:assign。按 targetType 将公司、部门或用户 ID 展开为用户，重叠范围中的用户去重；
-        部门目标默认包含下级。逐人校验用户部门、适用部门的管理权限、公司一致性及禁止越权授予规则。
+        部门目标默认包含下级。逐人校验用户部门、适用部门的管理权限、公司内角色的公司归属及禁止越权授予规则；适用部门可以在用户所属公司以外。
         scopeDepartmentId 不填时，各用户以其所属部门为适用部门。
         默认 ATOMIC：任何一人未通过校验则整批不写，返回 committed=false；PARTIAL 则写入通过的用户。
         已持有同角色、同适用部门指派的人计入 duplicated，不算失败。200 表示处理完成，须检查 committed 和 failures。

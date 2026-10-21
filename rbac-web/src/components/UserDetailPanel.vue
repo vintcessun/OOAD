@@ -46,7 +46,13 @@
                 <el-tag v-if="row.roleStatus === 'DISABLED'" size="small" type="info">已停用</el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="scopeDeptName" label="适用部门（含下级）" />
+            <el-table-column label="适用部门（含下级）">
+              <template #default="{ row }">
+                {{ row.scopeDeptName }}
+                <el-tag v-if="row.scopeCompanyId !== detail.user.companyId" size="small" type="warning"
+                        title="跨公司授权：适用部门不在该用户所属公司" data-test="cross-company">其他公司</el-tag>
+              </template>
+            </el-table-column>
             <el-table-column prop="grantedBy" label="授予人" width="80" />
             <el-table-column label="授予时间" width="170">
               <template #default="{ row }">{{ formatTime(row.grantedAt) }}</template>
