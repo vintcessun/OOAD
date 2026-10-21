@@ -416,9 +416,39 @@ class ManagementApiTest extends IntegrationTestBase {
         assertEquals(200, deleteReq(gToken, "/users/" + bUser.id + "/roles/"
                 + granted.data().path("assignmentId").asLong()).status());
         assertFalse(check(bToken, "oa:doc:draft:view", org.aFinance().id).path("allowed").asBoolean());
-        // 只管 A 的管理员回收不了 B 公司员工的指派
-        assertEquals(403, deleteReq(aToken, "/users/" + bUser.id + "/roles/"
+        // A 公司的业务系统 / 管理员可以问「B 公司的这个人能否操作 A 的部门」，问不了他在 B 的情况；解释仍按所属部门
+        JsonNode inATarget = postJson(aToken, "/authz/check", Map.of("username", "b1",
+                "permission", "oa:doc:draft:view", "targetDeptId", org.roadProject().id)).data();
+        assertTrue(inATarget.path("allowed").asBoolean(), inATarget.toString());
+        assertEquals(403, postJson(aToken, "/authz/check", Map.of("username", "b1",
+                "permission", "oa:doc:draft:approve", "targetDeptId", org.bFinance().id)).status());
+        assertEquals(403, postJson(aToken, "/authz/check", Map.of("username", "b1",
+                "permission", "oa:doc:draft:view")).status());
+        assertEquals(403, postJson(aToken, "/authz/explain", Map.of("username", "b1",
+                "permission", "oa:doc:draft:view", "targetDeptId", org.roadProject().id)).status());
+
+        // 回收：适用部门所在公司的管理员能收回 B 公司员工在 A 的权限；只管 A 的管理员仍不能停用 B 公司的人
+        assertEquals(200, deleteReq(aToken, "/users/" + bUser.id + "/roles/"
                 + inA.data().path("assignmentId").asLong()).status());
+        assertFalse(check(bToken, "oa:doc:draft:view", org.roadProject().id).path("allowed").asBoolean());
+        assertEquals(403, patchJson(aToken, "/users/" + bUser.id + "/status", Map.of("status", "DISABLED")).status());
+        // 用户所在公司的管理员也能收回本公司员工在 A 的权限，但授不出 A 的权限
+        User bAdmin = user("b_admin", org.bRoot());
+        grant(bAdmin, org.rbacAdmin(), org.bRoot());
+        grant(bAdmin, org.docViewer(), org.bRoot());
+        String bAdminToken = login("b_admin");
+        assertEquals(403, postJson(bAdminToken, "/users/" + bUser.id + "/roles",
+                Map.of("roleId", org.docViewer().id, "scopeDepartmentId", org.aFinance().id)).status());
+        Resp again = postJson(root, "/users/" + bUser.id + "/roles",
+                Map.of("roleId", aRole.id, "scopeDepartmentId", org.road().id));
+        assertEquals(200, deleteReq(bAdminToken, "/users/" + bUser.id + "/roles/"
+                + again.data().path("assignmentId").asLong()).status());
+        // 两边都管不到的照旧拒绝：只管道路分公司的管理员回收 B 公司员工在桥梁分公司的指派
+        User roadAdmin = user("road_admin", org.road());
+        grant(roadAdmin, org.rbacAdmin(), org.road());
+        UserRole inBridge = grant(bUser, org.docViewer(), org.bridge());
+        assertEquals(403, deleteReq(login("road_admin"), "/users/" + bUser.id + "/roles/" + inBridge.id).status());
+        userRoleMapper.delete(inBridge);
 
         // 批量：按员工把两家公司的人一起授到 A 公司的部门
         JsonNode batch = postJson(root, "/assignments/batch", Map.of("targetType", "USER",

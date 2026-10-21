@@ -165,7 +165,7 @@ paths:
         主体通过 userId 或 username 指定，都不填则查询调用者本人；同时填写时优先使用 userId。
         权限优先取 permission，否则由 resource + action 拼接。targetDeptId 表示被操作数据所属部门，
         不填时只判定是否具有该操作权限，不限定具体部门。
-        查询本人无需额外权限；查询他人时，调用者须在被查用户所属部门持有 rbac:authz:invoke，否则返回 403。
+        查询本人无需额外权限；查询他人时，调用者须在被查用户所属部门或 targetDeptId 持有 rbac:authz:invoke，否则返回 403。
         判定完成始终返回 200，是否放行见 data.allowed；拒绝原因见 reason。selfOnly=true 时，
         业务系统还须按记录归属过滤本人数据。每次完成的判定记录 AUTH_SUCCESS 或 AUTH_FAILED。
       x-required-permission: "@self"
@@ -446,7 +446,7 @@ paths:
       operationId: revokeUserRoleAssignment
       summary: 回收一次角色指派（ROLE_REVOKE）
       description: |
-        接口需要 rbac:assignment:revoke；回收他人指派还要求该权限覆盖用户所属部门及指派适用部门，回收本人指派不受管理范围限制。
+        接口需要 rbac:assignment:revoke；回收他人指派还要求该权限覆盖用户所属部门或指派适用部门（其一即可），回收本人指派不受管理范围限制。
         assignmentId 必须属于路径中的用户，
         不存在或不匹配时返回 404。只回收该条指派，被回收者过去授给其他人的指派保留。
         他人的超级管理员角色只有超级管理员能回收；不能回收最后一个有效的超级管理员，否则返回 409 并回滚。
@@ -701,7 +701,7 @@ paths:
       operationId: batchRevokeRole
       summary: 按分公司 / 部门 / 员工批量回收角色
       description: |
-        需要 rbac:assignment:revoke，按公司、部门或用户展开目标，逐人校验用户所属部门和各指派适用部门的回收权限；回收本人指派不受管理范围限制。
+        需要 rbac:assignment:revoke，按公司、部门或用户展开目标，逐人校验回收权限（覆盖用户所属部门或各指派适用部门其一即可）；回收本人指派不受管理范围限制。
         scopeDepartmentId 为空时回收目标用户持有该角色的全部指派，否则只回收该适用部门的指派。
         默认 ATOMIC，任一用户校验失败整批不执行；PARTIAL 执行通过者。无匹配指派的用户计入 duplicated，不算失败。
         succeeded 按成功处理的用户数统计；回收最后一个有效超级管理员返回 409 并回滚。

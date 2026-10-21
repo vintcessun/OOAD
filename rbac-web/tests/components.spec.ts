@@ -12,6 +12,7 @@ const api = vi.hoisted(() => ({
   authzApi: { explain: vi.fn() },
   userApi: { list: vi.fn(), detail: vi.fn() },
   orgApi: { companies: vi.fn(async () => []), tree: vi.fn(async () => []) },
+  roleApi: { list: vi.fn(async () => []) },
 }))
 vi.mock('@/api', () => api)
 const nav = vi.hoisted(() => ({ push: vi.fn(), back: vi.fn(), query: {} as Record<string, string> }))
@@ -27,6 +28,7 @@ import ImportReportView from '@/components/ImportReportView.vue'
 import PermissionCode from '@/components/PermissionCode.vue'
 import UserDetailPanel from '@/components/UserDetailPanel.vue'
 import DeptTreeSelect from '@/components/DeptTreeSelect.vue'
+import AssignRoleDialog from '@/components/AssignRoleDialog.vue'
 import AuditLogView from '@/views/AuditLogView.vue'
 import DashboardView from '@/views/DashboardView.vue'
 import ExplainView from '@/views/ExplainView.vue'
@@ -214,6 +216,23 @@ describe('跨公司授权', () => {
     await flushPromises()
     expect(w.emitted('update:modelValue')?.at(-1)).toEqual([null])
     expect(api.orgApi.tree).toHaveBeenLastCalledWith(3)
+  })
+
+  it('选了「指定部门」但还没选部门时不能提交（否则后端会落到用户所属部门）', async () => {
+    const w = mount(AssignRoleDialog, { props: { modelValue: true, userId: 9, companyId: 2 }, global, attachTo: document.body })
+    await flushPromises()
+    const submit = () => document.querySelector('[data-test="assign-submit"]') as HTMLButtonElement
+    const state = (w.vm.$ as unknown as { setupState: Record<string, unknown> }).setupState
+    Object.assign(state, { roleId: 3 })
+    await flushPromises()
+    expect(submit().disabled).toBe(false)
+    Object.assign(state, { scopeMode: 'specified' })
+    await flushPromises()
+    expect(submit().disabled).toBe(true)
+    Object.assign(state, { scopeDeptId: 31 })
+    await flushPromises()
+    expect(submit().disabled).toBe(false)
+    w.unmount()
   })
 })
 

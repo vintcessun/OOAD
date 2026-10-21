@@ -14,7 +14,7 @@
 | `service` 包 | 行 97.6%，分支 83.6% |
 | 接口覆盖 | 契约中的 45 个接口全部经 HTTP 调用过 |
 | 验收用例 | 审查报告 §10.2 的 T01–T22 全部实现并通过 |
-| 前端单元测试 | 41 个（Vitest），逻辑层行覆盖 92.3%、分支 90.8% |
+| 前端单元测试 | 42 个（Vitest），逻辑层行覆盖 92.3%、分支 90.8% |
 | 前端端到端测试 | 9 个（Playwright），连真实后端、MySQL、Redis，在 Chromium 里操作页面 |
 
 后端覆盖率统计范围：`rbac-structured` 的 controller、service、mapper；`entity`、`dto`、`config` 与启动类排除（只有字段或框架装配）。前端覆盖率统计范围：`src/api`、`stores`、`router`、`utils`、`directives`；页面组件由端到端测试覆盖。

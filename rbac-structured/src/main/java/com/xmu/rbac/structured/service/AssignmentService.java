@@ -45,7 +45,7 @@ import java.util.Set;
  *   <li>超级管理员角色只有超级管理员能分配；</li>
  *   <li>不能授出自己没有的权限：角色的每个权限，操作者在适用部门都必须持有。</li>
  * </ol>
- * 回收只检查管理范围；回收自己的指派连管理范围也不查（{@link #checkRevoke}）。
+ * 回收只检查管理范围，用户所属部门、适用部门管得到其一即可；回收自己的指派连管理范围也不查（{@link #checkRevoke}）。
  */
 @Service
 public class AssignmentService {
@@ -166,6 +166,10 @@ public class AssignmentService {
     /**
      * 回收自己的指派不受管理范围限制：放弃权限不会扩大任何人的能力（10/15 课堂要求「管理员可以自己撤销自己权限」）。
      * 唯一例外是最后一个有效的超级管理员，由调用方在删除后统一拦截。
+     *
+     * <p>回收别人的指派，操作者管得到用户所属部门或适用部门其一即可（分配要两边都管得到）。跨公司授权后两边可能
+     * 分属两家公司：适用部门所在公司要能收回别人在自己部门的权限，用户所在公司要能收回本公司员工的权限
+     * （docs/12-design-log.md R-20）。回收只会缩小权限，所以放宽不带来越权。
      */
     private String checkRevoke(Operator op, User u, Role role, Long scopeDeptId) {
         if (u.id.equals(op.userId())) {
@@ -175,7 +179,7 @@ public class AssignmentService {
             return "SUPER_ADMIN_ONLY";
         }
         if (!authz.decide(op.userId(), PERM_REVOKE, u.departmentId, false).allowed()
-                || !authz.decide(op.userId(), PERM_REVOKE, scopeDeptId, false).allowed()) {
+                && !authz.decide(op.userId(), PERM_REVOKE, scopeDeptId, false).allowed()) {
             return "OUT_OF_MANAGE_SCOPE";
         }
         return null;

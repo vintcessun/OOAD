@@ -55,7 +55,12 @@ public class AuthzQueryService {
         return req.resource().trim() + ":" + req.action().trim();
     }
 
-    /** 返回被查用户的 id。查别人时校验调用者的查询范围。 */
+    /**
+     * 返回被查用户的 id。查别人时校验调用者的查询范围：调用者在被查用户所属部门持有调用权限；
+     * 鉴权（check）另外允许调用者在目标部门持有调用权限——跨公司授权后，A 公司的业务系统要能问
+     * 「B 公司的这个人能否操作 A 的这个部门」（docs/12-design-log.md R-20）。
+     * 解释（explain）不放宽：解释过程会列出被查用户的全部指派，包括其他公司的。
+     */
     Long resolveSubject(Operator caller, AuthzRequest req, String callerPermission) {
         User subject;
         if (req.userId() != null) {
@@ -75,7 +80,10 @@ public class AuthzQueryService {
         if (subject == null) {
             return req.userId();   // 判定结果为 SUBJECT_NOT_FOUND
         }
-        if (!authz.decide(caller.userId(), callerPermission, subject.departmentId, false).allowed()) {
+        boolean coversSubject = authz.decide(caller.userId(), callerPermission, subject.departmentId, false).allowed();
+        boolean coversTarget = PERM_INVOKE.equals(callerPermission) && req.targetDeptId() != null
+                && authz.decide(caller.userId(), callerPermission, req.targetDeptId(), false).allowed();
+        if (!coversSubject && !coversTarget) {
             throw denied(caller, callerPermission);
         }
         return subject.id;

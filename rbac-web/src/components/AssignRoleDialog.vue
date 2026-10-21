@@ -20,7 +20,7 @@
     <el-alert v-if="error" :title="error" type="error" :closable="false" show-icon />
     <template #footer>
       <el-button @click="visible = false">取消</el-button>
-      <el-button type="primary" :loading="loading" :disabled="!roleId" @click="submit" data-test="assign-submit">分配</el-button>
+      <el-button type="primary" :loading="loading" :disabled="!roleId || (scopeMode === 'specified' && !scopeDeptId)" @click="submit" data-test="assign-submit">分配</el-button>
     </template>
   </el-dialog>
 </template>
