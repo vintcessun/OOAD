@@ -18,7 +18,7 @@
 | 前端 Vue3 + TS | ✅ | [`rbac-web/`](../rbac-web/)：Vue 3 + TypeScript + Element Plus + Pinia + ECharts，15 个页面按 [05-ui.md](05-ui.md) 实现；42 个单元测试 + 9 个连真实后端的端到端测试 |
 | MySQL + Redis + JPA | ✅ | MySQL 8.0 + Flyway；Redis 存授权缓存与已注销令牌；Spring Data JPA |
 | Docker Swarm 部署和管理 | 🟡 | 编排文件与 `deploy/stack.sh` 沿用实验二的做法；**本次改动后尚未重新部署到三台服务器**，旧库需删库重建（[13 §4.5](13-deployment.md)） |
-| Jacoco 白盒测试，每个功能都有测试 | ✅ | 69 个测试，行 97.6%、分支 84.5%；45 个接口全部经 HTTP 调用过（[09](09-test-plan.md)） |
+| Jacoco 白盒测试，每个功能都有测试 | ✅ | 69 个测试，行 97.7%、分支 84.7%；45 个接口全部经 HTTP 调用过（[09](09-test-plan.md)） |
 | 不能使用 MyBatis | ✅ | 依赖已删除；`ArchitectureTest.noMyBatis` |
 | 只用 Controller + Service + Mapper，不用 DAO 层 | ✅ | 包结构与依赖方向由 `ArchitectureTest` 检查 |
 

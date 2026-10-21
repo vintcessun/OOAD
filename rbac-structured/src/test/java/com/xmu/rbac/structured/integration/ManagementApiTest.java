@@ -420,6 +420,25 @@ class ManagementApiTest extends IntegrationTestBase {
         JsonNode inATarget = postJson(aToken, "/authz/check", Map.of("username", "b1",
                 "permission", "oa:doc:draft:view", "targetDeptId", org.roadProject().id)).data();
         assertTrue(inATarget.path("allowed").asBoolean(), inATarget.toString());
+        // 管不到这个人，只给结论：不带用户名、依据的指派，也探不出账号状态、是否超级管理员
+        assertEquals("ROLE_GRANTED", inATarget.path("reason").asText());
+        assertTrue(inATarget.path("username").isNull() && inATarget.path("matched").isNull(), inATarget.toString());
+        User bGone = user("b_gone", org.bFinance());
+        bGone.status = User.DISABLED;
+        userMapper.save(bGone);
+        JsonNode probe = postJson(aToken, "/authz/check", Map.of("userId", bGone.id,
+                "permission", "oa:doc:draft:view", "targetDeptId", org.roadProject().id)).data();
+        assertFalse(probe.path("allowed").asBoolean());
+        assertEquals("MISSING_PERMISSION", probe.path("reason").asText(), probe.toString());
+        assertTrue(probe.path("username").isNull(), probe.toString());
+        assertEquals("ROLE_GRANTED", postJson(aToken, "/authz/check", Map.of("userId", 1,
+                "permission", "oa:doc:draft:view", "targetDeptId", org.roadProject().id)).data().path("reason").asText());
+        assertEquals(403, postJson(aToken, "/authz/check", Map.of("username", "b1",
+                "permission", "oa:doc:draft:view", "targetDeptId", 999999)).status());
+        // 管得到这个人时照常返回完整结论
+        JsonNode full = postJson(aToken, "/authz/check", Map.of("userId", aUser.id,
+                "permission", "oa:doc:draft:view", "targetDeptId", org.aFinance().id)).data();
+        assertEquals("a1", full.path("username").asText(), full.toString());
         assertEquals(403, postJson(aToken, "/authz/check", Map.of("username", "b1",
                 "permission", "oa:doc:draft:approve", "targetDeptId", org.bFinance().id)).status());
         assertEquals(403, postJson(aToken, "/authz/check", Map.of("username", "b1",
@@ -427,16 +446,28 @@ class ManagementApiTest extends IntegrationTestBase {
         assertEquals(403, postJson(aToken, "/authz/explain", Map.of("username", "b1",
                 "permission", "oa:doc:draft:view", "targetDeptId", org.roadProject().id)).status());
 
+        // 批量回收（非超级管理员）同一规则：只管 B 的管理员收不回，只管 A 的管理员能收回
+        User bAdmin = user("b_admin", org.bRoot());
+        grant(bAdmin, org.rbacAdmin(), org.bRoot());
+        grant(bAdmin, org.docViewer(), org.bRoot());
+        String bAdminToken = login("b_admin");
+        JsonNode bBatch = postJson(bAdminToken, "/assignments/batch-revoke", Map.of("targetType", "USER",
+                "targetIds", List.of(bUser.id), "roleId", aRole.id)).data();
+        assertFalse(bBatch.path("committed").asBoolean(), bBatch.toString());
+        assertEquals("OUT_OF_MANAGE_SCOPE", bBatch.path("failures").get(0).path("reason").asText());
+        Resp extra = postJson(root, "/users/" + bUser.id + "/roles",
+                Map.of("roleId", aRole.id, "scopeDepartmentId", org.bridge().id));
+        assertEquals(200, extra.status());
+        JsonNode aBatch = postJson(aToken, "/assignments/batch-revoke", Map.of("targetType", "USER",
+                "targetIds", List.of(bUser.id), "roleId", aRole.id, "scopeDepartmentId", org.bridge().id)).data();
+        assertEquals(1, aBatch.path("succeeded").asInt(), aBatch.toString());
+
         // 回收：适用部门所在公司的管理员能收回 B 公司员工在 A 的权限；只管 A 的管理员仍不能停用 B 公司的人
         assertEquals(200, deleteReq(aToken, "/users/" + bUser.id + "/roles/"
                 + inA.data().path("assignmentId").asLong()).status());
         assertFalse(check(bToken, "oa:doc:draft:view", org.roadProject().id).path("allowed").asBoolean());
         assertEquals(403, patchJson(aToken, "/users/" + bUser.id + "/status", Map.of("status", "DISABLED")).status());
         // 只管 B 的管理员授不出、也收不回 B 公司员工在 A 的权限（适用部门不归他管）；要收回可以停用账号
-        User bAdmin = user("b_admin", org.bRoot());
-        grant(bAdmin, org.rbacAdmin(), org.bRoot());
-        grant(bAdmin, org.docViewer(), org.bRoot());
-        String bAdminToken = login("b_admin");
         assertEquals(403, postJson(bAdminToken, "/users/" + bUser.id + "/roles",
                 Map.of("roleId", org.docViewer().id, "scopeDepartmentId", org.aFinance().id)).status());
         UserRole inBridge = grant(bUser, org.docViewer(), org.bridge());
