@@ -446,7 +446,7 @@ paths:
       operationId: revokeUserRoleAssignment
       summary: 回收一次角色指派（ROLE_REVOKE）
       description: |
-        接口需要 rbac:assignment:revoke；回收他人指派还要求该权限覆盖用户所属部门或指派适用部门（其一即可），回收本人指派不受管理范围限制。
+        接口需要 rbac:assignment:revoke；回收他人指派还要求该权限覆盖指派的适用部门，回收本人指派不受管理范围限制。
         assignmentId 必须属于路径中的用户，
         不存在或不匹配时返回 404。只回收该条指派，被回收者过去授给其他人的指派保留。
         他人的超级管理员角色只有超级管理员能回收；不能回收最后一个有效的超级管理员，否则返回 409 并回滚。
@@ -701,7 +701,7 @@ paths:
       operationId: batchRevokeRole
       summary: 按分公司 / 部门 / 员工批量回收角色
       description: |
-        需要 rbac:assignment:revoke，按公司、部门或用户展开目标，逐人校验回收权限（覆盖用户所属部门或各指派适用部门其一即可）；回收本人指派不受管理范围限制。
+        需要 rbac:assignment:revoke，按公司、部门或用户展开目标，逐人校验回收权限（覆盖各指派的适用部门）；回收本人指派不受管理范围限制。
         scopeDepartmentId 为空时回收目标用户持有该角色的全部指派，否则只回收该适用部门的指派。
         默认 ATOMIC，任一用户校验失败整批不执行；PARTIAL 执行通过者。无匹配指派的用户计入 duplicated，不算失败。
         succeeded 按成功处理的用户数统计；回收最后一个有效超级管理员返回 409 并回滚。

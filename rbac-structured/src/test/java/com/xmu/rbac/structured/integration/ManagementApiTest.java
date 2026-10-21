@@ -432,23 +432,27 @@ class ManagementApiTest extends IntegrationTestBase {
                 + inA.data().path("assignmentId").asLong()).status());
         assertFalse(check(bToken, "oa:doc:draft:view", org.roadProject().id).path("allowed").asBoolean());
         assertEquals(403, patchJson(aToken, "/users/" + bUser.id + "/status", Map.of("status", "DISABLED")).status());
-        // 用户所在公司的管理员也能收回本公司员工在 A 的权限，但授不出 A 的权限
+        // 只管 B 的管理员授不出、也收不回 B 公司员工在 A 的权限（适用部门不归他管）；要收回可以停用账号
         User bAdmin = user("b_admin", org.bRoot());
         grant(bAdmin, org.rbacAdmin(), org.bRoot());
         grant(bAdmin, org.docViewer(), org.bRoot());
         String bAdminToken = login("b_admin");
         assertEquals(403, postJson(bAdminToken, "/users/" + bUser.id + "/roles",
                 Map.of("roleId", org.docViewer().id, "scopeDepartmentId", org.aFinance().id)).status());
-        Resp again = postJson(root, "/users/" + bUser.id + "/roles",
-                Map.of("roleId", aRole.id, "scopeDepartmentId", org.road().id));
-        assertEquals(200, deleteReq(bAdminToken, "/users/" + bUser.id + "/roles/"
-                + again.data().path("assignmentId").asLong()).status());
-        // 两边都管不到的照旧拒绝：只管道路分公司的管理员回收 B 公司员工在桥梁分公司的指派
+        UserRole inBridge = grant(bUser, org.docViewer(), org.bridge());
+        assertEquals(403, deleteReq(bAdminToken, "/users/" + bUser.id + "/roles/" + inBridge.id).status());
+        // 只管道路分公司的管理员：收不回桥梁分公司的指派；所属部门在道路分公司、适用于整个公司的上级管理员角色也收不回
         User roadAdmin = user("road_admin", org.road());
         grant(roadAdmin, org.rbacAdmin(), org.road());
-        UserRole inBridge = grant(bUser, org.docViewer(), org.bridge());
-        assertEquals(403, deleteReq(login("road_admin"), "/users/" + bUser.id + "/roles/" + inBridge.id).status());
+        String roadToken = login("road_admin");
+        assertEquals(403, deleteReq(roadToken, "/users/" + bUser.id + "/roles/" + inBridge.id).status());
         userRoleMapper.delete(inBridge);
+        User boss = user("boss", org.roadFinance());
+        UserRole bossAdmin = grant(boss, org.rbacAdmin(), org.aRoot());
+        assertEquals(403, deleteReq(roadToken, "/users/" + boss.id + "/roles/" + bossAdmin.id).status());
+        // 适用于本分公司的那条可以收回
+        UserRole bossInRoad = grant(boss, org.docViewer(), org.road());
+        assertEquals(200, deleteReq(roadToken, "/users/" + boss.id + "/roles/" + bossInRoad.id).status());
 
         // 批量：按员工把两家公司的人一起授到 A 公司的部门
         JsonNode batch = postJson(root, "/assignments/batch", Map.of("targetType", "USER",
