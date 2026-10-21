@@ -39,7 +39,6 @@ export interface User {
   companyId: number
   departmentId: number
   departmentName: string | null
-  expiresAt: string | null
   mustChangePwd: boolean
   createdAt: string | null
 }
@@ -86,7 +85,6 @@ export interface CreateUser {
   employeeNo?: string | null
   phone?: string | null
   position?: string | null
-  expiresAt?: string | null
   password?: string | null
 }
 
@@ -95,7 +93,6 @@ export interface UpdateUser {
   departmentId?: number | null
   phone?: string | null
   position?: string | null
-  expiresAt?: string | null
 }
 
 export interface BatchFailure {

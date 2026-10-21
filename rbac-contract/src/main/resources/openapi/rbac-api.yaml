@@ -70,7 +70,7 @@ paths:
       description: |
         使用用户名和口令登录，无需 Bearer 认证。成功返回 JWT、有效秒数、用户基本信息和 mustChangePwd。
         用户不存在、已删除或口令错误时返回 40102「用户名或口令错误」；连续口令错误 5 次后锁定 15 分钟，
-        锁定期间返回 40103。口令正确但账号停用或到期时返回 40104。
+        锁定期间返回 40103。口令正确但账号已停用时返回 40104。
         mustChangePwd=true 时须先修改本人口令，再重新登录。登录成功与失败均记录 LOGIN 审计事件。
       security: []
       requestBody:
@@ -254,7 +254,7 @@ paths:
       summary: 新增用户（正式员工、临时用户或业务系统账号）
       description: |
         需要在目标部门持有 rbac:user:create。公司由目标部门确定，userType 默认 EMPLOYEE，也支持 TEMPORARY、SYSTEM。
-        正式员工必须填写工号；临时用户不能填写工号、电话，且必须给出到期时间。
+        正式员工必须填写工号；临时用户不能填写工号、电话，用完由管理员停用（账号没有到期时间）。
         用户名和非空工号必须唯一，已删除用户的用户名也不能复用，否则返回 409。
         password 为空时采用配置的初始口令并要求首次登录修改；自定义口令须符合复杂度要求。
         SYSTEM 为内部账号，ID 使用 1～9999，编号用完返回 409；员工与临时用户从 10000 起编号。
@@ -323,7 +323,7 @@ paths:
     patch:
       tags: [user]
       operationId: updateUser
-      summary: 修改用户（姓名、部门、电话、岗位、到期时间）
+      summary: 修改用户（姓名、部门、电话、岗位）
       description: |
         需要在用户当前所属部门持有 rbac:user:edit；普通管理员不能修改其他超级管理员账号，已删除用户不能修改。
         仅更新非 null 字段；姓名不能是空白，电话和岗位可传空字符串清空，临时用户不能设置非空电话。
@@ -1006,7 +1006,7 @@ paths:
       description: |
         需要 rbac:audit:view。支持事件类型、操作者用户名、目标名称、结果和时间筛选，按日志 ID 倒序分页。
         actor 精确匹配用户名，target 模糊匹配目标名称；时间范围为 [from, to)，不填的边界不参与筛选。
-        abnormal=true 仅保留登录失败及不存在、停用、删除、到期主体发起的鉴权失败，仍与其他筛选条件取交集。
+        abnormal=true 仅保留登录失败及不存在、停用、删除主体发起的鉴权失败，仍与其他筛选条件取交集。
         data 为审计日志分页结果，page 默认 0、size 默认 20；日志仅供查询。
       x-required-permission: rbac:audit:view
       parameters:
@@ -1016,7 +1016,7 @@ paths:
         - { name: result, in: query, schema: { type: string, enum: [SUCCESS, DENIED, FAILED] }, description: SUCCESS 成功，DENIED 被拒绝，FAILED 执行失败 }
         - { name: from, in: query, schema: { type: string, format: date-time }, description: 审计时间下界（含），使用本地时间；不填则不限起点 }
         - { name: to, in: query, schema: { type: string, format: date-time }, description: 审计时间上界（不含），使用本地时间；不填则不限终点 }
-        - { name: abnormal, in: query, schema: { type: boolean, default: false }, description: '只看异常访问，口径与 Dashboard 的 abnormalCount 相同：登录失败，以及已停用、已删除、已到期或不存在的主体发起的鉴权' }
+        - { name: abnormal, in: query, schema: { type: boolean, default: false }, description: '只看异常访问，口径与 Dashboard 的 abnormalCount 相同：登录失败，以及已停用、已删除或不存在的主体发起的鉴权' }
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/Size'
       responses:
@@ -1196,13 +1196,12 @@ components:
         companyId: { type: integer, format: int64, description: 所属公司 ID，由所属部门确定 }
         departmentId: { type: integer, format: int64, description: 所属部门 ID，与角色指派的适用部门分别定义 }
         departmentName: { type: string, description: 所属部门名称 }
-        expiresAt: { type: string, format: date-time, nullable: true, description: 账号到期时间；到达后不可登录或通过认证，空表示未设到期时间 }
         mustChangePwd: { type: boolean, description: 是否必须先修改口令 }
         createdAt: { type: string, format: date-time, description: 账号创建时间 }
 
     CreateUser:
       type: object
-      description: 新增用户参数；用户类型决定工号、电话、到期时间的条件约束，创建不会自动指派角色
+      description: 新增用户参数；用户类型决定工号、电话的条件约束，创建不会自动指派角色
       required: [username, realName, departmentId]
       properties:
         username: { type: string, description: 全局唯一登录用户名，不能为空白 }
@@ -1212,7 +1211,6 @@ components:
         employeeNo: { type: string, description: 正式员工必填；临时用户不能填 }
         phone: { type: string, description: 临时用户不能填 }
         position: { type: string, description: 岗位名称，不决定用户的系统角色 }
-        expiresAt: { type: string, format: date-time, description: 临时用户必填 }
         password: { type: string, description: 为空时使用配置的初始口令并要求首次登录修改；自定义时至少 8 位且含大写、小写、数字和特殊字符 }
 
     UpdateUser:
@@ -1223,7 +1221,6 @@ components:
         departmentId: { type: integer, format: int64, description: 调入部门也必须在管理范围内，且不能跨公司 }
         phone: { type: string, description: 新联系电话；空字符串清空，临时用户不能填写非空电话 }
         position: { type: string, description: 新岗位名称；空字符串清空 }
-        expiresAt: { type: string, format: date-time, description: 新到期时间；省略或 null 时保留，不能通过 null 清空 }
 
     Assignment:
       type: object
@@ -1349,10 +1346,10 @@ components:
           type: string
           description: |
             ROLE_GRANTED 为角色授权放行，SUPER_ADMIN_BYPASS 为超级管理员旁路放行；
-            SUBJECT_NOT_FOUND、SUBJECT_DISABLED、SUBJECT_DELETED、SUBJECT_EXPIRED 分别为主体不存在、停用、删除、到期；
+            SUBJECT_NOT_FOUND、SUBJECT_DISABLED、SUBJECT_DELETED 分别为主体不存在、停用、删除；
             MISSING_PERMISSION 为缺少权限，OUT_OF_DATA_SCOPE 为超出数据范围，TARGET_DEPT_NOT_FOUND 为目标部门不存在。
           enum: [ROLE_GRANTED, SUPER_ADMIN_BYPASS, SUBJECT_NOT_FOUND, SUBJECT_DISABLED, SUBJECT_DELETED,
-                 SUBJECT_EXPIRED, MISSING_PERMISSION, OUT_OF_DATA_SCOPE, TARGET_DEPT_NOT_FOUND]
+                 MISSING_PERMISSION, OUT_OF_DATA_SCOPE, TARGET_DEPT_NOT_FOUND]
         userId: { type: integer, format: int64, description: 实际参与判定的主体用户 ID }
         username: { type: string, description: 主体用户名，主体不存在时可能为空 }
         permissionCode: { type: string, description: 实际参与判定的完整权限码 }
@@ -1410,5 +1407,5 @@ components:
         p99LatencyMs: { type: number, description: 今日有耗时记录的鉴权事件第 99 百分位延迟，采用最近秩法，单位毫秒 }
         qps: { type: number, description: 最近 60 秒的鉴权次数 / 60 }
         cacheHitRate: { type: number, description: 今日缓存命中次数除以有缓存信息的鉴权事件数 }
-        abnormalCount: { type: integer, format: int64, description: 今日登录失败及主体不存在、停用、删除或到期的鉴权失败次数 }
+        abnormalCount: { type: integer, format: int64, description: 今日登录失败及主体不存在、停用、删除的鉴权失败次数 }
         generatedAt: { type: string, format: date-time, description: 本次指标生成的服务端本地时间 }

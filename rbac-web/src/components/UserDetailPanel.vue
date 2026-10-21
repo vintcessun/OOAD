@@ -23,7 +23,6 @@
             <el-descriptions-item label="所属部门">{{ detail.user.departmentName ?? '—' }}</el-descriptions-item>
             <el-descriptions-item label="岗位">{{ detail.user.position ?? '—' }}</el-descriptions-item>
             <el-descriptions-item label="电话">{{ detail.user.phone ?? '—' }}</el-descriptions-item>
-            <el-descriptions-item label="到期时间">{{ formatTime(detail.user.expiresAt) }}</el-descriptions-item>
             <el-descriptions-item label="状态">
               {{ label(USER_STATUS_LABEL, detail.user.status) }}
               <span v-if="detail.user.statusReason" class="muted">（{{ detail.user.statusReason }}）</span>

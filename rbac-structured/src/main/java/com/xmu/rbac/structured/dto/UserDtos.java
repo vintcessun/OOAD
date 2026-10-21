@@ -11,18 +11,17 @@ public final class UserDtos {
 
     public record UserView(Long id, String username, String realName, String userType, String employeeNo,
                            String phone, String position, String status, String statusReason, Long companyId,
-                           Long departmentId, String departmentName, LocalDateTime expiresAt,
+                           Long departmentId, String departmentName,
                            boolean mustChangePwd, LocalDateTime createdAt) {
     }
 
-    /** 临时用户（TEMPORARY）不填工号、电话，但必须给出到期时间。password 为空时使用初始口令并要求首次登录修改。 */
+    /** 临时用户（TEMPORARY）不填工号、电话；不再用完由管理员停用。password 为空时使用初始口令并要求首次登录修改。 */
     public record CreateUser(String username, String realName, Long departmentId, String userType,
-                             String employeeNo, String phone, String position, LocalDateTime expiresAt,
+                             String employeeNo, String phone, String position,
                              String password) {
     }
 
-    public record UpdateUser(String realName, Long departmentId, String phone, String position,
-                             LocalDateTime expiresAt) {
+    public record UpdateUser(String realName, Long departmentId, String phone, String position) {
     }
 
     /** status 只能是 ACTIVE 或 DISABLED；删除走 DELETE 接口。 */

@@ -219,14 +219,14 @@ flowchart LR
     S3 --> S4[3.4 找含该权限的授权]
     S4 --> S5[3.5 逐条授权判作用域]
     S5 --> OUT[ALLOW / DENY + 原因]
-    S1 -.不存在/删除/停用/到期.-> OUT
+    S1 -.不存在/删除/停用.-> OUT
     S3 -.SUPER_ADMIN_BYPASS.-> OUT
     S4 -.MISSING_PERMISSION.-> OUT
 ```
 
 | 步骤 | 做什么 | 拒绝原因 |
 |---|---|---|
-| 3.1 主体状态 | 用户存在、未删除、启用、未到期（临时用户） | `SUBJECT_NOT_FOUND` / `SUBJECT_DELETED` / `SUBJECT_DISABLED` / `SUBJECT_EXPIRED` |
+| 3.1 主体状态 | 用户存在、未删除、启用 | `SUBJECT_NOT_FOUND` / `SUBJECT_DELETED` / `SUBJECT_DISABLED` |
 | 3.2 读取授权数据 | 用户的全部指派（只含启用的角色）及展开后的「权限码 + 来自哪次指派」 | — |
 | 3.3 超级管理员旁路 | 持有 `SUPER_ADMIN` 直接放行，原因 `SUPER_ADMIN_BYPASS` | — |
 | 3.4 找含该权限的授权 | 从授权数据中挑出权限码相同的行 | `MISSING_PERMISSION` |
@@ -297,7 +297,7 @@ flowchart LR
 
 1. 签名与有效期；
 2. `jti` 是否已登记为注销（Redis `rbac:revoked:<jti>`）；
-3. 查库取账号当前状态：删除、停用、到期立即生效；
+3. 查库取账号当前状态：删除、停用立即生效；
 4. 令牌中的 `ver` 是否等于账号的 `token_version`。
 
 | 场景 | 做法 |

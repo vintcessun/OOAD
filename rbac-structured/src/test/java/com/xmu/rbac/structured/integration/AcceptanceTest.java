@@ -15,7 +15,6 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestTemplate;
 
-import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -67,38 +66,38 @@ class AcceptanceTest extends IntegrationTestBase {
     }
 
     @Test
-    void t03_temporaryUserHasNoEmployeeInfoButExpires() throws Exception {
+    void t03_temporaryUserHasNoEmployeeInfoAndIsDisabledByHand() throws Exception {
         String root = login("root");
         Map<String, Object> req = new HashMap<>();
         req.put("username", "temp1");
         req.put("realName", "临时工");
         req.put("departmentId", org.roadProject().id);
         req.put("userType", "TEMPORARY");
-        req.put("expiresAt", LocalDateTime.now().plusDays(1).toString());
         req.put("password", PASSWORD);
         Resp created = postJson(root, "/users", req);
         assertEquals(200, created.status(), created.toString());
         assertTrue(created.data().path("employeeNo").isNull());
+        assertTrue(created.data().path("expiresAt").isMissingNode(), "账号没有到期时间（12 R-21）");
 
         // 临时用户不能有工号
         req.put("username", "temp2");
         req.put("employeeNo", "X1");
         assertEquals(400, postJson(root, "/users", req).status());
-        // 临时用户必须有到期时间
+        // 也不能有电话
         req.remove("employeeNo");
-        req.remove("expiresAt");
+        req.put("phone", "13900000000");
         assertEquals(400, postJson(root, "/users", req).status());
 
-        // 到期后：不能登录，鉴权结论为 SUBJECT_EXPIRED
+        // 用完由管理员手工停用：已登录的令牌下一次请求就失效，不能再登录，鉴权结论为 SUBJECT_DISABLED
         String token = login("temp1");
-        User t = userMapper.findByUsername("temp1").orElseThrow();
-        t.expiresAt = LocalDateTime.now().minusMinutes(1);
-        userMapper.save(t);
+        Long id = created.data().path("id").asLong();
+        assertEquals(200, patchJson(root, "/users/" + id + "/status",
+                Map.of("status", "DISABLED", "reason", "临时工作结束")).status());
         assertEquals(401, getJson(token, "/auth/me").status());
         assertEquals(401, loginStatus("temp1", PASSWORD));
         JsonNode d = postJson(root, "/authz/check",
-                Map.of("userId", t.id, "permission", "oa:doc:draft:view")).data();
-        assertEquals("SUBJECT_EXPIRED", d.path("reason").asText());
+                Map.of("userId", id, "permission", "oa:doc:draft:view")).data();
+        assertEquals("SUBJECT_DISABLED", d.path("reason").asText());
     }
 
     // ------------------------------------------------------------------ 鉴权场景

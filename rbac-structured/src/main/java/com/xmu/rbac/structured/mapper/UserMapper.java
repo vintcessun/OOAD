@@ -53,10 +53,10 @@ public interface UserMapper extends JpaRepository<User, Long>, JpaSpecificationE
     @Modifying
     @Query(value = """
             INSERT INTO sys_user (id, company_id, department_id, username, password_hash, real_name, user_type,
-                                  employee_no, phone, position, expires_at, must_change_pwd)
+                                  employee_no, phone, position, must_change_pwd)
             VALUES (:#{#u.id}, :#{#u.companyId}, :#{#u.departmentId}, :#{#u.username}, :#{#u.passwordHash},
                     :#{#u.realName}, :#{#u.userType}, :#{#u.employeeNo}, :#{#u.phone}, :#{#u.position},
-                    :#{#u.expiresAt}, :#{#u.mustChangePwd})
+                    :#{#u.mustChangePwd})
             """, nativeQuery = true)
     int insertInternal(@Param("u") User u);
 

@@ -27,10 +27,6 @@
       <el-form-item label="岗位">
         <el-input v-model="form.position" />
       </el-form-item>
-      <el-form-item label="到期时间" prop="expiresAt">
-        <el-date-picker v-model="form.expiresAt" type="datetime" value-format="YYYY-MM-DDTHH:mm:ss"
-                        placeholder="临时用户必填" data-test="form-expires" />
-      </el-form-item>
       <el-form-item v-if="!user" label="初始口令">
         <el-input v-model="form.password" type="password" show-password placeholder="留空则使用初始口令，首次登录须修改" />
       </el-form-item>
@@ -49,7 +45,7 @@ import { userApi } from '@/api'
 import type { User, UserType } from '@/api/types'
 import DeptTreeSelect from './DeptTreeSelect.vue'
 
-/** 新增 / 编辑用户（docs/05-ui.md §3.2）。规则与后端一致：临时用户无工号电话、必须有到期时间；正式员工必须有工号。 */
+/** 新增 / 编辑用户（docs/05-ui.md §3.2）。规则与后端一致：临时用户无工号电话，用完由管理员停用；正式员工必须有工号。 */
 const visible = defineModel<boolean>({ default: false })
 const props = defineProps<{ user: User | null }>()
 const emit = defineEmits<{ (e: 'done'): void }>()
@@ -64,7 +60,6 @@ const form = reactive({
   employeeNo: '',
   phone: props.user?.phone ?? '',
   position: props.user?.position ?? '',
-  expiresAt: props.user?.expiresAt ?? undefined as string | undefined,
   password: '',
 })
 
@@ -73,7 +68,6 @@ const rules: FormRules = {
   realName: [{ required: true, message: '请输入姓名' }],
   departmentId: [{ required: true, message: '请选择部门' }],
   employeeNo: [{ validator: (_r, v, cb) => (form.userType === 'EMPLOYEE' && !props.user && !v ? cb(new Error('正式员工必须填写工号')) : cb()) }],
-  expiresAt: [{ validator: (_r, v, cb) => (form.userType === 'TEMPORARY' && !v ? cb(new Error('临时用户必须设置到期时间')) : cb()) }],
 }
 
 async function submit() {
@@ -86,7 +80,6 @@ async function submit() {
         departmentId: form.departmentId,
         phone: form.userType === 'TEMPORARY' ? undefined : form.phone,
         position: form.position,
-        expiresAt: form.expiresAt ?? undefined,
       })
     } else {
       const temp = form.userType === 'TEMPORARY'
@@ -98,7 +91,6 @@ async function submit() {
         employeeNo: temp ? null : form.employeeNo || null,
         phone: temp ? null : form.phone || null,
         position: form.position || null,
-        expiresAt: form.expiresAt ?? null,
         password: form.password || null,
       })
     }

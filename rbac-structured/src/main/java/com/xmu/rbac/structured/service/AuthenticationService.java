@@ -75,9 +75,9 @@ public class AuthenticationService {
             userMapper.recordLoginFailure(user.id, MAX_LOGIN_FAILURES, now.plusMinutes(LOCK_MINUTES));
             throw loginFailed(who, user, "CREDENTIAL_INVALID", BizException.CREDENTIAL_INVALID, "用户名或口令错误");
         }
-        String deny = AuthorizationService.subjectDenyReason(user, now);
+        String deny = AuthorizationService.subjectDenyReason(user);
         if (deny != null) {
-            throw loginFailed(who, user, deny, BizException.ACCOUNT_DISABLED, "账号已停用或已到期");
+            throw loginFailed(who, user, deny, BizException.ACCOUNT_DISABLED, "账号已停用");
         }
         if (user.loginFailCount > 0 || user.lockedUntil != null) {
             userMapper.resetLoginFailure(user.id);
@@ -102,7 +102,7 @@ public class AuthenticationService {
             throw unauthenticated("令牌已注销，请重新登录");
         }
         User user = userMapper.findById(claims.userId()).orElse(null);
-        String deny = AuthorizationService.subjectDenyReason(user, LocalDateTime.ofInstant(now, clock.getZone()));
+        String deny = AuthorizationService.subjectDenyReason(user);
         if (deny != null) {
             throw unauthenticated("账号不可用：" + deny);
         }

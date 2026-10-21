@@ -14,7 +14,7 @@
       <el-date-picker v-model="range" type="datetimerange" value-format="YYYY-MM-DDTHH:mm:ss"
                       start-placeholder="从" end-placeholder="到" />
       <el-checkbox v-model="abnormal" data-test="audit-abnormal"
-                   title="登录失败，以及已停用、已删除、已到期或不存在的主体发起的鉴权（与 Dashboard 的统计口径相同）">
+                   title="登录失败，以及已停用、已删除或不存在的主体发起的鉴权（与 Dashboard 的统计口径相同）">
         只看异常访问
       </el-checkbox>
       <el-button type="primary" @click="search" data-test="audit-search">查询</el-button>

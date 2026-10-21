@@ -41,7 +41,6 @@ public class AuthorizationService {
     public static final String SUBJECT_NOT_FOUND = "SUBJECT_NOT_FOUND";
     public static final String SUBJECT_DISABLED = "SUBJECT_DISABLED";
     public static final String SUBJECT_DELETED = "SUBJECT_DELETED";
-    public static final String SUBJECT_EXPIRED = "SUBJECT_EXPIRED";
     public static final String MISSING_PERMISSION = "MISSING_PERMISSION";
     public static final String OUT_OF_DATA_SCOPE = "OUT_OF_DATA_SCOPE";
     public static final String TARGET_DEPT_NOT_FOUND = "TARGET_DEPT_NOT_FOUND";
@@ -86,7 +85,7 @@ public class AuthorizationService {
         // ---- 3.1 校验主体状态 ----
         User user = userId == null ? null : userMapper.findById(userId).orElse(null);
         String username = user == null ? null : user.username;
-        String deny = subjectDenyReason(user, LocalDateTime.now(clock));
+        String deny = subjectDenyReason(user);
         if (deny != null) {
             note(trace, "主体无效：" + deny);
             return result(false, deny, userId, username, permissionCode, targetDeptId, null, false, start, trace);
@@ -152,8 +151,8 @@ public class AuthorizationService {
         return allow(g, covering, userId, username, permissionCode, targetDeptId, loaded.cacheHit(), start, trace);
     }
 
-    /** 3.1 主体有效性：不存在、已删除、已停用、已到期。有效时返回 null。 */
-    public static String subjectDenyReason(User u, LocalDateTime now) {
+    /** 3.1 主体有效性：不存在、已删除、已停用。有效时返回 null。账号没有到期时间，临时用户用完由管理员停用（12 R-21）。 */
+    public static String subjectDenyReason(User u) {
         if (u == null) {
             return SUBJECT_NOT_FOUND;
         }
@@ -162,9 +161,6 @@ public class AuthorizationService {
         }
         if (!User.ACTIVE.equals(u.status)) {
             return SUBJECT_DISABLED;
-        }
-        if (u.expiresAt != null && !now.isBefore(u.expiresAt)) {
-            return SUBJECT_EXPIRED;
         }
         return null;
     }

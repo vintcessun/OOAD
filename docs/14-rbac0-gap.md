@@ -18,7 +18,7 @@
 | 前端 Vue3 + TS | ✅ | [`rbac-web/`](../rbac-web/)：Vue 3 + TypeScript + Element Plus + Pinia + ECharts，15 个页面按 [05-ui.md](05-ui.md) 实现；42 个单元测试 + 9 个连真实后端的端到端测试 |
 | MySQL + Redis + JPA | ✅ | MySQL 8.0 + Flyway；Redis 存授权缓存与已注销令牌；Spring Data JPA |
 | Docker Swarm 部署和管理 | 🟡 | 编排文件与 `deploy/stack.sh` 沿用实验二的做法；**本次改动后尚未重新部署到三台服务器**，旧库需删库重建（[13 §4.5](13-deployment.md)） |
-| Jacoco 白盒测试，每个功能都有测试 | ✅ | 69 个测试，行 97.7%、分支 84.7%；45 个接口全部经 HTTP 调用过（[09](09-test-plan.md)） |
+| Jacoco 白盒测试，每个功能都有测试 | ✅ | 69 个测试，行 97.6%、分支 84.6%；45 个接口全部经 HTTP 调用过（[09](09-test-plan.md)） |
 | 不能使用 MyBatis | ✅ | 依赖已删除；`ArchitectureTest.noMyBatis` |
 | 只用 Controller + Service + Mapper，不用 DAO 层 | ✅ | 包结构与依赖方向由 `ArchitectureTest` 检查 |
 
@@ -28,7 +28,7 @@
 |---|---|---|
 | 登录、鉴权两个场景 | ✅ | `/auth/*`、`/authz/check`；T01、T02、T17；T04–T07 |
 | 一个用户属于一个部门，但可以有多个部门的权限 | ✅ | 指派带适用部门 `scope_dept_id`，作用域逐条判断；T07、T07b、T15 |
-| 临时用户，没有工号、电话等员工信息 | ✅ | `user_type = TEMPORARY`，必须有到期时间；T03 |
+| 临时用户，没有工号、电话等员工信息 | ✅ | `user_type = TEMPORARY`，用完由管理员停用（没有到期时间，12 R-21）；T03 |
 | 按分公司、部门、员工级别批量权限管理 | ✅ | `/assignments/batch`、`/batch-revoke`，ATOMIC / PARTIAL；T16、`batchAssignByCompanyAndDepartmentThenRevoke`；真实数据一次批量 10,000 人 |
 | 多个公司、大量部门、上万员工、多权限域、多业务系统 | ✅ | `sys_company`；真实数据 111 部门、10,000 人、18 个业务系统；多公司隔离 T19（第二家公司为测试数据） |
 | 账号启用、停用、删除三种状态 | ✅ | T02、`userCrudWithinManagementScope`、`batchStatusReportsPerUserResults` |
@@ -114,11 +114,13 @@
 
 ## 3. 仍未完成、需要组内决定的事
 
+> 10/21 起，所有待决策、待认领事项和组内疑问统一列在 [README「待决策与待办」](../README.md#待决策与待办1021-汇总)，认领与完成情况以那里为准；下表保留原有条目。
+
 | # | 事项 | 影响 | 建议 |
 |---|---|---|---|
 | 1 | **新版本（含前端）未部署到三台服务器** | 检查时若要现场演示 Swarm 部署 | 组内安排暂缓。部署时按 [13 §4.5](13-deployment.md)：删库重建 → `build.sh push`（含 `rbac-web` 镜像）→ `stack.sh up` → 改 root 口令 → 导入 → 批量授权 |
 | 2 | 老师国庆后发布的测试尚未接入 | 以老师测试为准 | 发布后对照 45 个接口补适配 |
-| 3 | 组合后的 UML 模型须在 StarUML 中核对、导出 | 检查材料中的图 | 10/18 已将本地 StarUML 原生 ER 模型与导出图、远端用例总图及领域模型合入 `diagrams/rbac.mdj`；结构与引用校验通过。组合模型尚未重新打开，用例、领域模型仍须在 StarUML 内核对并原生导出；DFD、结构图仍待画。见 [diagrams/README](../diagrams/README.md) 与 [更新比较记录](17-update-comparison.md) |
+| 3 | 组合后的 UML 模型须在 StarUML 中核对、导出 | 检查材料中的图 | 10/18 已将本地 StarUML 原生 ER 模型与导出图、远端用例总图及领域模型合入 `diagrams/rbac.mdj`；结构与引用校验通过。组合模型尚未重新打开，用例、领域模型仍须在 StarUML 内核对并原生导出；V4 删除了 `sys_user.expires_at`，ER 图要同步删列后重新导出；DFD、结构图仍待画。见 [diagrams/README](../diagrams/README.md) 与 [更新比较记录](17-update-comparison.md) |
 
 已解决（2026-10-12）：用户列表电话脱敏在界面层完成（详情页显示完整号码）；角色详情「用户」改为先按管理范围过滤再分页，总数与每页内容一致。
 

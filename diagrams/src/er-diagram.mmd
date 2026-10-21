@@ -51,7 +51,6 @@ erDiagram
         VARCHAR(32) position "可空；不参与鉴权"
         VARCHAR(16) status "ACTIVE / DISABLED / DELETED"
         VARCHAR(255) status_reason "可空"
-        DATETIME expires_at "可空；临时用户必填"
         INT login_fail_count
         DATETIME locked_until "可空"
         TINYINT must_change_pwd

@@ -180,7 +180,7 @@ bash deploy/stack.sh logs                              # rbac-structured 的日�
 | 实验二 | 本项目 |
 |---|---|
 | 进 MySQL 容器 `source /sql/database.sql` 建库、建用户 | MySQL 镜像按 `MYSQL_DATABASE`、`MYSQL_USER`、`MYSQL_PASSWORD` 在**首次启动**时自动建库、建用户 |
-| `source /sql/product.sql` 导入表和数据 | 应用启动时 Flyway 执行 `V1__rbac0_baseline.sql`：建表，并写入操作词汇、权限中心自身的权限、三个内置角色、菜单和超级管理员 `root`；再执行 `V2__grant_version.sql` 建授权版本号表（10 月 14 日新增），`V3__reserve_internal_user_ids.sql` 把用户编号起点设为 10000（10 月 15 日新增，1–9999 留给内部账号）。已部署过 V1 的库启动时自动补上这两个脚本 |
+| `source /sql/product.sql` 导入表和数据 | 应用启动时 Flyway 执行 `V1__rbac0_baseline.sql`：建表，并写入操作词汇、权限中心自身的权限、三个内置角色、菜单和超级管理员 `root`；再执行 `V2__grant_version.sql` 建授权版本号表（10 月 14 日新增），`V3__reserve_internal_user_ids.sql` 把用户编号起点设为 10000（10 月 15 日新增，1–9999 留给内部账号），`V4__drop_user_expiry.sql` 删除账号到期时间列（10 月 21 日新增，已到期的启用账号先改为停用）。已部署过 V1 的库启动时自动补上这些脚本 |
 | `SET PASSWORD ... = PASSWORD('...')` 改口令 | 口令首次部署时由 `.env` 决定。⚠️ 实验指导里的 `PASSWORD()` 函数从 MySQL 8 起已删除，要改用 `ALTER USER 'rbac'@'%' IDENTIFIED BY '新口令';` |
 
 **`MYSQL_ROOT_PASSWORD`、`DB_PASSWORD` 只在数据卷为空时生效。** 已经部署过再改 `.env` 不会改变数据库里的口令，只会让应用连不上库。要改口令，二选一：

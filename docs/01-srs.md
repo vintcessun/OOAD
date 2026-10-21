@@ -98,7 +98,7 @@ c. **与其他系统的关系**
 | 术语 | 英文 | 定义 |
 |---|---|---|
 | 基于角色的访问控制 | RBAC | 权限授予角色，用户通过被指派角色获得权限。本阶段只实现 RBAC0 |
-| 用户 | User | 登录主体。分为正式员工（EMPLOYEE）、临时用户（TEMPORARY）、系统账号（SYSTEM，如内置超级管理员、业务系统账号） |
+| 用户 | User | 登录主体。分为正式员工（EMPLOYEE）、临时用户（TEMPORARY）、系统账号（SYSTEM，内部账号：内置超级管理员、内部测试账号、业务系统接入账号；只影响编号段与工号要求，不带特权） |
 | 资源 | Resource | 被保护的对象。三类：BUSINESS（权限清单的功能点）、MENU（权限中心自身的管理页面）、API（不对应页面的接口能力） |
 | 操作 | Action | 对资源可施加的动作。业务五类：查看 view、新增 create、编辑 edit、审批 approve、导出 export；权限中心另有 delete、assign、revoke、import、invoke、explain |
 | 权限 | Permission | 资源 × 操作。权限码为 `资源编码:操作编码`，如 `oa:m01:f02:approve`、`rbac:user:view` |
@@ -177,7 +177,7 @@ c. **与其他系统的关系**
 classDiagram
     class Company { companyCode; companyName }
     class Department { deptName; path; level; managerName }
-    class User { username; realName; userType; employeeNo; phone; status; expiresAt }
+    class User { username; realName; userType; employeeNo; phone; status }
     class Role { roleCode; roleName; status; builtin }
     class SoftwareSystem { systemCode; systemName }
     class FunctionModule { moduleCode; moduleName }
@@ -243,9 +243,9 @@ Allow(u, p, d) = 账号有效(u)
                  ∧ ∃ 指派 a ∈ u：角色(a) 启用 ∧ p ∈ 权限(角色(a)) ∧ (d 为空 ∨ d 在 适用部门(a) 之下)
 ```
 
-- 账号有效：存在、未删除、未停用、未到期；
+- 账号有效：存在、未删除、未停用；
 - 超级管理员：账号有效即放行（`SUPER_ADMIN_BYPASS`），不检查权限与部门；
-- 判定结论附带原因码：放行为 `ROLE_GRANTED` / `SUPER_ADMIN_BYPASS`；拒绝为 `SUBJECT_NOT_FOUND`、`SUBJECT_DISABLED`、`SUBJECT_DELETED`、`SUBJECT_EXPIRED`、`MISSING_PERMISSION`、`OUT_OF_DATA_SCOPE`、`TARGET_DEPT_NOT_FOUND`。
+- 判定结论附带原因码：放行为 `ROLE_GRANTED` / `SUPER_ADMIN_BYPASS`；拒绝为 `SUBJECT_NOT_FOUND`、`SUBJECT_DISABLED`、`SUBJECT_DELETED`、`MISSING_PERMISSION`、`OUT_OF_DATA_SCOPE`、`TARGET_DEPT_NOT_FOUND`。
 
 ### 3.2.4 管理范围
 
@@ -347,7 +347,7 @@ Allow(u, p, d) = 账号有效(u)
 | AUTHZ-005 | 每个后端接口都受权限控制；未声明权限的接口默认拒绝 | 全部接口（拦截器） | — |
 | IDM-001 | 用户列表与搜索（只含管理范围内的用户） | `GET /users` | `rbac:user:view` |
 | IDM-002 | 新增用户（正式员工、临时用户、业务系统账号）；用户编号 1–9999 预留给内部账号 | `POST /users` | `rbac:user:create` |
-| IDM-003 | 修改用户（姓名、部门、电话、岗位、到期时间） | `PATCH /users/{id}` | `rbac:user:edit` |
+| IDM-003 | 修改用户（姓名、部门、电话、岗位） | `PATCH /users/{id}` | `rbac:user:edit` |
 | IDM-004 | 启用、停用 | `PATCH /users/{id}/status` | `rbac:user:edit` |
 | IDM-005 | 删除（逻辑删除） | `DELETE /users/{id}` | `rbac:user:delete` |
 | IDM-006 | 批量启用、停用、删除 | `POST /users/batch-status` | `rbac:user:edit` |
@@ -395,7 +395,7 @@ Allow(u, p, d) = 账号有效(u)
 1. 用户提交用户名、口令；
 2. 系统查找用户；账号已锁定则拒绝；
 3. 比对口令哈希；
-4. 校验账号有效（未停用、未到期）；
+4. 校验账号有效（未停用、未删除）；
 5. 清零登录失败计数，签发令牌（有效期 2 小时，含令牌编号与令牌版本号，**不含权限**）；
 6. 记审计 `LOGIN / SUCCESS`。
 
@@ -403,7 +403,7 @@ Allow(u, p, d) = 账号有效(u)
 - 用户不存在、已删除、口令错误：一律返回「用户名或口令错误」（40102），不区分具体原因；用户不存在时仍做一次哈希比对，避免借响应时间枚举用户名；
 - 口令错误：失败计数在数据库中原子加一，满 5 次锁定 15 分钟（并发的失败请求不丢计数）；
 - 已锁定：40103；
-- 已停用或已到期：40104；
+- 已停用：40104；
 - 以上均记审计 `LOGIN / FAILED` 及原因。
 
 **后置条件**：返回令牌与 `mustChangePwd` 标记。
@@ -529,16 +529,16 @@ Allow(u, p, d) = 账号有效(u)
 ### 4.2.9 新增用户（IDM-002）
 
 **主流程**：
-1. 操作者提交用户名、姓名、部门、用户类型、工号、电话、岗位、到期时间、口令（可空）；
+1. 操作者提交用户名、姓名、部门、用户类型、工号、电话、岗位、口令（可空）；
 2. 按类型校验：
    - 正式员工必须有工号；
-   - 临时用户**不能有工号、电话**，**必须有到期时间**；
+   - 临时用户**不能有工号、电话**；账号没有到期时间，临时工作结束由管理员停用（10/21 起，`12-design-log.md` R-21）；
 3. 目标部门须在操作者 `rbac:user:create` 的管理范围内；
 4. 用户名、工号唯一（已删除用户的用户名也不能复用）；
 5. 口令为空时使用初始口令并要求首次登录修改；不为空须满足口令策略；
-6. 写入；记审计 `USER_CREATE`。用户编号分两段（10/15 课堂要求）：业务系统账号（`SYSTEM`）是内部账号，取 1–9999 段内的下一个编号，用完返回 409；正式员工、临时用户（含 Excel 导入）从 10000 起编号。内置超级管理员 `root` 的编号是 1。
+6. 写入；记审计 `USER_CREATE`。用户编号分两段（10/15 课堂要求）：系统账号（`SYSTEM`，内部测试、业务系统接入用）是内部账号，取 1–9999 段内的下一个编号，用完返回 409；正式员工、临时用户（含 Excel 导入）从 10000 起编号。内置超级管理员 `root` 的编号是 1。
 
-**后置条件**：新用户没有任何角色，权限须另行人工分配。临时用户到期后无法登录，鉴权结论为 `SUBJECT_EXPIRED`。
+**后置条件**：新用户没有任何角色，权限须另行人工分配。临时用户被停用后无法登录，鉴权结论为 `SUBJECT_DISABLED`。
 
 ### 4.2.10 修改、停用、删除用户（IDM-003 ~ IDM-006）
 
@@ -679,7 +679,7 @@ reason: SUPER_ADMIN_ONLY
 | P99 延迟 | 今日鉴权耗时的第 99 百分位 |
 | QPS | 最近 60 秒的鉴权次数 / 60 |
 | 缓存命中率 | 今日鉴权中授权数据来自 Redis 缓存的比例 |
-| 异常访问数量 | 今日登录失败次数 + 已停用、已删除、已到期或不存在的主体发起的鉴权次数 |
+| 异常访问数量 | 今日登录失败次数 + 已停用、已删除或不存在的主体发起的鉴权次数 |
 
 鉴权次数包括业务系统调用 `/authz/check` 和管理接口经拦截器的每一次权限判定。
 
@@ -726,7 +726,7 @@ reason: SUPER_ADMIN_ONLY
 ## 5.1 数据精确度
 
 - 鉴权结论必须反映最新的授权数据：权限修改提交后，任何用户在任何应用副本上的**下一次访问**即按新权限判定；
-- 账号状态（停用、删除、到期）每次请求都从数据库读取，下一次请求即生效；
+- 账号状态（停用、删除）每次请求都从数据库读取，下一次请求即生效；
 - 导入结果与源数据逐条可复核，异常行列入清单。
 
 ## 5.2 时间特性

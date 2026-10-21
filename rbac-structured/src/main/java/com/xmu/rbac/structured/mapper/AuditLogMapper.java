@@ -25,7 +25,7 @@ public interface AuditLogMapper extends JpaRepository<AuditLog, Long> {
                and (:abnormal = false
                  or (a.eventType = 'LOGIN' and a.result = 'FAILED')
                  or (a.eventType = 'AUTH_FAILED' and a.reason in
-                     ('SUBJECT_DISABLED', 'SUBJECT_DELETED', 'SUBJECT_EXPIRED', 'SUBJECT_NOT_FOUND')))
+                     ('SUBJECT_DISABLED', 'SUBJECT_DELETED', 'SUBJECT_NOT_FOUND')))
              order by a.id desc
             """)
     Page<AuditLog> search(@Param("eventType") String eventType,
@@ -77,7 +77,7 @@ public interface AuditLogMapper extends JpaRepository<AuditLog, Long> {
              where a.occurredAt >= :from
                and ((a.eventType = 'LOGIN' and a.result = 'FAILED')
                  or (a.eventType = 'AUTH_FAILED' and a.reason in
-                     ('SUBJECT_DISABLED', 'SUBJECT_DELETED', 'SUBJECT_EXPIRED', 'SUBJECT_NOT_FOUND')))
+                     ('SUBJECT_DISABLED', 'SUBJECT_DELETED', 'SUBJECT_NOT_FOUND')))
             """)
     long countAbnormal(@Param("from") LocalDateTime from);
 

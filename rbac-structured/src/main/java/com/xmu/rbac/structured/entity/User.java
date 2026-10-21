@@ -37,7 +37,6 @@ public class User {
     public String position;
     public String status = ACTIVE;
     public String statusReason;
-    public LocalDateTime expiresAt;
     public int loginFailCount;
     public LocalDateTime lockedUntil;
     public boolean mustChangePwd;

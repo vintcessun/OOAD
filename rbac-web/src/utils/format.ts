@@ -37,7 +37,6 @@ export const REASON_LABEL: Record<string, string> = {
   SUBJECT_NOT_FOUND: '用户不存在',
   SUBJECT_DISABLED: '用户已停用',
   SUBJECT_DELETED: '用户已删除',
-  SUBJECT_EXPIRED: '用户已到期',
   MISSING_PERMISSION: '当前角色均不包含该权限',
   OUT_OF_DATA_SCOPE: '有角色具备该权限，但适用部门不覆盖目标部门',
   TARGET_DEPT_NOT_FOUND: '目标部门不存在',

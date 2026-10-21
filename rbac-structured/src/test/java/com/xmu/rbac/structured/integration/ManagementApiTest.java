@@ -168,8 +168,7 @@ class ManagementApiTest extends IntegrationTestBase {
         userMapper.save(t);
         String root = login("root");
         assertEquals(400, patchJson(root, "/users/" + t.id, Map.of("phone", "13900000000")).status());
-        assertEquals(200, patchJson(root, "/users/" + t.id,
-                Map.of("expiresAt", LocalDateTime.now().plusDays(3).toString())).status());
+        assertEquals(200, patchJson(root, "/users/" + t.id, Map.of("position", "临时岗位")).status());
     }
 
     @Test

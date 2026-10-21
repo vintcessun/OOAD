@@ -148,7 +148,7 @@ test('权限解释：回收后再问拟稿权限，判定为拒绝并给出逐�
   await shot('07-explain')
 })
 
-test('新增临时用户：没有工号与电话，必须有到期时间', async () => {
+test('新增临时用户：没有工号与电话，也没有到期时间', async () => {
   await menu('用户管理')
   await page.getByTestId('user-create').click()
   const form = page.getByTestId('user-form')
@@ -158,11 +158,7 @@ test('新增临时用户：没有工号与电话，必须有到期时间', async
   await pickInPopper('道路工程分公司-第一项目经理部')
   await form.getByText('临时用户', { exact: true }).click()
   await expect(form.getByTestId('form-employee-no')).toHaveCount(0)
-  await form.getByTestId('form-submit').click()
-  await expect(form).toContainText('临时用户必须设置到期时间')
-  const expires = form.locator('.el-date-editor input')
-  await expires.fill('2030-01-01 00:00:00')
-  await expires.press('Enter')
+  await expect(form.getByTestId('form-expires')).toHaveCount(0)
   await form.getByTestId('form-submit').click()
   await expect(form).toBeHidden()
   await page.getByTestId('user-keyword').fill('tmp01')

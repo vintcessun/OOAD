@@ -128,7 +128,7 @@ function reorder(o, first) {
 }
 
 // ---------------------------------------------------------------------------
-// 1. ER 图（与 V1__rbac0_baseline.sql、V2__grant_version.sql、V3__reserve_internal_user_ids.sql 一致）
+// 1. ER 图（与 V1__rbac0_baseline.sql、V2__grant_version.sql、V3__reserve_internal_user_ids.sql、V4__drop_user_expiry.sql 一致）
 // ---------------------------------------------------------------------------
 // 列：[列名, 类型, 标记, 说明]；标记：PK 主键，UK 唯一，N 可空，FK:表 外键
 const TABLES = [
@@ -163,7 +163,6 @@ const TABLES = [
     ['position', 'VARCHAR(32)', 'N', '岗位；不参与鉴权'],
     ['status', 'VARCHAR(16)', '', 'ACTIVE | DISABLED | DELETED'],
     ['status_reason', 'VARCHAR(255)', 'N'],
-    ['expires_at', 'DATETIME', 'N', '临时用户必填'],
     ['login_fail_count', 'INT', ''],
     ['locked_until', 'DATETIME', 'N'],
     ['must_change_pwd', 'TINYINT', ''],
@@ -542,7 +541,7 @@ function buildUseCase(project) {
 const CLASSES = [
   ['Company', ['companyCode', 'companyName'], 0, 0, '公司：多公司隔离的边界'],
   ['Department', ['deptName', 'path', 'level', 'managerName'], 1, 0, '部门：每家公司一棵树；path 为物化路径'],
-  ['User', ['id', 'username', 'realName', 'userType', 'employeeNo', 'phone', 'status', 'expiresAt'], 2, 0, '用户：只属于一个部门；id 1–9999 预留给内部账号'],
+  ['User', ['id', 'username', 'realName', 'userType', 'employeeNo', 'phone', 'status'], 2, 0, '用户：只属于一个部门；id 1–9999 预留给内部账号'],
   ['Assignment', ['scopeDept', 'grantedBy', 'reason'], 3, 0, '一次指派 = 用户 + 角色 + 适用部门；适用部门覆盖其全部下级'],
   ['AuditLog', ['谁', '时间', '在哪里', '对谁', '做了什么', '结果', '为什么'], 0, 1, '审计七要素；只插入'],
   ['Menu', ['menuName', 'routePath'], 1, 1, '菜单：叶子菜单挂一个 MENU 资源'],

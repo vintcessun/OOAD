@@ -34,7 +34,7 @@ const error = ref('')
 const MESSAGES: Record<number, string> = {
   40102: '用户名或口令错误',
   40103: '连续登录失败次数过多，账号已锁定 15 分钟',
-  40104: '账号已停用或已到期，请联系管理员',
+  40104: '账号已停用，请联系管理员',
 }
 
 async function submit() {

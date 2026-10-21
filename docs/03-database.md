@@ -1,7 +1,7 @@
 # 数据库设计说明书
 
 > 本阶段只实现 RBAC0：User — Role — Permission（= Resource × Action）。
-> 表结构的唯一来源是迁移脚本 [`V1__rbac0_baseline.sql`](../rbac-contract/src/main/resources/db/migration/V1__rbac0_baseline.sql)（13 张表）、[`V2__grant_version.sql`](../rbac-contract/src/main/resources/db/migration/V2__grant_version.sql)（版本号表）、[`V3__reserve_internal_user_ids.sql`](../rbac-contract/src/main/resources/db/migration/V3__reserve_internal_user_ids.sql)（用户编号分段），本文说明它为什么这样设计。
+> 表结构的唯一来源是迁移脚本 [`V1__rbac0_baseline.sql`](../rbac-contract/src/main/resources/db/migration/V1__rbac0_baseline.sql)（13 张表）、[`V2__grant_version.sql`](../rbac-contract/src/main/resources/db/migration/V2__grant_version.sql)（版本号表）、[`V3__reserve_internal_user_ids.sql`](../rbac-contract/src/main/resources/db/migration/V3__reserve_internal_user_ids.sql)（用户编号分段）、[`V4__drop_user_expiry.sql`](../rbac-contract/src/main/resources/db/migration/V4__drop_user_expiry.sql)（取消账号到期时间），本文说明它为什么这样设计。
 > 旧版 V1–V3（含角色继承、约束、会话等表）已移到 [`docs/archive/sql/`](archive/sql/)，不再执行。
 
 ---
@@ -97,15 +97,14 @@ Allow(u, p, 目标部门 t) = ∃ 指派 (u, r, s) ∈ sys_user_role ：
 
 | 列 | 类型 | 说明 |
 |---|---|---|
-| `id` | BIGINT 自增 | **分段编号**：1–9999 留给内部账号（`root` = 1、业务系统账号 `SYSTEM`），由服务层在段内取「最大编号 + 1」显式写入，用完返回 409；员工与临时用户（手工新增、Excel 导入）从 10000 起自增（V3 设 `AUTO_INCREMENT = 10000`）。这是 10/15 课堂要求，见 [12 R-17](12-design-log.md) |
+| `id` | BIGINT 自增 | **分段编号**：1–9999 留给内部账号（`root` = 1，以及 `SYSTEM` 类型的内部测试、业务系统接入账号），由服务层在段内取「最大编号 + 1」显式写入，用完返回 409；员工与临时用户（手工新增、Excel 导入）从 10000 起自增（V3 设 `AUTO_INCREMENT = 10000`）。这是 10/15 课堂要求，见 [12 R-17](12-design-log.md) |
 | `company_id`、`department_id` | FK | 一个用户只属于一个部门 |
 | `username` | VARCHAR(64) UK | 正式员工为工号（如 `SG000001`） |
 | `password_hash` | BCrypt | 导入员工与未指定口令的新用户用初始口令，`must_change_pwd = 1` |
-| `user_type` | `EMPLOYEE` / `TEMPORARY` / `SYSTEM` | 临时用户没有工号、电话，必须有 `expires_at` |
+| `user_type` | `EMPLOYEE` / `TEMPORARY` / `SYSTEM` | 临时用户没有工号、电话；没有到期时间，用完由管理员停用（V4，R-21） |
 | `employee_no` | UK，可空 | 工号；临时用户为空 |
 | `phone`、`position` | 可空 | 岗位只是人事信息，不参与鉴权 |
 | `status` | `ACTIVE` / `DISABLED` / `DELETED` | 三态（需求「启用、停用、删除」） |
-| `expires_at` | 可空 | 到期后不能登录，鉴权结论为 `SUBJECT_EXPIRED` |
 | `login_fail_count`、`locked_until` | | 连续 5 次失败锁 15 分钟；计数在数据库里原子加一 |
 | `token_version` | INT | 修改口令时加一；令牌里的版本号与它不等即失效 |
 
@@ -289,6 +288,7 @@ RBAC0 里的角色就是权限的集合。把部门放进角色，等于把「�
 - Flyway 管理表结构，脚本在 `rbac-contract` 的 jar 里；Hibernate 设为 `ddl-auto: none`，不建表、不改表。
 - V2 新增 `sys_grant_version`（只加表，不改 V1），已执行过 V1 的库直接升级即可。
 - V3 只把 `sys_user` 的自增起点设为 10000，不改已有数据。已有员工编号小于 10000 的库（10/15 之前导入过员工）仍能启动，但那些员工留在内部段里；课程环境没有正式数据，按 13 §5 重建即可让编号分段从头成立。MySQL 8 起自增计数器持久化，重启不会退回。
+- V4 删除 `sys_user.expires_at`（10/21，[12 R-21](12-design-log.md)）。删列前先把已到期、仍为启用的账号改为停用并写明原因，避免删列后它们重新能登录。
 - V1 在本阶段重写过。此前在测试库执行过旧 V1–V3 的，需要删库重建（`docs/13-deployment.md`）；不要直接删除已执行的 Flyway 记录再假定旧库能用。
 - 集成测试每个测试前把库恢复成只含内置数据的状态（首次 clean + migrate 并给每张表拍快照，之后「清空 + 从快照复制」）。`TRUNCATE` 会把自增起点退回 1，恢复后再执行一次 V3 的 `ALTER`。
 

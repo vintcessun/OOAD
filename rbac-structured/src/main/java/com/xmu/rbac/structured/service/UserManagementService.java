@@ -172,7 +172,7 @@ public class UserManagementService {
             throw BizException.badRequest("username、realName、departmentId 必填");
         }
         String type = isBlank(req.userType()) ? User.EMPLOYEE : req.userType();
-        validateTypeFields(type, req.employeeNo(), req.phone(), req.expiresAt());
+        validateTypeFields(type, req.employeeNo(), req.phone());
         Department dept = departmentMapper.findById(req.departmentId())
                 .orElseThrow(() -> BizException.notFound("部门"));
         authz.requireInScope(op, PERM_CREATE, dept.id);
@@ -192,7 +192,6 @@ public class UserManagementService {
         u.employeeNo = blankToNull(req.employeeNo());
         u.phone = blankToNull(req.phone());
         u.position = blankToNull(req.position());
-        u.expiresAt = req.expiresAt();
         if (isBlank(req.password())) {
             u.passwordHash = initialPasswordHash;
             u.mustChangePwd = true;
@@ -220,15 +219,12 @@ public class UserManagementService {
         return userMapper.findById(id).orElseThrow();
     }
 
-    /** 临时用户没有工号、电话等员工信息，但必须有到期时间；正式员工必须有工号。 */
-    static void validateTypeFields(String type, String employeeNo, String phone, LocalDateTime expiresAt) {
+    /** 临时用户没有工号、电话等员工信息（用完由管理员停用，没有到期时间，12 R-21）；正式员工必须有工号。 */
+    static void validateTypeFields(String type, String employeeNo, String phone) {
         switch (type) {
             case User.TEMPORARY -> {
                 if (!isBlank(employeeNo) || !isBlank(phone)) {
                     throw BizException.badRequest("临时用户没有工号、电话");
-                }
-                if (expiresAt == null) {
-                    throw BizException.badRequest("临时用户必须设置到期时间 expiresAt");
                 }
             }
             case User.EMPLOYEE -> {
@@ -275,9 +271,6 @@ public class UserManagementService {
         }
         if (req.position() != null) {
             u.position = blankToNull(req.position());
-        }
-        if (req.expiresAt() != null) {
-            u.expiresAt = req.expiresAt();
         }
         userMapper.save(u);
         audit.record(op, "USER_UPDATE", "USER", u.id, u.username, "dept=" + dept.deptName,
@@ -405,7 +398,7 @@ public class UserManagementService {
 
     public static UserView toView(User u, String deptName) {
         return new UserView(u.id, u.username, u.realName, u.userType, u.employeeNo, u.phone, u.position, u.status,
-                u.statusReason, u.companyId, u.departmentId, deptName, u.expiresAt, u.mustChangePwd, u.createdAt);
+                u.statusReason, u.companyId, u.departmentId, deptName, u.mustChangePwd, u.createdAt);
     }
 
     static boolean isBlank(String s) {

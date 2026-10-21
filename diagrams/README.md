@@ -68,6 +68,7 @@ node diagrams/tools/gen-mdj.mjs --out <临时目录>/rbac-reference.mdj
 - [ ] 用 StarUML 打开组合后的 `rbac.mdj`，确认三张图都能正常显示；
 - [ ] 调整布局（生成的连线是直线，部分会穿过其他元素）；
 - [ ] 从 StarUML 导出用例总图、领域模型的 PNG/SVG，替换对应 Mermaid 导出图；ER 图如有修改也同步导出。
+- [ ] 10/21 V4 删除了 `sys_user.expires_at`（docs/12 R-21）：在 StarUML 的 ER 图里删掉 `sys_user` 的 `expires_at` 列（字段数 105 → 104），重新导出 `er-diagram.png/svg`。Mermaid 源 `src/er-diagram.mmd`、`src/domain-model.mmd` 与生成器已同步；`domain-model` 导出图已重新生成。
 
 `.mdj` 是文本 JSON，但嵌套深、`_id` 互相引用，**冲突难以手工合并**。因此：
 

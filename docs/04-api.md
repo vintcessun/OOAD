@@ -29,7 +29,7 @@
 | 401 | 40101 | 未认证 | 没带令牌、令牌过期、已登出、改过口令、账号已停用 / 删除 / 到期 |
 | 401 | 40102 | 用户名或口令错误 | 不区分「用户不存在」与「口令错误」 |
 | 401 | 40103 | 账号已锁定 | 连续失败 5 次，锁 15 分钟 |
-| 401 | 40104 | 账号已停用或已到期 | 口令正确之后才告知 |
+| 401 | 40104 | 账号已停用 | 口令正确之后才告知 |
 | 403 | 40301 | 没有该操作的权限 | 拦截器判定拒绝；无权查询他人权限 |
 | 403 | 40302 | 目标超出管理范围 | 给别的分公司的人分配角色 |
 | 403 | 40303 | 越权授予 | 分配的角色含有操作者在适用部门不具备的权限 |
@@ -94,7 +94,7 @@ Apifox 里看到的是 YAML 的副本。改接口要改仓库里的 YAML，再�
 | 8 | 用户 | `POST /users` | `rbac:user:create` | 新增用户（正式员工或临时用户） |
 | 9 | 用户 | `POST /users/batch-status` | `rbac:user:edit` | 批量启用 / 停用 / 删除 |
 | 10 | 用户 | `GET /users/{id}` | `@self` | 用户详情：基本信息、角色、有效权限 |
-| 11 | 用户 | `PATCH /users/{id}` | `rbac:user:edit` | 修改用户（姓名、部门、电话、岗位、到期时间） |
+| 11 | 用户 | `PATCH /users/{id}` | `rbac:user:edit` | 修改用户（姓名、部门、电话、岗位） |
 | 12 | 用户 | `DELETE /users/{id}` | `rbac:user:delete` | 删除用户（逻辑删除，用户名不可复用，指派保留供审计） |
 | 13 | 用户 | `PATCH /users/{id}/status` | `rbac:user:edit` | 启用或停用 |
 | 14 | 用户 | `GET /users/{id}/roles` | `@self` | 用户的角色指派 |
@@ -153,7 +153,7 @@ POST /api/v1/auth/login
 ```
 
 - 令牌（JWT，2 小时）只证明「你是谁」，不携带权限：每次请求重新判定，撤销角色后下一次请求立即生效。
-- 每次请求都查账号当前状态：停用、删除、到期在下一次请求生效。
+- 每次请求都查账号当前状态：停用、删除在下一次请求生效。
 - `POST /auth/logout` 把令牌编号登记到 Redis，原有效期内一直被拒绝。
 - `POST /auth/password` 成功后，此前签发的全部令牌作废（令牌里的版本号不再匹配）。
 
@@ -182,7 +182,7 @@ Authorization: Bearer <调用者的令牌>
 |---|---|
 | `ROLE_GRANTED` | 允许；`matched` 给出所依据的指派（角色 + 适用部门） |
 | `SUPER_ADMIN_BYPASS` | 允许；超级管理员旁路 |
-| `SUBJECT_NOT_FOUND` / `SUBJECT_DISABLED` / `SUBJECT_DELETED` / `SUBJECT_EXPIRED` | 拒绝；主体无效 |
+| `SUBJECT_NOT_FOUND` / `SUBJECT_DISABLED` / `SUBJECT_DELETED` | 拒绝；主体无效 |
 | `MISSING_PERMISSION` | 拒绝；没有任何启用中的角色包含该权限 |
 | `OUT_OF_DATA_SCOPE` | 拒绝；有该权限，但适用部门都覆盖不到目标部门 |
 | `TARGET_DEPT_NOT_FOUND` | 拒绝；目标部门不存在 |

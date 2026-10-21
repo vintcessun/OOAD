@@ -26,7 +26,7 @@ export function me(permissions: string[], opts: { superAdmin?: boolean; mustChan
     user: {
       id: 9, username: 'u9', realName: '测试员', userType: 'EMPLOYEE', employeeNo: 'u9', phone: '13812345678',
       position: null, status: 'ACTIVE', statusReason: null, companyId: 2, departmentId: 5, departmentName: '财务部',
-      expiresAt: null, mustChangePwd: opts.mustChangePwd ?? false, createdAt: '2026-10-11T10:00:00',
+      mustChangePwd: opts.mustChangePwd ?? false, createdAt: '2026-10-11T10:00:00',
     },
     roles: [],
     superAdmin: opts.superAdmin ?? false,
