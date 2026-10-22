@@ -415,35 +415,18 @@ class ManagementApiTest extends IntegrationTestBase {
         assertEquals(200, deleteReq(gToken, "/users/" + bUser.id + "/roles/"
                 + granted.data().path("assignmentId").asLong()).status());
         assertFalse(check(bToken, "oa:doc:draft:view", org.aFinance().id).path("allowed").asBoolean());
-        // A 公司的业务系统 / 管理员可以问「B 公司的这个人能否操作 A 的部门」，问不了他在 B 的情况；解释仍按所属部门
-        JsonNode inATarget = postJson(aToken, "/authz/check", Map.of("username", "b1",
-                "permission", "oa:doc:draft:view", "targetDeptId", org.roadProject().id)).data();
-        assertTrue(inATarget.path("allowed").asBoolean(), inATarget.toString());
-        // 管不到这个人，只给结论：不带用户名、依据的指派，也探不出账号状态、是否超级管理员
-        assertEquals("ROLE_GRANTED", inATarget.path("reason").asText());
-        assertTrue(inATarget.path("username").isNull() && inATarget.path("matched").isNull(), inATarget.toString());
-        User bGone = user("b_gone", org.bFinance());
-        bGone.status = User.DISABLED;
-        userMapper.save(bGone);
-        JsonNode probe = postJson(aToken, "/authz/check", Map.of("userId", bGone.id,
-                "permission", "oa:doc:draft:view", "targetDeptId", org.roadProject().id)).data();
-        assertFalse(probe.path("allowed").asBoolean());
-        assertEquals("MISSING_PERMISSION", probe.path("reason").asText(), probe.toString());
-        assertTrue(probe.path("username").isNull(), probe.toString());
-        assertEquals("ROLE_GRANTED", postJson(aToken, "/authz/check", Map.of("userId", 1,
-                "permission", "oa:doc:draft:view", "targetDeptId", org.roadProject().id)).data().path("reason").asText());
+        // 跨公司的指派由本人令牌查自己即可生效（业务系统转发用户令牌）；
+        // 别人代查只看被查用户所属部门：A 公司管理员凭 A 的目标部门也查不了 B 公司的人，探不出用户名、账号状态
+        assertTrue(check(bToken, "oa:doc:draft:view", org.roadProject().id).path("allowed").asBoolean());
         assertEquals(403, postJson(aToken, "/authz/check", Map.of("username", "b1",
-                "permission", "oa:doc:draft:view", "targetDeptId", 999999)).status());
-        // 管得到这个人时照常返回完整结论
-        JsonNode full = postJson(aToken, "/authz/check", Map.of("userId", aUser.id,
-                "permission", "oa:doc:draft:view", "targetDeptId", org.aFinance().id)).data();
-        assertEquals("a1", full.path("username").asText(), full.toString());
-        assertEquals(403, postJson(aToken, "/authz/check", Map.of("username", "b1",
-                "permission", "oa:doc:draft:approve", "targetDeptId", org.bFinance().id)).status());
+                "permission", "oa:doc:draft:view", "targetDeptId", org.roadProject().id)).status());
         assertEquals(403, postJson(aToken, "/authz/check", Map.of("username", "b1",
                 "permission", "oa:doc:draft:view")).status());
         assertEquals(403, postJson(aToken, "/authz/explain", Map.of("username", "b1",
                 "permission", "oa:doc:draft:view", "targetDeptId", org.roadProject().id)).status());
+        JsonNode full = postJson(aToken, "/authz/check", Map.of("userId", aUser.id,
+                "permission", "oa:doc:draft:view", "targetDeptId", org.aFinance().id)).data();
+        assertEquals("a1", full.path("username").asText(), full.toString());
 
         // 批量回收（非超级管理员）同一规则：只管 B 的管理员收不回，只管 A 的管理员能收回
         User bAdmin = user("b_admin", org.bRoot());

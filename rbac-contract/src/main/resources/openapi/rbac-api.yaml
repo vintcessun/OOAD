@@ -165,7 +165,7 @@ paths:
         主体通过 userId 或 username 指定，都不填则查询调用者本人；同时填写时优先使用 userId。
         权限优先取 permission，否则由 resource + action 拼接。targetDeptId 表示被操作数据所属部门，
         不填时只判定是否具有该操作权限，不限定具体部门。
-        查询本人无需额外权限；查询他人时，调用者须在被查用户所属部门或 targetDeptId 持有 rbac:authz:invoke，否则返回 403；只凭 targetDeptId 获准时只返回结论（reason 只取 ROLE_GRANTED 或 MISSING_PERMISSION，username、matched 为空）。
+        查询本人无需额外权限；查询他人时，调用者须在被查用户所属部门持有 rbac:authz:invoke，否则返回 403。
         判定完成始终返回 200，是否放行见 data.allowed；拒绝原因见 reason。selfOnly=true 时，
         业务系统还须按记录归属过滤本人数据。每次完成的判定记录 AUTH_SUCCESS 或 AUTH_FAILED。
       x-required-permission: "@self"
