@@ -1,8 +1,8 @@
-# B API业务链路卡
+# B API 业务链路卡
 
-静态定位已填写，独立业务预期、间接调用、最终查询、事务及证据由人工补全。每张卡都要追踪共同拦截器、异常响应和契约schema。API封装存在不代表有页面调用，也不代表行为已验证。
+当前内容按提交 `506440d2babbb232e184b3ef356f53daecb8b389` 增量核对。target-only 已在 `363939a` 撤回；完整后端/前端/E2E 执行证据来自上一基线 `b03ff0f`，当前拉取后尚未重跑。主审人仍须填写姓名、日期和最终复核结论。
 
-[返回任务书](../B.md) · [模板](../templates.md)
+[返回任务书](../B.md) · [模板](../templates.md) · [详细审核报告](../problems/B/B-review-20261021.md)
 
 <a id="b01"></a>
 <!-- api: POST /authz/check -->
@@ -10,47 +10,74 @@
 
 | 项目 | 审查记录 |
 | --- | --- |
-| 主审与状态 | B；未审查；姓名/日期/复核人待填写 |
-| API与功能 | POST /authz/check；鉴权：某用户能否对某部门的数据执行某操作 |
-| 契约 | [checkAuthorization](../../../rbac-contract/src/main/resources/openapi/rbac-api.yaml#L160)；权限声明：@self |
-| 前端封装与调用方 | [authzApi.check](../../../rbac-web/src/api/index.ts)；当前控制台源码未找到该封装的直接调用；按API验证并核对复用入口 |
-| Controller | [AuthController.check](../../../rbac-structured/src/main/java/com/xmu/rbac/structured/controller/AuthController.java#L67) |
-| 直接Service入口 | [AuthzQueryService.check](../../../rbac-structured/src/main/java/com/xmu/rbac/structured/service/AuthzQueryService.java#L37) |
-| 入口方法中的直接Mapper调用 | 本方法未直接调用Mapper，继续追踪helper或其他Service |
-| 共享Service调用线索 | AuthorizationService.decide；AuditService.recordDecision |
-| 独立业务预期及依据 | 先填；正常、无身份、缺权限、越界、状态冲突、目标不存在、重复、失败；不适用写原因 |
-| 调用者及对象 | 待填；区分调用者、被查用户、被操作用户及指派/角色/资源 |
-| 范围与记录依据 | 待填；公司、用户所属部门、角色所属公司、指派适用部门、selfOnly分别说明 |
-| 完整间接调用及最终查询 | 待填；helper、Mapper方法、SQL/JPQL、表、过滤条件；读接口核对count和分页 |
-| 事务与最终状态 | 待填；入口注解/传播、flush/原生SQL、提交或回滚后表状态；无写入说明原因 |
-| 版本缓存审计与影响面 | 待填；版本更新、缓存读写、审计独立事务、其他持有者及页面刷新 |
-| 反例时序与边界 | 待填；本人/同级/SA、跨部门/公司、调岗、失效、重复、失败点、T1/T2执行顺序 |
-| 对应测试与断言 | 从任务书和测试矩阵定位；填写实际方法、原因码、分支到达、最终表状态及范围外未变断言 |
-| 执行证据 | 待填；命令、提交、环境、日期、报告、结果；未执行明确注明 |
-| 结论与复核 | 待填；通过/缺陷/规则待确认/测试缺口，关联问题编号，主审与第二人分别签字 |
+| 主审与状态 | B；静态材料已补全；主审逐文件确认、日期和交叉复核签字待填写 |
+| API 与功能 | `POST /authz/check`；判断指定主体是否具有目标权限，以及该权限的指派范围是否覆盖 `targetDeptId` |
+| 契约 | [checkAuthorization](../../rbac-contract/src/main/resources/openapi/rbac-api.yaml#L162)；入口权限为 `@self`，表示有效登录即可进入接口，查询他人的附加限制由 `AuthzQueryService` 校验 |
+| 前端封装与调用方 | [authzApi.check](../../rbac-web/src/api/index.ts#L19)；权限控制台当前没有直接调用；`rbac-mock-biz` 原样转发最终用户 JWT，查询本人无需代查权限 |
+| Controller | [AuthController.check](../../rbac-structured/src/main/java/com/xmu/rbac/structured/controller/AuthController.java#L67)；只接收 `Operator` 和 `AuthzRequest`，调用 `authzQuery.check(op, req, false)` 并包装响应 |
+| 直接 Service 入口 | [AuthzQueryService.check](../../rbac-structured/src/main/java/com/xmu/rbac/structured/service/AuthzQueryService.java#L37) |
+| 调用者及被查主体 | 调用者是 Bearer JWT 对应的 `Operator`，不能由请求体伪造。被查主体优先使用 `userId`，其次使用去空格后的 `username`；两者都不填时查询调用者本人 |
+| 权限参数 | 非空 `permission` 优先；否则要求同时提供 `resource` 和 `action`，拼成 `resource:action`；两种形式都不完整时返回 HTTP 400 |
+| 谁能查谁 | 查本人不需要附加权限。查他人时，调用者须持有 `rbac:authz:invoke`，并覆盖被查用户所属部门；不能凭 `targetDeptId` 放宽。无权时返回 HTTP 403 |
+| 独立业务预期 | 主体不存在、删除、停用分别返回 `SUBJECT_NOT_FOUND`、`SUBJECT_DELETED`、`SUBJECT_DISABLED`；当前版本没有账号到期分支。有效超级管理员返回 `SUPER_ADMIN_BYPASS`。普通用户无目标权限返回 `MISSING_PERMISSION`；目标部门不存在返回 `TARGET_DEPT_NOT_FOUND`；有权限但范围不覆盖返回 `OUT_OF_DATA_SCOPE`；覆盖时返回 `ROLE_GRANTED` |
+| 范围与 `selfOnly` | `targetDeptId` 为空时只判断是否具有目标权限；非空时读取目标部门路径，并逐条判断同一 `GrantRow` 的 `scopePath` 是否覆盖目标路径，不能把一条指派的权限与另一条指派的部门范围拼接。所有覆盖候选都为 `selfOnly=true` 时，最终结果才为 `true` |
+| 完整间接调用及最终查询 | `AuthzQueryService.permissionOf` → `resolveSubject` → `AuthorizationService.scopeOf/decide` → `UserMapper.findById` → `loadGrants` → `GrantVersionMapper.current` → `GrantCacheMapper.find`；缓存未命中时调用 `UserRoleMapper.findAssignmentsOfUser` 和 `findGrantsOfUser`；有目标部门时调用 `DepartmentMapper.findPathById`；最后调用 `AuditService.recordDecision` |
+| 最终数据来源 | 主体状态来自 `sys_user`。指派来自 `sys_user_role`，并关联 `sys_role`、`sys_department` 和 `sys_user`。有效授权由 `sys_user_role`、`sys_role`、`sys_role_permission`、`sys_permission`、`sys_department` 展开为 `GrantRow`。授权版本来自 `sys_grant_version` |
+| 事务与最终状态 | check 是读接口，不修改授权表。`AuditService.recordDecision` 使用 `REQUIRES_NEW` 独立事务写入 `sys_audit_log`。正常权限拒绝仍是一次完成的判定，返回 HTTP 200 + `allowed=false`；只有请求参数错误、未认证或调用者无权查询他人时使用 4xx |
+| 版本缓存与 Redis 键 | 先读 MySQL 全局版本，再以 `rbac:grants:v<version>:u<userId>` 为键读取 Redis。命中直接反序列化 `GrantSet`；未命中查数据库并在非读写事务中写回。Redis 异常按未命中处理，不改变判定结果。授权变化在同一事务内递增版本，提交后的请求使用新键，旧键等待 TTL 清理 |
+| 审计 | 完成判定后调用 `recordDecision`。允许记录 `AUTH_SUCCESS`，拒绝记录 `AUTH_FAILED`；记录被判定主体、调用者、权限码、目标部门、原因、耗时和缓存命中状态 |
+| 反例与边界 | 应检查：无角色；角色无权限；权限与范围来自不同指派；同一权限同时存在 `selfOnly=true/false`；目标部门不存在；SA 已停用；Redis 故障；撤权与缓存写回交错；跨公司指派不应放宽查询他人的主体部门边界 |
+| 对应测试 | `AcceptanceTest.t04/t05/t06/t07/t07b/t11/t12/t12b/t20/t20b/t22`，`RedisFailureTest` 两项缓存测试，以及跨公司指派管理测试 |
+| 执行证据 | `b03ff0f` 隔离环境记录：后端 69/69、JaCoCo 门槛、前端 42/42、Playwright 9/9 均通过；当前 `506440d` 拉取后尚未重跑。命令、环境和未覆盖专项时序见[详细审核报告](../problems/B/B-review-20261021.md#9-本轮执行证据) |
+| 当前结论 | target-only 已按审核意见撤回，当前谁能查谁的边界回到被查用户所属部门。仍有角色改名缓存、契约机器表达、ExplainView 请求乱序、审计提交时序、唯一 root、集团模型等问题，最终结论和签字由主审与复核人填写 |
 
+### B01 分支核验表
+
+| 前置条件 | HTTP | `allowed` | `reason` / 结果 |
+| --- | ---: | ---: | --- |
+| 请求体为空，或权限参数不完整 | 400 | 不适用 | 参数错误 |
+| 调用者未认证 | 401 | 不适用 | 未认证 |
+| 调用者无权查询另一个用户 | 403 | 不适用 | `CALLER_NOT_ALLOWED` 语义，不进入正常主体判定 |
+| 被查主体不存在 | 200 | false | `SUBJECT_NOT_FOUND` |
+| 被查主体已删除 | 200 | false | `SUBJECT_DELETED` |
+| 被查主体已停用 | 200 | false | `SUBJECT_DISABLED` |
+| 有效超级管理员 | 200 | true | `SUPER_ADMIN_BYPASS` |
+| 普通主体没有目标权限 | 200 | false | `MISSING_PERMISSION` |
+| 目标部门不存在 | 200 | false | `TARGET_DEPT_NOT_FOUND` |
+| 有权限但指派范围不覆盖目标部门 | 200 | false | `OUT_OF_DATA_SCOPE` |
+| 有权限且范围覆盖 | 200 | true | `ROLE_GRANTED` |
 
 <a id="b02"></a>
 <!-- api: POST /authz/explain -->
-## B02 权限解释：与 check 相同的判定，另返回逐步的判定依据（trace）
+## B02 权限解释：与 check 共用判定过程并返回 trace
 
 | 项目 | 审查记录 |
 | --- | --- |
-| 主审与状态 | B；未审查；姓名/日期/复核人待填写 |
-| API与功能 | POST /authz/explain；权限解释：与 check 相同的判定，另返回逐步的判定依据（trace） |
-| 契约 | [explainAuthorization](../../../rbac-contract/src/main/resources/openapi/rbac-api.yaml#L190)；权限声明：@self |
-| 前端封装与调用方 | [authzApi.explain](../../../rbac-web/src/api/index.ts)；[ExplainView.vue](../../../rbac-web/src/views/ExplainView.vue) |
-| Controller | [AuthController.explain](../../../rbac-structured/src/main/java/com/xmu/rbac/structured/controller/AuthController.java#L74) |
-| 直接Service入口 | [AuthzQueryService.check](../../../rbac-structured/src/main/java/com/xmu/rbac/structured/service/AuthzQueryService.java#L37) |
-| 入口方法中的直接Mapper调用 | 本方法未直接调用Mapper，继续追踪helper或其他Service |
-| 共享Service调用线索 | AuthorizationService.decide；AuditService.recordDecision |
-| 独立业务预期及依据 | 先填；正常、无身份、缺权限、越界、状态冲突、目标不存在、重复、失败；不适用写原因 |
-| 调用者及对象 | 待填；区分调用者、被查用户、被操作用户及指派/角色/资源 |
-| 范围与记录依据 | 待填；公司、用户所属部门、角色所属公司、指派适用部门、selfOnly分别说明 |
-| 完整间接调用及最终查询 | 待填；helper、Mapper方法、SQL/JPQL、表、过滤条件；读接口核对count和分页 |
-| 事务与最终状态 | 待填；入口注解/传播、flush/原生SQL、提交或回滚后表状态；无写入说明原因 |
-| 版本缓存审计与影响面 | 待填；版本更新、缓存读写、审计独立事务、其他持有者及页面刷新 |
-| 反例时序与边界 | 待填；本人/同级/SA、跨部门/公司、调岗、失效、重复、失败点、T1/T2执行顺序 |
-| 对应测试与断言 | 从任务书和测试矩阵定位；填写实际方法、原因码、分支到达、最终表状态及范围外未变断言 |
-| 执行证据 | 待填；命令、提交、环境、日期、报告、结果；未执行明确注明 |
-| 结论与复核 | 待填；通过/缺陷/规则待确认/测试缺口，关联问题编号，主审与第二人分别签字 |
+| 主审与状态 | B；静态材料已补全；主审逐文件确认、日期和交叉复核签字待填写 |
+| API 与功能 | `POST /authz/explain`；使用与 check 相同的判定引擎，同时返回逐步判定依据 `trace` |
+| 契约 | [explainAuthorization](../../rbac-contract/src/main/resources/openapi/rbac-api.yaml#L192)；入口权限为 `@self`，查询他人由 Service 校验 `rbac:authz:explain` 与部门范围 |
+| 前端封装与调用方 | [authzApi.explain](../../rbac-web/src/api/index.ts#L21)；控制台页面为 [ExplainView.vue](../../rbac-web/src/views/ExplainView.vue) |
+| Controller | [AuthController.explain](../../rbac-structured/src/main/java/com/xmu/rbac/structured/controller/AuthController.java#L74)；调用 `authzQuery.check(op, req, true)` |
+| 直接 Service 入口 | [AuthzQueryService.check](../../rbac-structured/src/main/java/com/xmu/rbac/structured/service/AuthzQueryService.java#L37)；`explain=true` 使 `AuthorizationService.decide` 创建并逐步填充 `trace` |
+| 调用者及被查主体 | 主体和权限参数解析规则与 B01 相同。查本人不需要附加权限；查他人必须由 `rbac:authz:explain` 覆盖被查用户所属部门 |
+| 与 B01 的关键差异 | 查询他人分别要求 `rbac:authz:invoke` / `rbac:authz:explain` 覆盖被查用户所属部门；explain 额外返回完整 `trace`，check 不返回 trace |
+| 判定结果 | `allowed` 和真实 `reason` 与同一输入下的完整 check 判定一致；`trace` 说明主体状态、角色、权限、作用域、SA 旁路或拒绝原因。普通拒绝仍返回 HTTP 200，调用者无权解释他人时返回 HTTP 403 |
+| 完整间接调用及最终查询 | 与 B01 共用 `permissionOf`、`resolveSubject`、`AuthorizationService.decide`、`loadGrants`、用户/授权/部门 Mapper 和 `AuditService.recordDecision`；区别是 `decide(..., true)` 创建 trace |
+| 事务、缓存与审计 | 授权读取和版本化 Redis 缓存逻辑与 B01 相同；审计的 `via` 为 `explain`，页面显示完整 Decision |
+| 前端核验 | `ExplainView.vue` 校验权限输入、调用 explain 并展示结论、主体、匹配依据和 trace。当前缺少请求序号或取消旧请求的保护，连续提交时较早请求的迟到响应可能覆盖新结果，见 `HR-B-003` |
+| 对应测试 | `AcceptanceTest.t20_explainAndCheckAlwaysAgree` 对七组完整可见主体比较 check/explain 的 `allowed` 与 `reason`，并断言 explain 有 trace、check 无 trace；`t20b` 验证普通用户不能探测他人；跨公司测试断言只凭目标部门不能调用 explain |
+| 执行证据 | 与 B01 使用同一次完整验证；当前已有测试均通过，但未覆盖 ExplainView 两次请求逆序返回的确定性场景 |
+| 当前结论 | 后端 explain 与 check 共用判定核心，查询他人均按主体所属部门校验；前端请求乱序和契约字段完整性仍需处理。最终通过状态和签字由主审与复核人填写 |
+
+## 共用术语：Redis 键
+
+Redis 保存数据时使用“键 → 值”的结构，可以把“键”理解为数据库记录的唯一名称或索引。例如：
+
+```text
+键：rbac:grants:v12:u105
+值：用户 105 在授权版本 12 下的 GrantSet JSON
+```
+
+该键分成四段：`rbac:grants` 表示授权缓存；`v12` 表示 MySQL 中的全局授权版本 12；`u105` 表示用户 105。读取时必须使用完全相同的键。授权变化将版本递增到 13，下一次请求改读 `rbac:grants:v13:u105`，因此版本 12 的旧值即使还在 Redis 中也不会再被使用，之后由 TTL 自动删除。
+
+这里的“键”不是密码、JWT 或数据库主键；它只是 Redis 中定位某个缓存值的字符串名称。对应实现见 [GrantCacheMapper.key](../../rbac-structured/src/main/java/com/xmu/rbac/structured/mapper/GrantCacheMapper.java#L59)。
