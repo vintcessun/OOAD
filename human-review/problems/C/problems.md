@@ -8,6 +8,4 @@
 
 >
 
-## 建议：AssignmentService.assign在分配权限时如果请求的 scopeDepartmentId == null，会直接把权限范围判定为User的部门，这个设计不合理，建议必须要有 scopeDepartmentId 才能去分配，否则报错。
-
->
+## 需要尽快处理的问题：操作者在AssignmentService里分配某个角色，会调用checkone，checkone会检查合法性，之中会调用escalation检查，escalatio检查操作者有没有这个角色的权限，没有就返回"PRIVILEGE_ESCALATION"导致failure抛出异常。当前设计把“分配权限的资格”建立在“自己拥有这些权限”之上，即，操作者 本人能执行哪些业务操作 和 操作者能向哪些用户、在哪些部门、分配哪些角色 没有解耦。团队认为应该解耦。
