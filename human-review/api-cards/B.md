@@ -10,7 +10,7 @@
 
 | 项目 | 审查记录 |
 | --- | --- |
-| 主审与状态 | B；静态材料已补全；主审逐文件确认、日期和交叉复核签字待填写 |
+| 主审与状态 | B；主体调用链静态审核已完成；当前提交完整测试、主审日期和交叉复核签字待完成 |
 | API 与功能 | `POST /authz/check`；判断指定主体是否具有目标权限，以及该权限的指派范围是否覆盖 `targetDeptId` |
 | 契约 | [checkAuthorization](../../rbac-contract/src/main/resources/openapi/rbac-api.yaml#L162)；入口权限为 `@self`，表示有效登录即可进入接口，查询他人的附加限制由 `AuthzQueryService` 校验 |
 | 前端封装与调用方 | [authzApi.check](../../rbac-web/src/api/index.ts#L19)；权限控制台当前没有直接调用；`rbac-mock-biz` 原样转发最终用户 JWT，查询本人无需代查权限 |
@@ -24,7 +24,7 @@
 | 完整间接调用及最终查询 | `AuthzQueryService.permissionOf` → `resolveSubject` → `AuthorizationService.scopeOf/decide` → `UserMapper.findById` → `loadGrants` → `GrantVersionMapper.current` → `GrantCacheMapper.find`；缓存未命中时调用 `UserRoleMapper.findAssignmentsOfUser` 和 `findGrantsOfUser`；有目标部门时调用 `DepartmentMapper.findPathById`；最后调用 `AuditService.recordDecision` |
 | 最终数据来源 | 主体状态来自 `sys_user`。指派来自 `sys_user_role`，并关联 `sys_role`、`sys_department` 和 `sys_user`。有效授权由 `sys_user_role`、`sys_role`、`sys_role_permission`、`sys_permission`、`sys_department` 展开为 `GrantRow`。授权版本来自 `sys_grant_version` |
 | 事务与最终状态 | check 是读接口，不修改授权表。`AuditService.recordDecision` 使用 `REQUIRES_NEW` 独立事务写入 `sys_audit_log`。正常权限拒绝仍是一次完成的判定，返回 HTTP 200 + `allowed=false`；只有请求参数错误、未认证或调用者无权查询他人时使用 4xx |
-| 版本缓存与 Redis 键 | 先读 MySQL 全局版本，再以 `rbac:grants:v<version>:u<userId>` 为键读取 Redis。命中直接反序列化 `GrantSet`；未命中查数据库并在非读写事务中写回。Redis 异常按未命中处理，不改变判定结果。授权变化在同一事务内递增版本，提交后的请求使用新键，旧键等待 TTL 清理 |
+| 版本缓存与 Redis 键 | 先读 MySQL 全局版本，再以 `rbac:grants:v<version>:u<userId>` 为键读取 Redis。命中直接反序列化 `GrantSet`；未命中查数据库并在非读写事务中写回。Redis 异常按未命中处理，不改变判定结果。单个/批量指派、角色状态与权限增删、权限清单导入都在授权写事务内调用 `bumpGrantVersion`；提交后的请求使用新键，旧键等待 TTL 清理 |
 | 审计 | 完成判定后调用 `recordDecision`。允许记录 `AUTH_SUCCESS`，拒绝记录 `AUTH_FAILED`；记录被判定主体、调用者、权限码、目标部门、原因、耗时和缓存命中状态 |
 | 反例与边界 | 应检查：无角色；角色无权限；权限与范围来自不同指派；同一权限同时存在 `selfOnly=true/false`；目标部门不存在；SA 已停用；Redis 故障；撤权与缓存写回交错；跨公司指派不应放宽查询他人的主体部门边界 |
 | 对应测试 | `AcceptanceTest.t04/t05/t06/t07/t07b/t11/t12/t12b/t20/t20b/t22`，`RedisFailureTest` 两项缓存测试，以及跨公司指派管理测试 |
@@ -53,7 +53,7 @@
 
 | 项目 | 审查记录 |
 | --- | --- |
-| 主审与状态 | B；静态材料已补全；主审逐文件确认、日期和交叉复核签字待填写 |
+| 主审与状态 | B；主体调用链静态审核已完成；当前提交完整测试、主审日期和交叉复核签字待完成 |
 | API 与功能 | `POST /authz/explain`；使用与 check 相同的判定引擎，同时返回逐步判定依据 `trace` |
 | 契约 | [explainAuthorization](../../rbac-contract/src/main/resources/openapi/rbac-api.yaml#L192)；入口权限为 `@self`，查询他人由 Service 校验 `rbac:authz:explain` 与部门范围 |
 | 前端封装与调用方 | [authzApi.explain](../../rbac-web/src/api/index.ts#L21)；控制台页面为 [ExplainView.vue](../../rbac-web/src/views/ExplainView.vue) |

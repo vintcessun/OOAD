@@ -20,18 +20,18 @@
 
 | 文件 | 层级 | 重点代码/范围 | 关联人 | 阅读状态 | 证据 |
 | --- | --- | --- | --- | --- | --- |
-| [rbac-contract/src/main/resources/db/migration/V2__grant_version.sql](../rbac-contract/src/main/resources/db/migration/V2__grant_version.sql) | 数据库迁移 | 授权版本结构及初始化B；迁移E；运行验证F | E/F | 未读 | 待填写 |
-| [rbac-structured/src/main/java/com/xmu/rbac/structured/dto/Decision.java](../rbac-structured/src/main/java/com/xmu/rbac/structured/dto/Decision.java) | 输入输出 | 完整阅读参数、字段、调用方及状态变化 | 按问题安排 | 未读 | 待填写 |
-| [rbac-structured/src/main/java/com/xmu/rbac/structured/dto/GrantRow.java](../rbac-structured/src/main/java/com/xmu/rbac/structured/dto/GrantRow.java) | 输入输出 | 完整阅读参数、字段、调用方及状态变化 | 按问题安排 | 未读 | 待填写 |
-| [rbac-structured/src/main/java/com/xmu/rbac/structured/dto/GrantSet.java](../rbac-structured/src/main/java/com/xmu/rbac/structured/dto/GrantSet.java) | 输入输出 | 完整阅读参数、字段、调用方及状态变化 | 按问题安排 | 未读 | 待填写 |
-| [rbac-structured/src/main/java/com/xmu/rbac/structured/dto/Scope.java](../rbac-structured/src/main/java/com/xmu/rbac/structured/dto/Scope.java) | 输入输出 | 完整阅读参数、字段、调用方及状态变化 | 按问题安排 | 未读 | 待填写 |
-| [rbac-structured/src/main/java/com/xmu/rbac/structured/entity/GrantVersion.java](../rbac-structured/src/main/java/com/xmu/rbac/structured/entity/GrantVersion.java) | 数据模型 | 完整阅读参数、字段、调用方及状态变化 | 按问题安排 | 未读 | 待填写 |
-| [rbac-structured/src/main/java/com/xmu/rbac/structured/mapper/GrantCacheMapper.java](../rbac-structured/src/main/java/com/xmu/rbac/structured/mapper/GrantCacheMapper.java) | 查询与持久化 | 带版本缓存键、读取、写入、损坏值与Redis故障 | 按问题安排 | 未读 | 待填写 |
-| [rbac-structured/src/main/java/com/xmu/rbac/structured/mapper/GrantVersionMapper.java](../rbac-structured/src/main/java/com/xmu/rbac/structured/mapper/GrantVersionMapper.java) | 查询与持久化 | current、bump与事务内更新 | 按问题安排 | 未读 | 待填写 |
-| [rbac-structured/src/main/java/com/xmu/rbac/structured/service/AuthorizationService.java](../rbac-structured/src/main/java/com/xmu/rbac/structured/service/AuthorizationService.java) | 业务与事务 | 判定、范围与失效B；C/D/E复核各自调用；审计副作用F；重点：decide、subjectDenyReason、covers、loadGrants、scopeOf、requireInScope、bumpGrantVersion | C/D/E/F | 未读 | 待填写 |
-| [rbac-structured/src/main/java/com/xmu/rbac/structured/service/AuthzQueryService.java](../rbac-structured/src/main/java/com/xmu/rbac/structured/service/AuthzQueryService.java) | 业务与事务 | check、permissionOf、resolveSubject、denied | 按问题安排 | 未读 | 待填写 |
-| [rbac-structured/src/test/java/com/xmu/rbac/structured/mapper/RedisFailureTest.java](../rbac-structured/src/test/java/com/xmu/rbac/structured/mapper/RedisFailureTest.java) | 后端测试 | 授权缓存B；注销失败A；环境与报告F | A/F | 未读 | 待填写 |
-| [rbac-web/src/views/ExplainView.vue](../rbac-web/src/views/ExplainView.vue) | 前端交互 | 组件状态、请求参数、权限控制、错误反馈、请求乱序与刷新 | 按问题安排 | 未读 | 待填写 |
+| [rbac-contract/src/main/resources/db/migration/V2__grant_version.sql](../rbac-contract/src/main/resources/db/migration/V2__grant_version.sql) | 数据库迁移 | 授权版本结构及初始化B；迁移E；运行验证F | E/F | 已读 | 版本唯一行、缓存键与同事务 bump 已核对；见审核报告 §3.3、§5 |
+| [rbac-structured/src/main/java/com/xmu/rbac/structured/dto/Decision.java](../rbac-structured/src/main/java/com/xmu/rbac/structured/dto/Decision.java) | 输入输出 | 完整阅读参数、字段、调用方及状态变化 | 按问题安排 | 已读 | check/explain、审计及前端字段用途已核对 |
+| [rbac-structured/src/main/java/com/xmu/rbac/structured/dto/GrantRow.java](../rbac-structured/src/main/java/com/xmu/rbac/structured/dto/GrantRow.java) | 输入输出 | 完整阅读参数、字段、调用方及状态变化 | 按问题安排 | 已读 | 权限、指派、scope、company、selfOnly 同行绑定已核对 |
+| [rbac-structured/src/main/java/com/xmu/rbac/structured/dto/GrantSet.java](../rbac-structured/src/main/java/com/xmu/rbac/structured/dto/GrantSet.java) | 输入输出 | 完整阅读参数、字段、调用方及状态变化 | 按问题安排 | 已读 | assignments/grants 用途与 Redis 缓存单位已核对 |
+| [rbac-structured/src/main/java/com/xmu/rbac/structured/dto/Scope.java](../rbac-structured/src/main/java/com/xmu/rbac/structured/dto/Scope.java) | 输入输出 | 完整阅读参数、字段、调用方及状态变化 | 按问题安排 | 已读 | ALL/NONE/多路径范围及集团多根 scope 已核对 |
+| [rbac-structured/src/main/java/com/xmu/rbac/structured/entity/GrantVersion.java](../rbac-structured/src/main/java/com/xmu/rbac/structured/entity/GrantVersion.java) | 数据模型 | 完整阅读参数、字段、调用方及状态变化 | 按问题安排 | 已读 | `sys_grant_version` 实体映射已核对 |
+| [rbac-structured/src/main/java/com/xmu/rbac/structured/mapper/GrantCacheMapper.java](../rbac-structured/src/main/java/com/xmu/rbac/structured/mapper/GrantCacheMapper.java) | 查询与持久化 | 带版本缓存键、读取、写入、损坏值与Redis故障 | 按问题安排 | 已读 | find/save/key、JSON、TTL、Redis 故障降级已核对 |
+| [rbac-structured/src/main/java/com/xmu/rbac/structured/mapper/GrantVersionMapper.java](../rbac-structured/src/main/java/com/xmu/rbac/structured/mapper/GrantVersionMapper.java) | 查询与持久化 | current、bump与事务内更新 | 按问题安排 | 已读 | current/bump、更新行数与回滚语义已核对 |
+| [rbac-structured/src/main/java/com/xmu/rbac/structured/service/AuthorizationService.java](../rbac-structured/src/main/java/com/xmu/rbac/structured/service/AuthorizationService.java) | 业务与事务 | 判定、范围与失效B；C/D/E复核各自调用；审计副作用F；重点：decide、subjectDenyReason、covers、loadGrants、scopeOf、requireInScope、bumpGrantVersion | C/D/E/F | 已读 | 核心判定、缓存、范围和版本方法已完成；Assignment、Role、Import 授权写入口已交叉复核 |
+| [rbac-structured/src/main/java/com/xmu/rbac/structured/service/AuthzQueryService.java](../rbac-structured/src/main/java/com/xmu/rbac/structured/service/AuthzQueryService.java) | 业务与事务 | check、permissionOf、resolveSubject、denied | 按问题安排 | 已读 | 当前 `506440d` 已撤回 target-only，主体部门查询边界已核对 |
+| [rbac-structured/src/test/java/com/xmu/rbac/structured/mapper/RedisFailureTest.java](../rbac-structured/src/test/java/com/xmu/rbac/structured/mapper/RedisFailureTest.java) | 后端测试 | 授权缓存B；注销失败A；环境与报告F | A/F | 已读（B片段） | 缓存故障视为未命中、损坏 JSON 和键格式已核对 |
+| [rbac-web/src/views/ExplainView.vue](../rbac-web/src/views/ExplainView.vue) | 前端交互 | 组件状态、请求参数、权限控制、错误反馈、请求乱序与刷新 | 按问题安排 | 已读 | 参数/展示/权限控制已核对；请求逆序问题见 HR-B-003 |
 
 ## 必须关联阅读
 
@@ -39,33 +39,33 @@
 | --- | --- | --- | --- | --- |
 | [deploy/env.example](../deploy/env.example) | F | 权限中心、数据库、缓存及控制台相关构建、测试与运行配置；其余服务段不审查 | 未读 | 待填写 |
 | [docker-compose.yml](../docker-compose.yml) | F | 权限中心、数据库、缓存及控制台相关构建、测试与运行配置；其余服务段不审查 | 未读 | 待填写 |
-| [rbac-contract/src/main/resources/db/migration/V1__rbac0_baseline.sql](../rbac-contract/src/main/resources/db/migration/V1__rbac0_baseline.sql) | E | DDL/FK/唯一键/索引及初始化E；各业务人复核对应表和初始化 | 未读 | 待填写 |
-| [rbac-contract/src/main/resources/openapi/rbac-api.yaml](../rbac-contract/src/main/resources/openapi/rbac-api.yaml) | F | 契约结构与公共schema；各负责人逐API核对权限、参数及响应 | 未读 | 待填写 |
+| [rbac-contract/src/main/resources/db/migration/V1__rbac0_baseline.sql](../rbac-contract/src/main/resources/db/migration/V1__rbac0_baseline.sql) | E | DDL/FK/唯一键/索引及初始化E；各业务人复核对应表和初始化 | 部分已读（B片段） | user/role/user_role、内置角色及 root 初始化已核对 |
+| [rbac-contract/src/main/resources/openapi/rbac-api.yaml](../rbac-contract/src/main/resources/openapi/rbac-api.yaml) | F | 契约结构与公共schema；各负责人逐API核对权限、参数及响应 | 已读（B接口） | check/explain、AuthzRequest、Decision 与当前主体查询边界已核对 |
 | [rbac-structured/src/main/java/com/xmu/rbac/structured/config/AppConfig.java](../rbac-structured/src/main/java/com/xmu/rbac/structured/config/AppConfig.java) | A | 认证和装配A；Clock、Redis与运行语义B/F；重点：完整阅读参数、字段、调用方及状态变化 | 未读 | 待填写 |
-| [rbac-structured/src/main/java/com/xmu/rbac/structured/controller/AuthController.java](../rbac-structured/src/main/java/com/xmu/rbac/structured/controller/AuthController.java) | A | 认证四入口A；check/explain B；重点：完整阅读参数、字段、调用方及状态变化 | 未读 | 待填写 |
-| [rbac-structured/src/main/java/com/xmu/rbac/structured/dto/AssignmentRow.java](../rbac-structured/src/main/java/com/xmu/rbac/structured/dto/AssignmentRow.java) | C | 指派投影C；授权展开B；角色持有者D；重点：完整阅读参数、字段、调用方及状态变化 | 未读 | 待填写 |
-| [rbac-structured/src/main/java/com/xmu/rbac/structured/dto/StatsDtos.java](../rbac-structured/src/main/java/com/xmu/rbac/structured/dto/StatsDtos.java) | F | 统计类型F；AuthzRequest B；重点：完整阅读参数、字段、调用方及状态变化 | 未读 | 待填写 |
-| [rbac-structured/src/main/java/com/xmu/rbac/structured/mapper/UserRoleMapper.java](../rbac-structured/src/main/java/com/xmu/rbac/structured/mapper/UserRoleMapper.java) | C | 指派写入/删除/批量与有效SA计数C；授权展开B；持有者查询D；重点：完整阅读参数、字段、调用方及状态变化 | 未读 | 待填写 |
-| [rbac-structured/src/main/java/com/xmu/rbac/structured/service/AuditService.java](../rbac-structured/src/main/java/com/xmu/rbac/structured/service/AuditService.java) | F | 独立审计事务及事件F；各业务人复核实际调用时机与内容；重点：record、recordDecision、search、REQUIRES_NEW、truncate | 未读 | 待填写 |
-| [rbac-structured/src/main/resources/application.yml](../rbac-structured/src/main/resources/application.yml) | F | 权限中心、数据库、缓存及控制台相关构建、测试与运行配置；其余服务段不审查 | 未读 | 待填写 |
-| [rbac-structured/src/test/java/com/xmu/rbac/structured/integration/AcceptanceTest.java](../rbac-structured/src/test/java/com/xmu/rbac/structured/integration/AcceptanceTest.java) | F | 公共测试结构F；具体用例按test-matrix逐方法分配，不要求F重读各业务断言 | 未读 | 待填写 |
-| [rbac-structured/src/test/java/com/xmu/rbac/structured/integration/ExcelImportIntegrationTest.java](../rbac-structured/src/test/java/com/xmu/rbac/structured/integration/ExcelImportIntegrationTest.java) | E | 四个导入测试E；B失效、C编号归属、D模板同步、F环境 | 未读 | 待填写 |
-| [rbac-structured/src/test/java/com/xmu/rbac/structured/integration/IntegrationTestBase.java](../rbac-structured/src/test/java/com/xmu/rbac/structured/integration/IntegrationTestBase.java) | F | 隔离环境、快照和辅助方法；C/E复核V3自增起点恢复 | 未读 | 待填写 |
-| [rbac-structured/src/test/java/com/xmu/rbac/structured/integration/ManagementApiTest.java](../rbac-structured/src/test/java/com/xmu/rbac/structured/integration/ManagementApiTest.java) | F | 公共测试结构F；各业务人按test-matrix主审断言及目标分支 | 未读 | 待填写 |
-| [rbac-structured/src/test/resources/application-test.yml](../rbac-structured/src/test/resources/application-test.yml) | F | 测试数据库及Redis隔离；身份、版本、编号测试环境 | 未读 | 待填写 |
-| [rbac-web/e2e/console.spec.ts](../rbac-web/e2e/console.spec.ts) | F | 隔离运行与执行顺序F；每一步业务预期归对应负责人 | 未读 | 待填写 |
+| [rbac-structured/src/main/java/com/xmu/rbac/structured/controller/AuthController.java](../rbac-structured/src/main/java/com/xmu/rbac/structured/controller/AuthController.java) | A | 认证四入口A；check/explain B；重点：完整阅读参数、字段、调用方及状态变化 | 已读（B片段） | check/explain 只包装 `AuthzQueryService.check(false/true)` 已核对 |
+| [rbac-structured/src/main/java/com/xmu/rbac/structured/dto/AssignmentRow.java](../rbac-structured/src/main/java/com/xmu/rbac/structured/dto/AssignmentRow.java) | C | 指派投影C；授权展开B；角色持有者D；重点：完整阅读参数、字段、调用方及状态变化 | 已读 | roles 展示、角色状态、scope、授予信息用途已核对 |
+| [rbac-structured/src/main/java/com/xmu/rbac/structured/dto/StatsDtos.java](../rbac-structured/src/main/java/com/xmu/rbac/structured/dto/StatsDtos.java) | F | 统计类型F；AuthzRequest B；重点：完整阅读参数、字段、调用方及状态变化 | 已读（AuthzRequest） | userId/username、permission/resource+action、targetDeptId 优先级已核对 |
+| [rbac-structured/src/main/java/com/xmu/rbac/structured/mapper/UserRoleMapper.java](../rbac-structured/src/main/java/com/xmu/rbac/structured/mapper/UserRoleMapper.java) | C | 指派写入/删除/批量与有效SA计数C；授权展开B；持有者查询D；重点：完整阅读参数、字段、调用方及状态变化 | 已读（B片段） | assignments/grants、SA 计数、单个与批量写删、分块处理已核对 |
+| [rbac-structured/src/main/java/com/xmu/rbac/structured/service/AuditService.java](../rbac-structured/src/main/java/com/xmu/rbac/structured/service/AuditService.java) | F | 独立审计事务及事件F；各业务人复核实际调用时机与内容；重点：record、recordDecision、search、REQUIRES_NEW、truncate | 部分已读（B片段） | record/recordDecision/REQUIRES_NEW 已核对；查询与 truncate 非 B 主链 |
+| [rbac-structured/src/main/resources/application.yml](../rbac-structured/src/main/resources/application.yml) | F | 权限中心、数据库、缓存及控制台相关构建、测试与运行配置；其余服务段不审查 | 已读（B配置） | Redis host/port/timeout、`rbac.cache.ttl=PT10M` 已核对 |
+| [rbac-structured/src/test/java/com/xmu/rbac/structured/integration/AcceptanceTest.java](../rbac-structured/src/test/java/com/xmu/rbac/structured/integration/AcceptanceTest.java) | F | 公共测试结构F；具体用例按test-matrix逐方法分配，不要求F重读各业务断言 | 部分已读（B用例） | 状态、缓存、SA、check/explain 主干及 T16 批量 ATOMIC/PARTIAL 已核对；逐用例签字待完成 |
+| [rbac-structured/src/test/java/com/xmu/rbac/structured/integration/ExcelImportIntegrationTest.java](../rbac-structured/src/test/java/com/xmu/rbac/structured/integration/ExcelImportIntegrationTest.java) | E | 四个导入测试E；B失效、C编号归属、D模板同步、F环境 | 已读（B片段） | 重复导入的回收、selfOnly 更新、下一次鉴权 cache miss 及审计已核对；非 SA 持有 permission:create 的边界缺口见 HR-B-012 |
+| [rbac-structured/src/test/java/com/xmu/rbac/structured/integration/IntegrationTestBase.java](../rbac-structured/src/test/java/com/xmu/rbac/structured/integration/IntegrationTestBase.java) | F | 隔离环境、快照和辅助方法；C/E复核V3自增起点恢复 | 部分已读 | A/B 公司、部门路径、角色和授权测试夹具已核对 |
+| [rbac-structured/src/test/java/com/xmu/rbac/structured/integration/ManagementApiTest.java](../rbac-structured/src/test/java/com/xmu/rbac/structured/integration/ManagementApiTest.java) | F | 公共测试结构F；各业务人按test-matrix主审断言及目标分支 | 部分已读（B关联） | 用户详情、状态、跨公司指派、SA 保护及批量分配/回收调用与断言已核对；版本和审计结果断言缺口见详细报告 §7.7 |
+| [rbac-structured/src/test/resources/application-test.yml](../rbac-structured/src/test/resources/application-test.yml) | F | 测试数据库及Redis隔离；身份、版本、编号测试环境 | 已读（B配置） | MySQL/Redis 测试端口与超时已核对 |
+| [rbac-web/e2e/console.spec.ts](../rbac-web/e2e/console.spec.ts) | F | 隔离运行与执行顺序F；每一步业务预期归对应负责人 | 部分已读（B场景） | 用户详情、角色回收、解释场景已核对；当前提交未重跑 |
 | [rbac-web/e2e/global-setup.ts](../rbac-web/e2e/global-setup.ts) | F | 隔离运行与执行顺序F；每一步业务预期归对应负责人 | 未读 | 待填写 |
 | [rbac-web/nginx.conf](../rbac-web/nginx.conf) | F | 权限中心、数据库、缓存及控制台相关构建、测试与运行配置；其余服务段不审查 | 未读 | 待填写 |
-| [rbac-web/src/api/index.ts](../rbac-web/src/api/index.ts) | F | A auth；B authz；C user/assignment；D role/catalog；E org/import；F menu/stats与公共部分 | 未读 | 待填写 |
-| [rbac-web/src/api/types.ts](../rbac-web/src/api/types.ts) | F | A auth；B authz；C user/assignment；D role/catalog；E org/import；F menu/stats与公共部分 | 未读 | 待填写 |
+| [rbac-web/src/api/index.ts](../rbac-web/src/api/index.ts) | F | A auth；B authz；C user/assignment；D role/catalog；E org/import；F menu/stats与公共部分 | 已读（B片段） | authz check/explain、用户 roles/permissions 调用已核对 |
+| [rbac-web/src/api/types.ts](../rbac-web/src/api/types.ts) | F | A auth；B authz；C user/assignment；D role/catalog；E org/import；F menu/stats与公共部分 | 已读（B片段） | Decision、UserDetail、Assignment、EffectivePermission 字段已核对 |
 | [rbac-web/tests/components.spec.ts](../rbac-web/tests/components.spec.ts) | F | 公共逻辑与环境主审；组件业务断言由各业务负责人按任务书认领 | 未读 | 待填写 |
 
 ## API责任
 
 | 卡号 | API | 功能 | 状态 |
 | --- | --- | --- | --- |
-| [B01](api-cards/B.md#b01) | POST /authz/check | 鉴权：某用户能否对某部门的数据执行某操作 | 未审查 |
-| [B02](api-cards/B.md#b02) | POST /authz/explain | 权限解释：与 check 相同的判定，另返回逐步的判定依据（trace） | 未审查 |
+| [B01](api-cards/B.md#b01) | POST /authz/check | 鉴权：某用户能否对某部门的数据执行某操作 | 主体静态审核完成；测试/复核签字待完成 |
+| [B02](api-cards/B.md#b02) | POST /authz/explain | 权限解释：与 check 相同的判定，另返回逐步的判定依据（trace） | 主体静态审核完成；测试/复核签字待完成 |
 
 ## 人工反例清单
 
@@ -79,6 +79,7 @@
 - [x] target-only 及相关脱敏字段问题已随 `363939a` 撤回，不再属于当前实现。
 - [ ] 跨公司指派后，权限作用域是否仍跟随每次指派的scopeDeptId，而不是用户所属公司？
 - [x] 已撤回 target-only；业务系统转发最终用户 JWT，代查他人只按被查用户所属部门校验（`363939a`）。
+- [x] 批量分配/回收已从 Controller、契约、前端、Service、Mapper 和测试独立复核；主流程一致，版本与审计结果仍缺专项断言。
 
 ## 对应测试方法
 
