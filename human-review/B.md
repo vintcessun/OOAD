@@ -1,6 +1,6 @@
 # B 权限判定与缓存一致性
 
-主审姓名：蔡俊晨；交叉复核姓名：待填写；日期：10.20；阅读与复现状态：待完成。
+主审姓名：蔡俊晨；交叉复核姓名：待填写；日期：10.20-10.23；阅读状态：B 主链与责任测试已完成；执行状态：当前后端、前端与 9 个 E2E 场景通过。
 
 预计16小时，负责2个权限中心API。基线提交：a42b8018d6a9c9051fd527dcae05a8da04746082。
 
@@ -46,26 +46,26 @@
 | [rbac-structured/src/main/java/com/xmu/rbac/structured/dto/AssignmentRow.java](../rbac-structured/src/main/java/com/xmu/rbac/structured/dto/AssignmentRow.java) | C | 指派投影C；授权展开B；角色持有者D；重点：完整阅读参数、字段、调用方及状态变化 | 已读 | roles 展示、角色状态、scope、授予信息用途已核对 |
 | [rbac-structured/src/main/java/com/xmu/rbac/structured/dto/StatsDtos.java](../rbac-structured/src/main/java/com/xmu/rbac/structured/dto/StatsDtos.java) | F | 统计类型F；AuthzRequest B；重点：完整阅读参数、字段、调用方及状态变化 | 已读（AuthzRequest） | userId/username、permission/resource+action、targetDeptId 优先级已核对 |
 | [rbac-structured/src/main/java/com/xmu/rbac/structured/mapper/UserRoleMapper.java](../rbac-structured/src/main/java/com/xmu/rbac/structured/mapper/UserRoleMapper.java) | C | 指派写入/删除/批量与有效SA计数C；授权展开B；持有者查询D；重点：完整阅读参数、字段、调用方及状态变化 | 已读（B片段） | assignments/grants、SA 计数、单个与批量写删、分块处理已核对 |
-| [rbac-structured/src/main/java/com/xmu/rbac/structured/service/AuditService.java](../rbac-structured/src/main/java/com/xmu/rbac/structured/service/AuditService.java) | F | 独立审计事务及事件F；各业务人复核实际调用时机与内容；重点：record、recordDecision、search、REQUIRES_NEW、truncate | 部分已读（B片段） | record/recordDecision/REQUIRES_NEW 已核对；查询与 truncate 非 B 主链 |
+| [rbac-structured/src/main/java/com/xmu/rbac/structured/service/AuditService.java](../rbac-structured/src/main/java/com/xmu/rbac/structured/service/AuditService.java) | F | 独立审计事务及事件F；各业务人复核实际调用时机与内容；重点：record、recordDecision、search、REQUIRES_NEW、truncate | 已读（B片段） | record/recordDecision 字段、REQUIRES_NEW、授权写入口调用顺序及关联审计测试已核对；最终提交失败缺口见 HR-B-005 |
 | [rbac-structured/src/main/resources/application.yml](../rbac-structured/src/main/resources/application.yml) | F | 权限中心、数据库、缓存及控制台相关构建、测试与运行配置；其余服务段不审查 | 已读（B配置） | Redis host/port/timeout、`rbac.cache.ttl=PT10M` 已核对 |
-| [rbac-structured/src/test/java/com/xmu/rbac/structured/integration/AcceptanceTest.java](../rbac-structured/src/test/java/com/xmu/rbac/structured/integration/AcceptanceTest.java) | F | 公共测试结构F；具体用例按test-matrix逐方法分配，不要求F重读各业务断言 | 部分已读（B用例） | 状态、缓存、SA、check/explain 主干及 T16 批量 ATOMIC/PARTIAL 已核对；逐用例签字待完成 |
+| [rbac-structured/src/test/java/com/xmu/rbac/structured/integration/AcceptanceTest.java](../rbac-structured/src/test/java/com/xmu/rbac/structured/integration/AcceptanceTest.java) | F | 公共测试结构F；具体用例按test-matrix逐方法分配，不要求F重读各业务断言 | 已读（B用例） | B 的 T04/T05/T06/T07/T07b/T11/T12/T12b/T20/T20b/T22 已逐项复核并在当前源码通过；缺口见报告 §7.8-7.10 |
 | [rbac-structured/src/test/java/com/xmu/rbac/structured/integration/ExcelImportIntegrationTest.java](../rbac-structured/src/test/java/com/xmu/rbac/structured/integration/ExcelImportIntegrationTest.java) | E | 四个导入测试E；B失效、C编号归属、D模板同步、F环境 | 已读（B片段） | 重复导入的回收、selfOnly 更新、下一次鉴权 cache miss 及审计已核对；非 SA 持有 permission:create 的边界缺口见 HR-B-012 |
 | [rbac-structured/src/test/java/com/xmu/rbac/structured/integration/IntegrationTestBase.java](../rbac-structured/src/test/java/com/xmu/rbac/structured/integration/IntegrationTestBase.java) | F | 隔离环境、快照和辅助方法；C/E复核V3自增起点恢复 | 部分已读 | A/B 公司、部门路径、角色和授权测试夹具已核对 |
-| [rbac-structured/src/test/java/com/xmu/rbac/structured/integration/ManagementApiTest.java](../rbac-structured/src/test/java/com/xmu/rbac/structured/integration/ManagementApiTest.java) | F | 公共测试结构F；各业务人按test-matrix主审断言及目标分支 | 部分已读（B关联） | 用户详情、状态、跨公司指派、SA 保护及批量分配/回收调用与断言已核对；版本和审计结果断言缺口见详细报告 §7.7 |
+| [rbac-structured/src/test/java/com/xmu/rbac/structured/integration/ManagementApiTest.java](../rbac-structured/src/test/java/com/xmu/rbac/structured/integration/ManagementApiTest.java) | F | 公共测试结构F；各业务人按test-matrix主审断言及目标分支 | 已读（B关联） | 用户详情、状态、跨公司指派、SA 保护、批量及审计统计已交叉复核并通过；缺口见报告 §7.7-7.10 |
 | [rbac-structured/src/test/resources/application-test.yml](../rbac-structured/src/test/resources/application-test.yml) | F | 测试数据库及Redis隔离；身份、版本、编号测试环境 | 已读（B配置） | MySQL/Redis 测试端口与超时已核对 |
 | [rbac-web/e2e/console.spec.ts](../rbac-web/e2e/console.spec.ts) | F | 隔离运行与执行顺序F；每一步业务预期归对应负责人 | 部分已读（B场景） | 用户详情、角色回收、解释场景已核对；当前提交未重跑 |
 | [rbac-web/e2e/global-setup.ts](../rbac-web/e2e/global-setup.ts) | F | 隔离运行与执行顺序F；每一步业务预期归对应负责人 | 未读 | 待填写 |
 | [rbac-web/nginx.conf](../rbac-web/nginx.conf) | F | 权限中心、数据库、缓存及控制台相关构建、测试与运行配置；其余服务段不审查 | 未读 | 待填写 |
 | [rbac-web/src/api/index.ts](../rbac-web/src/api/index.ts) | F | A auth；B authz；C user/assignment；D role/catalog；E org/import；F menu/stats与公共部分 | 已读（B片段） | authz check/explain、用户 roles/permissions 调用已核对 |
 | [rbac-web/src/api/types.ts](../rbac-web/src/api/types.ts) | F | A auth；B authz；C user/assignment；D role/catalog；E org/import；F menu/stats与公共部分 | 已读（B片段） | Decision、UserDetail、Assignment、EffectivePermission 字段已核对 |
-| [rbac-web/tests/components.spec.ts](../rbac-web/tests/components.spec.ts) | F | 公共逻辑与环境主审；组件业务断言由各业务负责人按任务书认领 | 未读 | 待填写 |
+| [rbac-web/tests/components.spec.ts](../rbac-web/tests/components.spec.ts) | F | 公共逻辑与环境主审；组件业务断言由各业务负责人按任务书认领 | 已读（B片段） | ExplainView 单次响应展示已覆盖；逆序响应未覆盖，见 HR-B-003；当前前端 42/42 通过 |
 
 ## API责任
 
 | 卡号 | API | 功能 | 状态 |
 | --- | --- | --- | --- |
-| [B01](api-cards/B.md#b01) | POST /authz/check | 鉴权：某用户能否对某部门的数据执行某操作 | 主体静态审核完成；测试/复核签字待完成 |
-| [B02](api-cards/B.md#b02) | POST /authz/explain | 权限解释：与 check 相同的判定，另返回逐步的判定依据（trace） | 主体静态审核完成；测试/复核签字待完成 |
+| [B01](api-cards/B.md#b01) | POST /authz/check | 鉴权：某用户能否对某部门的数据执行某操作 | 静态审核与当前自动测试完成；专项缺口和交叉复核签字待完成 |
+| [B02](api-cards/B.md#b02) | POST /authz/explain | 权限解释：与 check 相同的判定，另返回逐步的判定依据（trace） | 静态审核与当前自动测试完成；T20 逐案预期、前端乱序和交叉复核签字待完成 |
 
 ## 人工反例清单
 
@@ -87,26 +87,26 @@
 
 | 测试 | 状态 | 分支到达/最终状态证据 |
 | --- | --- | --- |
-| [AcceptanceTest.java.t04_userWithoutRolesIsDeniedByDefault](../rbac-structured/src/test/java/com/xmu/rbac/structured/integration/AcceptanceTest.java#L106) | 未读 | 待填写 |
-| [AcceptanceTest.java.t05_roleWithoutTargetPermissionIsDenied](../rbac-structured/src/test/java/com/xmu/rbac/structured/integration/AcceptanceTest.java#L116) | 未读 | 待填写 |
-| [AcceptanceTest.java.t06_multipleRolesAreUnioned](../rbac-structured/src/test/java/com/xmu/rbac/structured/integration/AcceptanceTest.java#L126) | 未读 | 待填写 |
-| [AcceptanceTest.java.t07_permissionInDepartmentADoesNotReachDepartmentB](../rbac-structured/src/test/java/com/xmu/rbac/structured/integration/AcceptanceTest.java#L137) | 未读 | 待填写 |
-| [AcceptanceTest.java.t07b_scopeBelongsToTheAssignmentNotToTheUnionOfRoles](../rbac-structured/src/test/java/com/xmu/rbac/structured/integration/AcceptanceTest.java#L152) | 未读 | 待填写 |
-| [AcceptanceTest.java.t11_superAdminBypassesEngineButMustBeActive](../rbac-structured/src/test/java/com/xmu/rbac/structured/integration/AcceptanceTest.java#L251) | 未读 | 待填写 |
-| [AcceptanceTest.java.t12_revokedRoleIsDeniedOnTheNextRequest](../rbac-structured/src/test/java/com/xmu/rbac/structured/integration/AcceptanceTest.java#L269) | 未读 | 待填写 |
-| [AcceptanceTest.java.t12b_revocationDoesNotDependOnRedis](../rbac-structured/src/test/java/com/xmu/rbac/structured/integration/AcceptanceTest.java#L283) | 未读 | 待填写 |
-| [AcceptanceTest.java.t20_explainAndCheckAlwaysAgree](../rbac-structured/src/test/java/com/xmu/rbac/structured/integration/AcceptanceTest.java#L509) | 未读 | 待填写 |
-| [AcceptanceTest.java.t20b_ordinaryUserCannotProbeOthersThroughAuthzApis](../rbac-structured/src/test/java/com/xmu/rbac/structured/integration/AcceptanceTest.java#L540) | 未读 | 待填写 |
-| [AcceptanceTest.java.t22_anotherReplicaSeesTheRevocationOnItsNextRequest](../rbac-structured/src/test/java/com/xmu/rbac/structured/integration/AcceptanceTest.java#L554) | 未读 | 待填写 |
-| [ManagementApiTest.java.assignmentsMayCrossCompaniesWithinManagementScope](../rbac-structured/src/test/java/com/xmu/rbac/structured/integration/ManagementApiTest.java#L363) | 未读 | 重点复核 L418-L429：本人令牌跨公司权限生效，A 公司管理员不能凭目标部门代查 B 公司用户 |
-| [RedisFailureTest.java.grantCacheTreatsRedisFailureAsMiss](../rbac-structured/src/test/java/com/xmu/rbac/structured/mapper/RedisFailureTest.java#L35) | 未读 | 待填写 |
-| [RedisFailureTest.java.grantCacheRoundTripAndCorruptValue](../rbac-structured/src/test/java/com/xmu/rbac/structured/mapper/RedisFailureTest.java#L47) | 未读 | 待填写 |
+| [AcceptanceTest.java.t04_userWithoutRolesIsDeniedByDefault](../rbac-structured/src/test/java/com/xmu/rbac/structured/integration/AcceptanceTest.java#L106) | 已读 | 无角色进入 MISSING_PERMISSION 并拒绝管理接口；matched/selfOnly/AUTH_FAILED 审计未断言，见报告 §7.8 |
+| [AcceptanceTest.java.t05_roleWithoutTargetPermissionIsDenied](../rbac-structured/src/test/java/com/xmu/rbac/structured/integration/AcceptanceTest.java#L116) | 已读 | view 允许、approve 原因为 MISSING_PERMISSION；approve 未直接断言 allowed=false，允许依据和审计未断言 |
+| [AcceptanceTest.java.t06_multipleRolesAreUnioned](../rbac-structured/src/test/java/com/xmu/rbac/structured/integration/AcceptanceTest.java#L126) | 已读 | 两个单权限角色共同提供 view/approve；未断言 matched role/assignment、ROLE_GRANTED、selfOnly 和第二次 cacheHit |
+| [AcceptanceTest.java.t07_permissionInDepartmentADoesNotReachDepartmentB](../rbac-structured/src/test/java/com/xmu/rbac/structured/integration/AcceptanceTest.java#L137) | 已读 | 本部门/下级允许、兄弟分支拒绝并断言 OUT_OF_DATA_SCOPE；允许依据未断言，跨公司同名范围由 T19 补充 |
+| [AcceptanceTest.java.t07b_scopeBelongsToTheAssignmentNotToTheUnionOfRoles](../rbac-structured/src/test/java/com/xmu/rbac/structured/integration/AcceptanceTest.java#L152) | 已读 | 能阻止“道路审批权 + 桥梁查看 scope”拼成桥梁审批；拒绝 reason 和允许 matched 未断言 |
+| [AcceptanceTest.java.t11_superAdminBypassesEngineButMustBeActive](../rbac-structured/src/test/java/com/xmu/rbac/structured/integration/AcceptanceTest.java#L251) | 已读（需重写） | ACTIVE SA 旁路、DISABLED 先拒绝；创建第二个 SA 与唯一 root 规则冲突，见 HR-B-008；SUBJECT_DELETED 未覆盖 |
+| [AcceptanceTest.java.t12_revokedRoleIsDeniedOnTheNextRequest](../rbac-structured/src/test/java/com/xmu/rbac/structured/integration/AcceptanceTest.java#L269) | 已读 | 预热缓存后经真实 API 回收，下一次拒绝；版本/旧键/reason/cache miss 由 T12b 补足 |
+| [AcceptanceTest.java.t12b_revocationDoesNotDependOnRedis](../rbac-structured/src/test/java/com/xmu/rbac/structured/integration/AcceptanceTest.java#L283) | 已读 | 旧键保留、MySQL 版本 +1、下一次 cache miss/MISSING_PERMISSION、拒绝写不 bump；未实际停 Redis，缺 bump 失败回滚 |
+| [AcceptanceTest.java.t20_explainAndCheckAlwaysAgree](../rbac-structured/src/test/java/com/xmu/rbac/structured/integration/AcceptanceTest.java#L509) | 已读 | 七类结果的 allowed/reason 一致且 explain 有 trace；未逐案断言期望，TARGET_DEPT_NOT_FOUND/SUBJECT_NOT_FOUND 可同时错误而通过 |
+| [AcceptanceTest.java.t20b_ordinaryUserCannotProbeOthersThroughAuthzApis](../rbac-structured/src/test/java/com/xmu/rbac/structured/integration/AcceptanceTest.java#L540) | 已读 | 已知他人 check/explain 403、本人 200；不存在主体同口径、AUTHZ_QUERY 审计和合法代查 caller 未覆盖 |
+| [AcceptanceTest.java.t22_anotherReplicaSeesTheRevocationOnItsNextRequest](../rbac-structured/src/test/java/com/xmu/rbac/structured/integration/AcceptanceTest.java#L554) | 已读 | 第二应用副本预热缓存后，另一实例回收，下一请求拒绝；未构造进行中请求与撤权的确定性交错 |
+| [ManagementApiTest.java.assignmentsMayCrossCompaniesWithinManagementScope](../rbac-structured/src/test/java/com/xmu/rbac/structured/integration/ManagementApiTest.java#L363) | 已读（B片段） | 真实 API 覆盖跨公司 scope、授权上界、本人 JWT 和代查边界；Decision reason/matched 与 AUTHZ_QUERY/caller 审计未断言 |
+| [RedisFailureTest.java.grantCacheTreatsRedisFailureAsMiss](../rbac-structured/src/test/java/com/xmu/rbac/structured/mapper/RedisFailureTest.java#L35) | 已读 | 模拟 Redis get/set 故障，读取视为 miss、写入不抛；缺端到端 Redis 宕机判定和 TTL 参数断言 |
+| [RedisFailureTest.java.grantCacheRoundTripAndCorruptValue](../rbac-structured/src/test/java/com/xmu/rbac/structured/mapper/RedisFailureTest.java#L47) | 已读 | 空 GrantSet 往返、损坏 JSON 降级、版本键格式；非空往返由集成路径间接覆盖，损坏键未删除 |
 
 ## 交付检查
 
-- [ ] 文件和关键方法已读并留证据。
-- [ ] 全部API卡填写独立预期、间接调用、最终查询及副作用。
-- [ ] 业务测试核对关键断言与拒绝原因，未执行明确记录。
+- [x] 文件和关键方法已读并留证据。
+- [x] 全部API卡填写独立预期、间接调用、最终查询及副作用。
+- [x] B 责任测试已逐项核对关键断言与拒绝原因；当前后端、前端与 E2E 已执行并记录。
 - [ ] 问题分类完成，重要结论由另一人挑战。
 
 返回[总入口](README.md)，使用[模板](templates.md)与[复核记录](cross-review.md)。
