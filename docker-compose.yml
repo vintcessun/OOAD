@@ -1,28 +1,15 @@
-# 一份编排文件，两种用法（docs/02-architecture.md §6）：
-#   docker compose up -d                              单机：开发、CI、检查演示
-#   bash deploy/stack.sh up                           Swarm 集群（实验二的做法，见 docs/13-deployment.md §4）
-# deploy: 段只在 Swarm 下生效，单机 compose 忽略。
-#
-# 课程服务器（3 台 2 核 2G，1 台编译 + 2 台部署）的放置方式见 docs/13-deployment.md：
-#   节点标签 rbac.role=data → MySQL + Redis；rbac.role=app → 两个 Java 服务。
-#
-# 口令与密钥从 .env 读取（不入库），模板见 deploy/env.example。
-# 注意 docker stack deploy 不会自动读 .env，所以集群部署一律走 deploy/stack.sh。
-# 下面 :- 后面的默认口令只给本机开发和 CI 用；stack.sh 发现 .env 里还是默认值会拒绝部署。
-
-# 版本号不能省：课程服务器是 Ubuntu 18.04 + apt 的 docker.io（20.10），它的 docker stack deploy
-# 遇到没写 version 的文件会报 unsupported Compose file version: 1.0。新版 docker compose 会提示
-# version 已过时，忽略即可。
+# OOAD: four services. Build and deploy from package; application tasks use
+# rbac.role=app (project/monitor), data tasks use rbac.role=data (mysql).
+# stack.sh loads .env. The stack creates its own rbac_default overlay network.
 version: "3.8"
 
 services:
   mysql:
-    # 服务器上拉不到 Docker Hub 时，换成 SWR 上的镜像（env.example 有例子）
     image: ${MYSQL_IMAGE:-mysql:8.0}
     command:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
-      - --innodb-buffer-pool-size=256M       # 2G 机器：给 MySQL 留 ~700MB
+      - --innodb-buffer-pool-size=256M
       - --max-connections=200
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
@@ -32,27 +19,28 @@ services:
       TZ: Asia/Shanghai
     volumes:
       - mysql-data:/var/lib/mysql
-    # 不对外暴露 3306：云服务器公网 IP 上开放数据库端口会被扫库。
-    # 需要连库时：docker compose exec mysql mysql -urbac -p rbac
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-root}"]
       interval: 5s
       timeout: 3s
       retries: 30
     deploy:
+      replicas: 1
       placement:
         constraints: [node.labels.rbac.role == data]
       resources:
-        limits: { memory: 800M }
+        reservations: { memory: 800M }
+        limits: { memory: 900M }
 
-  # 授权数据缓存（带版本号失效）与登出令牌登记（docs/02-architecture.md §4.2）
   redis:
     image: ${REDIS_IMAGE:-redis:7-alpine}
     command: ["redis-server", "--maxmemory", "128mb", "--maxmemory-policy", "allkeys-lru"]
     deploy:
+      replicas: 1
       placement:
         constraints: [node.labels.rbac.role == data]
       resources:
+        reservations: { memory: 128M }
         limits: { memory: 200M }
 
   rbac-structured:
@@ -67,11 +55,6 @@ services:
       RBAC_JWT_SECRET: ${RBAC_JWT_SECRET:-dev-only-secret-change-me-at-least-32-bytes!!}
       RBAC_INITIAL_PASSWORD: ${RBAC_INITIAL_PASSWORD:-Init@2026}
       JAVA_OPTS: ${APP_JAVA_OPTS:--Xms256m -Xmx512m -XX:+UseG1GC}
-    ports:
-      - "8081:8081"
-    # 只能用列表形式：docker stack deploy 不接受 condition: service_healthy 这种写法，
-    # 会直接报 depends_on: must be a list。MySQL 未就绪时应用启动失败、自动重启，直到连上：
-    # 单机 compose 靠 restart，Swarm 靠 deploy.restart_policy（Swarm 忽略 restart 与 depends_on）
     depends_on: [mysql, redis]
     restart: on-failure
     deploy:
@@ -80,25 +63,9 @@ services:
         constraints: [node.labels.rbac.role == app]
       restart_policy: { condition: on-failure, delay: 10s }
       resources:
-        limits: { memory: 700M }
+        reservations: { memory: 700M }
+        limits: { memory: 800M }
 
-  rbac-mock-biz:
-    image: ${REGISTRY:-}rbac-mock-biz:${TAG:-latest}
-    build:
-      context: .
-      args: { MODULE: rbac-mock-biz }
-    environment:
-      RBAC_CENTER_URL: http://rbac-structured:8081/api/v1
-      JAVA_OPTS: -Xms64m -Xmx256m
-    ports:
-      - "8090:8090"
-    deploy:
-      placement:
-        constraints: [node.labels.rbac.role == app]
-      resources:
-        limits: { memory: 350M }
-
-  # 前端（Vue 3）：Nginx 提供页面，/api 转发到 rbac-structured。浏览器访问 http://<节点>:80
   rbac-web:
     image: ${REGISTRY:-}rbac-web:${TAG:-latest}
     build:
@@ -107,10 +74,12 @@ services:
       - "80:80"
     depends_on: [rbac-structured]
     deploy:
+      replicas: 1
       placement:
         constraints: [node.labels.rbac.role == app]
       resources:
-        limits: { memory: 64M }
+        reservations: { memory: 64M }
+        limits: { memory: 128M }
 
 volumes:
   mysql-data:

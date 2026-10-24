@@ -7,6 +7,8 @@
 
 ---
 
+> 当前四节点部署、重新发布及服务器文件交接以 [部署交接文档](docs/17-deployment-handoff.md) 为准。日常更新不重新导入数据或清库。
+
 ## 一、这个项目在做什么
 
 为一家**市政公司**实现**统一授权中心**：公司的 18 个业务系统不自己管权限，而是把「某用户能否对某部门的数据做某操作」交给本系统判定。
@@ -70,7 +72,8 @@
 | [`09-test-plan.md`](docs/09-test-plan.md) | 测试策略、T01–T22 验收用例与追溯、Jacoco | 检查一 ★ |
 | [`11-defense.md`](docs/11-defense.md) | 六个设计点与个人陈述讲稿模板、高频追问 | 每次检查前 ★ |
 | [`12-design-log.md`](docs/12-design-log.md) | **设计问题与改正记录**（#15–#29 为本次按审查整改） | 检查二 ★ |
-| [`13-deployment.md`](docs/13-deployment.md) | 编译、打包与 Swarm 部署手册，部署后的初始化步骤 | 个人验收 ★ |
+| [`13-deployment.md`](docs/13-deployment.md) | 历史编译与部署说明；当前流程见 17 | 历史参考 |
+| [`17-deployment-handoff.md`](docs/17-deployment-handoff.md) | 当前四节点部署、源码更新发布、文件交接与测试范围 | 部署维护 |
 | [`14-rbac0-gap.md`](docs/14-rbac0-gap.md) | RBAC0 需求逐条对照、审查问题的处理、遗留事项 | 检查一 ★ |
 | [`15-debug-report.md`](docs/15-debug-report.md) | 验收前 Debug 记录：问题复现、定位、修复与验证；RBAC0 验收场景实测结果 | 检查一 ★ |
 | [`07`](docs/07-detail-oo.md) / [`08`](docs/08-detail-functional.md) / [`10`](docs/10-paradigm-comparison.md) | 面向对象、函数式、范式对比的早期骨架（**当前阶段不实现**） | 后续检查 |
