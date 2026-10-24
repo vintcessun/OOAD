@@ -1,6 +1,6 @@
 # 四节点 Swarm 部署交接
 
-本文是当前 OOAD 四节点部署和日常重新发布的操作依据。命令未特别注明时，均在 package 的 `/root/OOAD` 执行。主要入口为 http://1.94.223.65/，备用入口为 http://120.46.82.206/。仅对外使用 HTTP 80 和现有 SSH；不发布 8081、3306、6379。
+本文是当前 OOAD 四节点部署和日常重新发布的操作依据。命令未特别注明时，均在 package 的 `/root/OOAD` 执行。主要入口为 http://1.94.223.65/，备用入口为 http://120.46.82.206/。
 
 日常更新的顺序是：本地提交源码 → package 同步 → 测试 → 构建 → 推送 SWR → Swarm 更新 → HTTP 检查。已有课程数据、管理员口令和真实授权不随发布重置。本文不要求重新导入、清库或重新运行首次初始化验收。
 
@@ -10,8 +10,7 @@
 
 ```mermaid
 flowchart TB
-    Dev["本地独立工作树"] --> GitHub["GitHub main"]
-    GitHub --> Package["package：同步、测试、构建、Swarm 管理"]
+    GitHub["GitHub main"] --> Package["package：同步、测试、构建、Swarm 管理"]
     Package -->|"推送四个运行镜像"| SWR["本组 SWR"]
     Package -.->|"stack deploy，携带仓库认证"| Scheduler["Swarm 调度器"]
 
@@ -47,10 +46,10 @@ package 不承载业务任务。前端与权限中心分别按资源预留调度
 
 ## 2. 本地修改并提交源码
 
-执行位置：本地独立工作树。本次交接工作树是 `E:\IDEA\OOAD-worktrees\deployment-handoff`，旧目录 `E:\IDEA\OOAD` 保留供查看。
+执行位置：本地独立工作树。
 
 ```powershell
-Set-Location E:\IDEA\OOAD-worktrees\deployment-handoff
+Set-Location "<本地工作区>"
 git status --short
 git fetch origin main
 git merge --ff-only origin/main
