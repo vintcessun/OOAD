@@ -2,7 +2,92 @@
 
 本文是当前 OOAD 四节点部署和日常重新发布的操作依据。命令未特别注明时，均在 package 的 `/root/OOAD` 执行。主要入口为 http://1.94.223.65/，备用入口为 http://120.46.82.206/。
 
-日常更新的顺序是：本地提交源码 → package 同步 → 测试 → 构建 → 推送 SWR → Swarm 更新 → HTTP 检查。已有课程数据、管理员口令和真实授权不随发布重置。本文不要求重新导入、清库或重新运行首次初始化验收。
+日常更新的顺序是：本地提交源码 → package 同步 → 测试 → 构建 → 推送 SWR → Swarm 更新 → HTTP 检查。全部在 `javaee-package-server` 上执行。
+
+已有课程数据、管理员口令和真实授权不随发布重置。
+
+---
+
+## 简洁版
+
+### 1．同步源码
+
+```
+cd /root/OOAD
+git status --short
+git fetch origin main
+git merge --ff-only origin/main
+```
+
+预期：快进到最新 main。发现未提交的源码或配置改动时，先核对处理，不直接覆盖。
+
+**如果这是回传配置后的第一次同步**，应先按照[交接文档第 3 节](E:/IDEA/OOAD-worktrees/deployment-handoff/docs/17-deployment-handoff.md)核对七个文件与 `origin/main` 一致，再仅对这七个路径执行 `git stash push -u`，随后快进更新。stash 留作备份，不恢复；`.env` 不参与这个过程。
+
+### 2．启动已有测试依赖
+
+```
+docker start rbac-test-mysql rbac-test-redis
+
+docker exec rbac-test-mysql \
+  mysqladmin ping -h localhost -uroot -proot
+
+docker exec rbac-test-redis redis-cli ping
+```
+
+预期分别出现 `mysqld is alive`、`PONG`。若容器不存在，按交接文档下面的具体内容创建测试容器。
+
+### 3．执行测试、构建并推送 SWR
+
+```
+STOP_TEST_DEPS_AFTER_VERIFY=1 bash deploy/build.sh push
+```
+
+它会依次完成：
+
+1. 后端测试与覆盖率检查。
+2. 停止测试数据库和 Redis。
+3. 前端测试、覆盖率、类型检查及生产构建。
+4. 构建应用镜像，推送四个运行镜像至 SWR。
+5. 保存本次标签和发布记录。
+
+如果**只有推送失败**，修复网络或 SWR 登录后执行：
+
+```
+bash deploy/build.sh push-only
+```
+
+### 4．更新运行中的 Swarm 服务
+
+```
+bash deploy/stack.sh check
+bash deploy/stack.sh up
+bash deploy/stack.sh ps
+```
+
+这里没有 `stack push`：**`build.sh push` 发布镜像，`stack.sh up` 更新服务**。
+
+不需要先 `down`。`up` 会使用本次发布标签更新现有服务，数据库卷继续保留。
+
+### 5．检查是否就绪
+
+```
+docker stack services rbac
+docker stack ps rbac --no-trunc
+docker service logs --tail 100 rbac_rbac-structured
+
+curl --fail http://127.0.0.1/api/v1/actuator/health
+```
+
+预期：四个服务均为 `1/1`，任务不持续重启，健康接口返回 `UP`。最后从本地检查：
+
+```
+Invoke-WebRequest http://1.94.223.65/ -UseBasicParsing
+Invoke-RestMethod http://1.94.223.65/api/v1/actuator/health
+```
+
+日常源码更新**不需要重新导入 Excel、重置管理员口令或运行 `acceptance.py`**。
+
+---
 
 ## 1. 部署图与调度边界
 
