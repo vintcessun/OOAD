@@ -75,8 +75,14 @@ public class AuthorizationService {
     // ------------------------------------------------------------------ 3.0 判定
 
     /**
+     * 执行一次完整授权判定。调用方只提供主体、权限码和可选目标部门；角色、权限与作用域均由服务端展开，
+     * 不能由请求方直接传入授权依据。
+     *
+     * @param userId         被判定主体；为空或不存在时返回 SUBJECT_NOT_FOUND
+     * @param permissionCode 完整权限码，例如 oa:doc:draft:view
      * @param targetDeptId 被操作对象所属部门；为空表示不涉及具体部门的数据（只问「能否执行该操作」）
      * @param explain      true 时逐步记录判定依据（权限解释接口）
+     * @return 正常完成的判定结论；权限不足仍返回 allowed=false，不抛 403
      */
     public Decision decide(Long userId, String permissionCode, Long targetDeptId, boolean explain) {
         long start = System.nanoTime();
@@ -104,6 +110,7 @@ public class AuthorizationService {
         }
 
         // ---- 3.4 找出含目标权限的授权 ----
+        // GrantRow 同时携带权限码和该次指派的 scope，后续不能把不同指派的权限与部门范围拆开拼接。
         List<GrantRow> matching = grants.grants().stream()
                 .filter(g -> g.permissionCode().equals(permissionCode))
                 .toList();
@@ -121,6 +128,7 @@ public class AuthorizationService {
 
         // ---- 3.5 作用域判定：逐条授权检查适用部门是否覆盖目标部门 ----
         if (targetDeptId == null) {
+            // 没有具体数据对象时不做部门覆盖检查，但 allow() 仍会合并 selfOnly 语义。
             GrantRow g = preferUnrestricted(matching);
             note(trace, "角色 " + g.roleName() + "（适用部门：" + g.scopeDeptName() + "）具有 " + permissionCode
                     + "；本次请求不涉及具体部门");
@@ -190,6 +198,7 @@ public class AuthorizationService {
                 return new LoadedGrants(cached.get(), true);
             }
         }
+        // 版本行缺失或 Redis 未命中/故障时直接查 MySQL；缓存只能优化性能，不能成为授权正确性的前提。
         List<AssignmentRow> assignments = userRoleMapper.findAssignmentsOfUser(userId).stream()
                 .filter(a -> Role.ENABLED.equals(a.roleStatus()))
                 .toList();
@@ -212,6 +221,10 @@ public class AuthorizationService {
         }
     }
 
+    /**
+     * 判断当前线程是否处于读写事务。读写事务可能观察到尚未提交的授权修改，
+     * 因而 loadGrants 不能把这类结果写入 Redis，否则事务回滚后会留下错误缓存。
+     */
     private static boolean inReadWriteTransaction() {
         return TransactionSynchronizationManager.isActualTransactionActive()
                 && !TransactionSynchronizationManager.isCurrentTransactionReadOnly();
@@ -263,7 +276,10 @@ public class AuthorizationService {
         return grants.assignments().stream().anyMatch(a -> Role.SUPER_ADMIN.equals(a.roleCode()));
     }
 
-    /** 同一权限有多条授权时，优先取不限本人的那条。 */
+    /**
+     * 同一权限有多条覆盖授权时，优先返回不限本人的一条作为 matched 展示依据。
+     * 最终 selfOnly 不是由这一条决定，而是由 allow() 对全部覆盖候选合并。
+     */
     static GrantRow preferUnrestricted(List<GrantRow> rows) {
         return rows.stream().filter(r -> !r.selfOnly()).findFirst().orElse(rows.get(0));
     }
@@ -271,6 +287,7 @@ public class AuthorizationService {
     private static Decision allow(GrantRow g, List<GrantRow> candidates, Long userId, String username,
                                   String permissionCode, Long targetDeptId, boolean cacheHit, long start,
                                   List<String> trace) {
+        // 只要任一覆盖授权不限制本人，最终权限就不应被更窄的 selfOnly 授权限制。
         boolean selfOnly = candidates.stream().allMatch(GrantRow::selfOnly);
         if (selfOnly) {
             note(trace, "该权限只限本人记录，由业务系统按记录归属过滤");

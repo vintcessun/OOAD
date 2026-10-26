@@ -1,0 +1,2000 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>E · 组织导入与数据库模型｜源码答辩速查</title>
+<style>
+:root{font-family:Inter,"Microsoft YaHei",system-ui,sans-serif;color:#192b40;background:#f4f7fb}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0}
+.layout{display:grid;grid-template-columns:282px minmax(0,1fr);min-height:100vh}
+aside{position:sticky;top:0;height:100vh;overflow:auto;background:#eaf0f7;border-right:1px solid #d8e2ee;padding:24px 18px}
+.brand{font-weight:800;font-size:21px;line-height:1.35;color:#173f6b}.sub{color:#61758c;font-size:12px;margin:8px 0 24px}
+.search{width:100%;padding:12px 13px;border:1px solid #c4d3e5;border-radius:8px;background:#fff;font:inherit;outline:none}
+.search:focus{border-color:#3383c9;box-shadow:0 0 0 3px #3383c92b}
+.hint{font-size:12px;color:#71839b;margin:8px 0 14px}.cats{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px}
+.cat{border:1px solid #cad7e6;background:#fff;color:#315473;border-radius:999px;padding:6px 9px;cursor:pointer;font-size:12px}
+.cat.active{background:#215c99;color:#fff;border-color:#215c99}.count{font-size:12px;color:#61758c;margin-bottom:8px}
+.nav a{display:block;color:#315473;text-decoration:none;font-size:12px;line-height:1.45;padding:6px 8px;border-radius:6px}
+.nav a:hover{background:#dce8f5}.nav .group{font-weight:800;color:#173f6b;margin:12px 0 3px;font-size:12px}
+.tip{background:#fff;border:1px solid #d5e0eb;border-radius:9px;padding:11px;font-size:12px;line-height:1.6;color:#587087;margin-top:20px}
+main{max-width:1160px;width:100%;margin:0 auto;padding:30px 32px 90px}
+.hero{background:linear-gradient(120deg,#174b82,#2f75ad);border-radius:14px;padding:30px;color:#fff;box-shadow:0 8px 30px #174b821a}
+.hero h1{margin:0 0 10px;font-size:30px}.hero p{margin:5px 0;line-height:1.7;color:#e9f2fc}
+.meta{font-size:12px;opacity:.9}.notice{border-left:4px solid #dfaa48;background:#fff8e8;color:#6b5123;border-radius:4px;margin:20px 0;padding:13px 16px;line-height:1.7;font-size:14px}
+.flow{background:#fff;border:1px solid #dae4ef;border-radius:10px;margin:20px 0;padding:18px 20px}
+.flow h2{margin:0 0 10px;font-size:17px}.flow p{margin:6px 0;line-height:1.65}
+.section{font-size:20px;color:#174b82;margin:35px 0 14px;border-bottom:1px solid #ccd9e8;padding-bottom:9px}
+.card{scroll-margin-top:16px;background:#fff;border:1px solid #d9e3ef;border-radius:12px;margin:0 0 16px;padding:22px 26px;box-shadow:0 3px 14px #23466c0a}
+.card-top{display:flex;justify-content:space-between}.pill{background:#e8f2ff;color:#23578b;border-radius:99px;padding:4px 9px;font-size:11px;font-weight:700}.number{color:#a5b4c5;font-size:12px}
+.card h2{font-size:19px;margin:12px 0}.answer{font-size:15px;line-height:1.85;margin:0 0 16px}
+.followup{background:#edf7f4;border-left:3px solid #18806c;color:#31574f;padding:11px 13px;line-height:1.75;font-size:13px;border-radius:3px}
+.source{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px;color:#6a7f95;margin:17px 0 12px;overflow-wrap:anywhere}
+a{color:#2065a2}.source a{font-weight:650}.source .line{white-space:nowrap}
+.copy{background:#f4f8fc;border:1px solid #cad9e9;border-radius:5px;color:#315473;padding:4px 7px;cursor:pointer}.copy:hover{background:#e5f0fc}
+details{border:1px solid #d8e4f1;border-radius:8px;overflow:hidden}summary{background:#edf3fa;color:#29527a;padding:11px 14px;cursor:pointer;font-size:13px;font-weight:650}summary span{float:right;font-weight:400}
+pre{background:#152234;color:#dfecf9;overflow:auto;margin:0;padding:17px;font-family:"Cascadia Code",Consolas,monospace;font-size:12px;line-height:1.6}
+.empty{padding:40px;text-align:center;background:#fff;border-radius:10px;color:#647a90}
+.footer{color:#7b8da0;font-size:12px;line-height:1.7;margin-top:30px}
+@media(max-width:760px){.layout{display:block}aside{position:relative;height:auto}.nav{max-height:180px;overflow:auto}main{padding:18px 14px}.hero{padding:22px}.hero h1{font-size:24px}.card{padding:18px}.source{display:block}.source>*{margin-right:6px}}
+@media print{aside,.copy,.github{display:none!important}.layout{display:block}main{max-width:none;padding:0}.card{break-inside:avoid;box-shadow:none}details{display:none}.hero{color:#000;background:#fff;border:1px solid #999}}
+</style>
+</head>
+<body>
+<div class="layout">
+<aside>
+  <div class="brand">E · 源码答辩速查</div>
+  <div class="sub">组织导入 · 数据库模型 · 权限清单</div>
+  <input id="search" class="search" type="search" placeholder="问法、方法名、文件名…" autocomplete="off" aria-label="搜索讲解">
+  <div class="hint">按 / 聚焦搜索，Esc 清空。离线可用。</div>
+  <div id="cats" class="cats"></div><div id="count" class="count"></div>
+  <nav id="nav" class="nav" aria-label="讲解目录"></nav>
+  <div class="tip"><strong>答辩时怎么用</strong><br>先用搜索定位问题，读“30 秒讲法”，被追问再展开代码。要在 IDEA 定位：复制路径，打开文件后用 Ctrl+G 输入行号。</div>
+</aside>
+<main>
+  <header class="hero"><h1>E · 组织导入与数据库模型</h1><p>按老师可能的提问找源码、讲功能、解释边界。每条均嵌入当前仓库的原代码，可直接离线查看。</p><p class="meta">基线：827ca45 · 仅作答辩导航；静态审查不等于测试通过</p></header>
+  <div class="notice">先区分事实与待确认：网页里标 HR-002/003/004、E-04/05/06 的问题来自代码静态审查，尚未在隔离环境完成运行复现。老师问“有没有测过”，应如实说“已核对代码路径，集成测试待运行”。</div>
+  <section class="flow"><h2>记住这条主线</h2><p><strong>请求：</strong>OrgView → orgApi → PermissionInterceptor → CatalogController → OrgService / ImportService → Mapper → MySQL。</p><p><strong>授权：</strong>用户 → 角色指派（含部门作用范围）→ 角色 → 权限；导入组织数据不自动指派角色。</p><p><strong>库表：</strong>公司、部门、用户是一组；系统、模块、资源、操作、权限是另一组；角色权限与用户角色把两组接到鉴权流程。</p></section>
+  <div id="content"><h2 class="section" data-cat="先看这里">先看这里</h2>
+
+    <article class="card" id="q1" data-cat="先看这里" data-search="先看这里 这次验收做到哪个阶段？ 第一次检查 rbac0 结构化 rbac1 rbac2 当前第一次检查要求前端、api、数据库设计，以及用结构化方式实现 rbac0 后端。rbac1 的角色继承、rbac2 的约束和后续面向对象实现不属于这次交付范围。 不要把后续阶段的设计骨架说成这次已经实现的功能。 readme.md">
+      <div class="card-top"><span class="pill">先看这里</span><span class="number">#01</span></div>
+      <h2>这次验收做到哪个阶段？</h2>
+      <p class="answer">当前第一次检查要求前端、API、数据库设计，以及用结构化方式实现 RBAC0 后端。RBAC1 的角色继承、RBAC2 的约束和后续面向对象实现不属于这次交付范围。</p>
+      <div class="followup"><strong>老师追问时补充</strong><br>不要把后续阶段的设计骨架说成这次已经实现的功能。</div>
+      <div class="source"><span>源码：</span><a href="../README.md" target="_blank">README.md</a><span class="line">第 8–54 行</span>
+        <button class="copy" data-copy="README.md:8">复制位置</button>
+        <a class="github" href="https://github.com/vintcessun/OOAD/blob/827ca45/README.md#L8-L54" target="_blank" rel="noopener">GitHub 定位 ↗</a>
+      </div>
+      <details><summary>查看这一段原代码 <span>8–54 行</span></summary><pre><code>   8 │ ---
+   9 │
+  10 │ &gt; 当前四节点部署、重新发布及服务器文件交接以 [部署交接文档](docs/17-deployment-handoff.md) 为准。日常更新不重新导入数据或清库。
+  11 │
+  12 │ ## 一、这个项目在做什么
+  13 │
+  14 │ 为一家**市政公司**实现**统一授权中心**：公司的 18 个业务系统不自己管权限，而是把「某用户能否对某部门的数据做某操作」交给本系统判定。
+  15 │
+  16 │ **当前阶段（第一次检查）**按课程的 RBAC0 需求清单实现：
+  17 │
+  18 │ - 权限模型只做 **RBAC0**：User — Role — Permission（= Resource × Action），不做角色继承与约束；
+  19 │ - 用**面向功能的结构化设计**，技术栈 Spring MVC + JPA + MySQL + Redis，分层只用 Controller + Service + Mapper；
+  20 │ - 登录、鉴权两个场景；一个用户属于一个部门，但可以在多个部门有权限；临时用户；按分公司 / 部门 / 员工批量授权；多公司；超级管理员越过权限引擎；管理员只能管理自身及以下层级；权限修改后下一次访问即生效。
+  21 │
+  22 │ 系统建立在课程提供的三份**真实数据**之上，已全量导入核对：
+  23 │
+  24 │ | 数据 | 导入结果 |
+  25 │ |---|---|
+  26 │ | 部门信息表 | 111 个部门（总公司 → 9 个分公司 + 职能部门 → 下级部门），全部建成 |
+  27 │ | 员工信息表 | 10,000 名员工，全部按「分公司 + 部门」唯一定位到部门 |
+  28 │ | 应用软件功能权限清单 | 18 个业务系统 / 115 个功能模块 / 359 个资源；1,795 个权限（资源 × 五类操作）；五类角色共 3,190 条角色权限 |
+  29 │
+  30 │ 外部模拟业务系统 `rbac-mock-biz` 取清单中的两个功能点（发文拟稿与审核、考勤管理），每次操作带着用户令牌调用权限中心，验证权限在业务系统里真实生效。
+  31 │
+  32 │ 需求与实现的逐条对照、尚未完成的事项见 [`docs/14-rbac0-gap.md`](docs/14-rbac0-gap.md)。
+  33 │
+  34 │ ---
+  35 │
+  36 │ ## 二、课程检查节点与对应交付物
+  37 │
+  38 │ &gt; 依据：《课程设计成绩计算办法(V1)-OOAD_Grading_2026》与《课程介绍》
+  39 │
+  40 │ | 时间 | 分数 | 内容要求 | 本仓库对应交付物 |
+  41 │ |---|---|---|---|
+  42 │ | **10/27 – 10/29** | 20 | 前端界面设计、API 设计、数据库设计；用**结构化**方式实现 **RBAC0** 后端 | [`01`](docs/01-srs.md) 需求、[`02`](docs/02-architecture.md) 概要设计、[`03`](docs/03-database.md) 数据库、[`04`](docs/04-api.md) API、[`05`](docs/05-ui.md) 界面、[`06`](docs/06-detail-structured.md) **详细设计**、[`09`](docs/09-test-plan.md) 测试与 Jacoco |
+  43 │ | 11/24 – 11/26 | 30 | 课程介绍中为 RBAC1、结构化与面向对象两种实现 + 部分前端 | 届时以老师当期需求清单为准 |
+  44 │ | 12/22 – 12/24 | 20 | 课程介绍中为 RBAC2/3 + 前端，部分功能函数式 | 同上 |
+  45 │ | 考勤 | −10 | 缺勤超 1/3 −10；超 1/4 −5；超 1/5 −2 | — |
+  46 │
+  47 │ **每次检查前必须提交：详细设计文档 + Jacoco 测试报告**（无法提供报告则提供代码）。
+  48 │
+  49 │ ### 检查方式：无领导小组面试
+  50 │
+  51 │ 分**个人陈述**与**自由讨论**两阶段。个人陈述阶段，每位同学依次陈述文档中的**一个设计**，讲清：
+  52 │
+  53 │ 1. 这个设计的**需求是什么，存在什么问题**
+  54 │ 2. 采用**何种设计方法，采用的理由**是什么</code></pre></details>
+    </article>
+
+    <article class="card" id="q2" data-cat="先看这里" data-search="先看这里 为什么叫结构化设计？三层怎么分？ controller service mapper 结构化 jpa 这一阶段按功能过程分解：controller 接 http 参数与统一响应，service 写校验、业务流程和事务，mapper 负责 mysql/redis 的数据访问；依赖只能从上往下。这里的 mapper 是 jpa 接口名称，不代表使用 mybatis。 老师问设计方法时，可先说功能分解和数据流，再落到这三层代码。 docs/02-architecture.md">
+      <div class="card-top"><span class="pill">先看这里</span><span class="number">#02</span></div>
+      <h2>为什么叫结构化设计？三层怎么分？</h2>
+      <p class="answer">这一阶段按功能过程分解：Controller 接 HTTP 参数与统一响应，Service 写校验、业务流程和事务，Mapper 负责 MySQL/Redis 的数据访问；依赖只能从上往下。这里的 Mapper 是 JPA 接口名称，不代表使用 MyBatis。</p>
+      <div class="followup"><strong>老师追问时补充</strong><br>老师问设计方法时，可先说功能分解和数据流，再落到这三层代码。</div>
+      <div class="source"><span>源码：</span><a href="../docs/02-architecture.md" target="_blank">docs/02-architecture.md</a><span class="line">第 79–108 行</span>
+        <button class="copy" data-copy="docs/02-architecture.md:79">复制位置</button>
+        <a class="github" href="https://github.com/vintcessun/OOAD/blob/827ca45/docs/02-architecture.md#L79-L108" target="_blank" rel="noopener">GitHub 定位 ↗</a>
+      </div>
+      <details><summary>查看这一段原代码 <span>79–108 行</span></summary><pre><code>  79 │ ```mermaid
+  80 │ flowchart TD
+  81 │     C[&quot;Controller&lt;br/&gt;HTTP 参数绑定 · 统一响应 · 契约拦截器（认证 + 操作权限）&quot;]
+  82 │     S[&quot;Service&lt;br/&gt;处理过程：校验 · 判定 · 管理范围 · 事务 · 审计&quot;]
+  83 │     M[&quot;Mapper&lt;br/&gt;Spring Data JPA 接口（MySQL）+ GrantCacheMapper / TokenRevocationMapper（Redis）&quot;]
+  84 │     E[&quot;entity（表记录）· dto（请求/响应 record）&quot;]
+  85 │     C --&gt; S --&gt; M
+  86 │     C -.-&gt; E
+  87 │     S -.-&gt; E
+  88 │     M -.-&gt; E
+  89 │ ```
+  90 │
+  91 │ **规则**
+  92 │
+  93 │ - 依赖只能向下：Controller 不能直接用 Mapper；Mapper 不能反过来调 Service。
+  94 │ - entity 是与表一一对应的数据结构，只有公有字段，没有方法，实体之间不建对象关联（只存外键 id）。
+  95 │ - dto 是 Java record，用作 Service 的输入输出。
+  96 │ - config 只做装配：时钟、口令编码器、JWT 密钥、契约路由表、拦截器。
+  97 │
+  98 │ ### 2.3 技术架构：三层 × 功能模块
+  99 │
+ 100 │ | 层 | 职责 | 技术 |
+ 101 │ |---|---|---|
+ 102 │ | Controller | 输入、输出：参数绑定、统一响应、异常转换、契约拦截器 | Spring MVC（`@RestController`、`HandlerInterceptor`、`@RestControllerAdvice`） |
+ 103 │ | Service | 业务处理过程与事务边界 | Spring `@Service`、`@Transactional`，类内只有注入的依赖与常量 |
+ 104 │ | Mapper | 数据访问 | Spring Data JPA（`JpaRepository` + JPQL / 原生 SQL），连 MySQL 8；两个 Redis 访问类用 `StringRedisTemplate` |
+ 105 │ | — | 表结构 | Flyway（`rbac-contract` 里的 `V1__rbac0_baseline.sql`） |
+ 106 │ | — | 部署 | Docker 镜像 + Docker Swarm（§6） |
+ 107 │
+ 108 │ **为什么 Mapper 是 JPA 接口**：审查报告指出旧实现用 MyBatis 违反技术栈。「Mapper」是课程规定的逻辑分层名称，不是 MyBatis 的 Mapper。这里的 Mapper 就是继承 `JpaRepository` 的接口，复杂查询写成 JPQL 或原生 SQL；它只取数据，不做任何权限判断。Redis 也是一种数据存储，访问它的两个类同样放在 Mapper 层。</code></pre></details>
+    </article>
+
+    <article class="card" id="q3" data-cat="先看这里" data-search="先看这里 真实数据和演示样本有什么区别？ 111 部门 10000 员工 18 系统 测试虚构数据 readme 记录了真实数据导入核对规模：111 个部门、1 万名员工、18 个系统、115 个模块、359 个资源。但仓库里的 e2e 三份工作簿是虚构测试样本，不能拿它们的计数冒充真实数据结果。 如果老师要求现场展示真实导入证据，应打开数据库/验收记录核对；本网页只是源码导航。 readme.md">
+      <div class="card-top"><span class="pill">先看这里</span><span class="number">#03</span></div>
+      <h2>真实数据和演示样本有什么区别？</h2>
+      <p class="answer">README 记录了真实数据导入核对规模：111 个部门、1 万名员工、18 个系统、115 个模块、359 个资源。但仓库里的 e2e 三份工作簿是虚构测试样本，不能拿它们的计数冒充真实数据结果。</p>
+      <div class="followup"><strong>老师追问时补充</strong><br>如果老师要求现场展示真实导入证据，应打开数据库/验收记录核对；本网页只是源码导航。</div>
+      <div class="source"><span>源码：</span><a href="../README.md" target="_blank">README.md</a><span class="line">第 22–40 行</span>
+        <button class="copy" data-copy="README.md:22">复制位置</button>
+        <a class="github" href="https://github.com/vintcessun/OOAD/blob/827ca45/README.md#L22-L40" target="_blank" rel="noopener">GitHub 定位 ↗</a>
+      </div>
+      <details><summary>查看这一段原代码 <span>22–40 行</span></summary><pre><code>  22 │ 系统建立在课程提供的三份**真实数据**之上，已全量导入核对：
+  23 │
+  24 │ | 数据 | 导入结果 |
+  25 │ |---|---|
+  26 │ | 部门信息表 | 111 个部门（总公司 → 9 个分公司 + 职能部门 → 下级部门），全部建成 |
+  27 │ | 员工信息表 | 10,000 名员工，全部按「分公司 + 部门」唯一定位到部门 |
+  28 │ | 应用软件功能权限清单 | 18 个业务系统 / 115 个功能模块 / 359 个资源；1,795 个权限（资源 × 五类操作）；五类角色共 3,190 条角色权限 |
+  29 │
+  30 │ 外部模拟业务系统 `rbac-mock-biz` 取清单中的两个功能点（发文拟稿与审核、考勤管理），每次操作带着用户令牌调用权限中心，验证权限在业务系统里真实生效。
+  31 │
+  32 │ 需求与实现的逐条对照、尚未完成的事项见 [`docs/14-rbac0-gap.md`](docs/14-rbac0-gap.md)。
+  33 │
+  34 │ ---
+  35 │
+  36 │ ## 二、课程检查节点与对应交付物
+  37 │
+  38 │ &gt; 依据：《课程设计成绩计算办法(V1)-OOAD_Grading_2026》与《课程介绍》
+  39 │
+  40 │ | 时间 | 分数 | 内容要求 | 本仓库对应交付物 |</code></pre></details>
+    </article>
+
+    <article class="card" id="q4" data-cat="先看这里" data-search="先看这里 rbac0 到底是什么？ rbac0 用户 角色 权限 关系 这里把权限分给角色，再把角色指派给用户。一次鉴权会结合用户状态、角色、权限和作用部门判断。部门负责人字段只是组织资料，不会自动让人获得管理员权限。 可以画出 user → userrole → role → rolepermission → permission；作用范围由 userrole 的部门字段补充。 rbac-contract/src/main/resources/db/migration/v1__rbac0_baseline.sql">
+      <div class="card-top"><span class="pill">先看这里</span><span class="number">#04</span></div>
+      <h2>RBAC0 到底是什么？</h2>
+      <p class="answer">这里把权限分给角色，再把角色指派给用户。一次鉴权会结合用户状态、角色、权限和作用部门判断。部门负责人字段只是组织资料，不会自动让人获得管理员权限。</p>
+      <div class="followup"><strong>老师追问时补充</strong><br>可以画出 User → UserRole → Role → RolePermission → Permission；作用范围由 UserRole 的部门字段补充。</div>
+      <div class="source"><span>源码：</span><a href="../rbac-contract/src/main/resources/db/migration/V1__rbac0_baseline.sql" target="_blank">rbac-contract/src/main/resources/db/migration/V1__rbac0_baseline.sql</a><span class="line">第 162–210 行</span>
+        <button class="copy" data-copy="rbac-contract/src/main/resources/db/migration/V1__rbac0_baseline.sql:162">复制位置</button>
+        <a class="github" href="https://github.com/vintcessun/OOAD/blob/827ca45/rbac-contract/src/main/resources/db/migration/V1__rbac0_baseline.sql#L162-L210" target="_blank" rel="noopener">GitHub 定位 ↗</a>
+      </div>
+      <details><summary>查看这一段原代码 <span>162–210 行</span></summary><pre><code> 162 │ CREATE TABLE sys_role (
+ 163 │     id          BIGINT       NOT NULL AUTO_INCREMENT,
+ 164 │     company_id  BIGINT       NULL,
+ 165 │     role_code   VARCHAR(64)  NOT NULL,
+ 166 │     role_name   VARCHAR(64)  NOT NULL,
+ 167 │     description VARCHAR(255) NULL,
+ 168 │     status      VARCHAR(16)  NOT NULL DEFAULT &#x27;ENABLED&#x27; COMMENT &#x27;ENABLED | DISABLED&#x27;,
+ 169 │     builtin     TINYINT      NOT NULL DEFAULT 0 COMMENT &#x27;内置角色不可删除&#x27;,
+ 170 │     created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ 171 │     updated_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ 172 │     PRIMARY KEY (id),
+ 173 │     UNIQUE KEY uk_role_code (role_code),
+ 174 │     CONSTRAINT fk_role_company FOREIGN KEY (company_id) REFERENCES sys_company (id)
+ 175 │ ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT=&#x27;角色&#x27;;
+ 176 │
+ 177 │ -- self_only：权限清单中「查看本人」「编辑本人」这类取值。RBAC0 只判断能否执行该操作，
+ 178 │ -- 「只限本人记录」随鉴权结果返回给业务系统，由业务系统按记录归属过滤（docs/03-database.md §4.3）。
+ 179 │ CREATE TABLE sys_role_permission (
+ 180 │     id            BIGINT   NOT NULL AUTO_INCREMENT,
+ 181 │     role_id       BIGINT   NOT NULL,
+ 182 │     permission_id BIGINT   NOT NULL,
+ 183 │     self_only     TINYINT  NOT NULL DEFAULT 0,
+ 184 │     granted_by    BIGINT   NULL COMMENT &#x27;授权人，只用于审计&#x27;,
+ 185 │     granted_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ 186 │     PRIMARY KEY (id),
+ 187 │     UNIQUE KEY uk_role_perm (role_id, permission_id),
+ 188 │     KEY idx_permission (permission_id),
+ 189 │     CONSTRAINT fk_rp_role FOREIGN KEY (role_id)       REFERENCES sys_role (id) ON DELETE CASCADE,
+ 190 │     CONSTRAINT fk_rp_perm FOREIGN KEY (permission_id) REFERENCES sys_permission (id)
+ 191 │ ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT=&#x27;角色-权限&#x27;;
+ 192 │
+ 193 │ -- 一次指派 = 用户 + 角色 + 适用部门。scope_dept_id 覆盖该部门及其全部下级部门。
+ 194 │ -- 同一用户可以在不同部门持有不同角色，或在多个部门持有同一角色（需求「可以有属于多个部门的权限」）。
+ 195 │ -- granted_by 只是审计属性：撤销授权人自己的角色，不影响他过去授出的指派（需求「不会导致级联删除」）。
+ 196 │ CREATE TABLE sys_user_role (
+ 197 │     id            BIGINT       NOT NULL AUTO_INCREMENT,
+ 198 │     user_id       BIGINT       NOT NULL,
+ 199 │     role_id       BIGINT       NOT NULL,
+ 200 │     scope_dept_id BIGINT       NOT NULL COMMENT &#x27;适用部门（含下级）&#x27;,
+ 201 │     granted_by    BIGINT       NULL,
+ 202 │     granted_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ 203 │     reason        VARCHAR(255) NULL,
+ 204 │     PRIMARY KEY (id),
+ 205 │     UNIQUE KEY uk_user_role_scope (user_id, role_id, scope_dept_id),
+ 206 │     KEY idx_role (role_id),
+ 207 │     KEY idx_scope (scope_dept_id),
+ 208 │     CONSTRAINT fk_ur_user  FOREIGN KEY (user_id)       REFERENCES sys_user (id),
+ 209 │     CONSTRAINT fk_ur_role  FOREIGN KEY (role_id)       REFERENCES sys_role (id),
+ 210 │     CONSTRAINT fk_ur_scope FOREIGN KEY (scope_dept_id) REFERENCES sys_department (id)</code></pre></details>
+    </article>
+
+    <article class="card" id="q5" data-cat="先看这里" data-search="先看这里 e 负责哪四个接口？ e01 e02 e03 e04 api 公司 部门 导入 e01 查可见公司，e02 查管理范围内的部门树，e03 导入部门与员工，e04 导入功能权限清单。入口都在 catalogcontroller，真正的读取与写入分别交给 orgservice 和 importservice。 现场先说接口，再沿 controller → service → mapper/表走；具体权限写在 openapi 契约。 rbac-structured/src/main/java/com/xmu/rbac/structured/controller/catalogcontroller.java">
+      <div class="card-top"><span class="pill">先看这里</span><span class="number">#05</span></div>
+      <h2>E 负责哪四个接口？</h2>
+      <p class="answer">E01 查可见公司，E02 查管理范围内的部门树，E03 导入部门与员工，E04 导入功能权限清单。入口都在 CatalogController，真正的读取与写入分别交给 OrgService 和 ImportService。</p>
+      <div class="followup"><strong>老师追问时补充</strong><br>现场先说接口，再沿 Controller → Service → Mapper/表走；具体权限写在 OpenAPI 契约。</div>
+      <div class="source"><span>源码：</span><a href="../rbac-structured/src/main/java/com/xmu/rbac/structured/controller/CatalogController.java" target="_blank">rbac-structured/src/main/java/com/xmu/rbac/structured/controller/CatalogController.java</a><span class="line">第 128–158 行</span>
+        <button class="copy" data-copy="rbac-structured/src/main/java/com/xmu/rbac/structured/controller/CatalogController.java:128">复制位置</button>
+        <a class="github" href="https://github.com/vintcessun/OOAD/blob/827ca45/rbac-structured/src/main/java/com/xmu/rbac/structured/controller/CatalogController.java#L128-L158" target="_blank" rel="noopener">GitHub 定位 ↗</a>
+      </div>
+      <details><summary>查看这一段原代码 <span>128–158 行</span></summary><pre><code> 128 │     @GetMapping(&quot;/companies&quot;)
+ 129 │     public ApiResponse&lt;List&lt;CompanyView&gt;&gt; companies(@RequestAttribute(OP) Operator op) {
+ 130 │         return ApiResponse.ok(org.companies(op));
+ 131 │     }
+ 132 │
+ 133 │     @GetMapping(&quot;/departments/tree&quot;)
+ 134 │     public ApiResponse&lt;List&lt;DeptNode&gt;&gt; departmentTree(@RequestAttribute(OP) Operator op,
+ 135 │                                                       @RequestParam Long companyId) {
+ 136 │         return ApiResponse.ok(org.tree(op, companyId));
+ 137 │     }
+ 138 │
+ 139 │     @PostMapping(&quot;/imports/organization&quot;)
+ 140 │     public ApiResponse&lt;ImportReport&gt; importOrganization(@RequestAttribute(OP) Operator op,
+ 141 │                                                         @RequestParam String companyCode,
+ 142 │                                                         @RequestParam String companyName,
+ 143 │                                                         @RequestPart(&quot;departments&quot;) MultipartFile departments,
+ 144 │                                                         @RequestPart(&quot;employees&quot;) MultipartFile employees) {
+ 145 │         try (InputStream d = departments.getInputStream(); InputStream e = employees.getInputStream()) {
+ 146 │             return ApiResponse.ok(imports.importOrganization(op, companyCode, companyName, d, e));
+ 147 │         } catch (IOException ex) {
+ 148 │             throw BizException.badRequest(&quot;读取上传文件失败&quot;);
+ 149 │         }
+ 150 │     }
+ 151 │
+ 152 │     @PostMapping(&quot;/imports/permissions&quot;)
+ 153 │     public ApiResponse&lt;ImportReport&gt; importPermissions(@RequestAttribute(OP) Operator op,
+ 154 │                                                        @RequestPart(&quot;file&quot;) MultipartFile file) {
+ 155 │         try (InputStream in = file.getInputStream()) {
+ 156 │             return ApiResponse.ok(imports.importPermissions(op, in));
+ 157 │         } catch (IOException ex) {
+ 158 │             throw BizException.badRequest(&quot;读取上传文件失败&quot;);</code></pre></details>
+    </article>
+
+    <article class="card" id="q6" data-cat="先看这里" data-search="先看这里 一次请求是怎么到业务代码的？ 调用链 前端 api 拦截器 controller service mapper 页面调用 orgapi，路由进入权限拦截器验证登录和契约声明，再由 catalogcontroller 调用 orgservice 或 importservice，最终通过 mapper 操作数据库。 不要说前端按钮能保证安全；真正的服务端准入在 permissioninterceptor，查询结果还要由 service 按管理范围过滤。 rbac-structured/src/main/java/com/xmu/rbac/structured/controller/permissioninterceptor.java">
+      <div class="card-top"><span class="pill">先看这里</span><span class="number">#06</span></div>
+      <h2>一次请求是怎么到业务代码的？</h2>
+      <p class="answer">页面调用 orgApi，路由进入权限拦截器验证登录和契约声明，再由 CatalogController 调用 OrgService 或 ImportService，最终通过 Mapper 操作数据库。</p>
+      <div class="followup"><strong>老师追问时补充</strong><br>不要说前端按钮能保证安全；真正的服务端准入在 PermissionInterceptor，查询结果还要由 Service 按管理范围过滤。</div>
+      <div class="source"><span>源码：</span><a href="../rbac-structured/src/main/java/com/xmu/rbac/structured/controller/PermissionInterceptor.java" target="_blank">rbac-structured/src/main/java/com/xmu/rbac/structured/controller/PermissionInterceptor.java</a><span class="line">第 55–103 行</span>
+        <button class="copy" data-copy="rbac-structured/src/main/java/com/xmu/rbac/structured/controller/PermissionInterceptor.java:55">复制位置</button>
+        <a class="github" href="https://github.com/vintcessun/OOAD/blob/827ca45/rbac-structured/src/main/java/com/xmu/rbac/structured/controller/PermissionInterceptor.java#L55-L103" target="_blank" rel="noopener">GitHub 定位 ↗</a>
+      </div>
+      <details><summary>查看这一段原代码 <span>55–103 行</span></summary><pre><code>  55 │     public boolean preHandle(HttpServletRequest req, HttpServletResponse resp, Object handler) throws IOException {
+  56 │         // 1. 拿到本次请求实际匹配的 URL 模板，据此算出契约里的路由 key
+  57 │         Object pattern = req.getAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE);
+  58 │         String key = pattern == null ? null : ContractRoutes.key(req.getMethod(), pattern.toString());
+  59 │         ContractRoutes.Route route = key == null ? null : routes.find(req.getMethod(), pattern.toString());
+  60 │
+  61 │         // 2. 契约校验：路由不存在，或非匿名却没声明权限
+  62 │         if (route == null || (!route.anonymous() &amp;&amp; route.permission() == null)) {
+  63 │             return reject(resp, 403, BizException.FORBIDDEN, &quot;接口未在契约中声明权限，默认拒绝&quot;, null);
+  64 │         }
+  65 │
+  66 │         // 3. 匿名接口直接放行，不做认证，比如login
+  67 │         if (route.anonymous()) {
+  68 │             return true;
+  69 │         }
+  70 │
+  71 │         // 4. 认证：解析 Bearer token
+  72 │         Authenticated auth;
+  73 │         try {
+  74 │             auth = authentication.authenticate(bearerToken(req));
+  75 │         } catch (BizException e) {
+  76 │             return reject(resp, e.httpStatus(), e.code(), e.getMessage(), null);
+  77 │         }
+  78 │
+  79 │         // 5. 认证通过，把操作信息放进 req 属性
+  80 │         Operator op = new Operator(auth.userId(), auth.username(), clientIp(req));
+  81 │         req.setAttribute(ATTR_OPERATOR, op);
+  82 │         req.setAttribute(ATTR_AUTH, auth);
+  83 │
+  84 │         // 6. 强制改密拦截：需改密且当前接口不在非改密放行名单里
+  85 │         if (auth.mustChangePwd() &amp;&amp; !BEFORE_PASSWORD_CHANGE.contains(key)) {
+  86 │             return reject(resp, 403, BizException.PASSWORD_CHANGE_REQUIRED, &quot;首次登录请先修改口令&quot;, null);
+  87 │         }
+  88 │
+  89 │         // 7. &quot;本人&quot;级权限，认证已过即可放行
+  90 │         if (ContractRoutes.SELF.equals(route.permission())) {
+  91 │             return true;
+  92 │         }
+  93 │
+  94 │         // 8. 一般权限校验：走授权决策并留审计，拒绝时返回原因
+  95 │         Decision d = authorization.decide(auth.userId(), route.permission(), null, false);
+  96 │         audit.recordDecision(d, op, &quot;api &quot; + key);
+  97 │         if (!d.allowed()) {
+  98 │             return reject(resp, 403, BizException.FORBIDDEN, &quot;缺少权限 &quot; + route.permission(), d.reason());
+  99 │         }
+ 100 │         return true;
+ 101 │     }
+ 102 │
+ 103 │     static String bearerToken(HttpServletRequest req) {</code></pre></details>
+    </article>
+<h2 class="section" data-cat="接口与范围">接口与范围</h2>
+
+    <article class="card" id="q7" data-cat="接口与范围" data-search="接口与范围 四个接口要求什么权限？ openapi x-required-permission org:view org:import permission:create 公司列表和部门树需要 rbac:org:view；组织导入需要 rbac:org:import；功能权限清单导入需要 rbac:permission:create。这些声明来自 openapi，拦截器执行入口权限检查。 有接口权限只表示可执行这类操作；范围内有哪些部门还要看 scopeof。 rbac-contract/src/main/resources/openapi/rbac-api.yaml">
+      <div class="card-top"><span class="pill">接口与范围</span><span class="number">#07</span></div>
+      <h2>四个接口要求什么权限？</h2>
+      <p class="answer">公司列表和部门树需要 rbac:org:view；组织导入需要 rbac:org:import；功能权限清单导入需要 rbac:permission:create。这些声明来自 OpenAPI，拦截器执行入口权限检查。</p>
+      <div class="followup"><strong>老师追问时补充</strong><br>有接口权限只表示可执行这类操作；范围内有哪些部门还要看 scopeOf。</div>
+      <div class="source"><span>源码：</span><a href="../rbac-contract/src/main/resources/openapi/rbac-api.yaml" target="_blank">rbac-contract/src/main/resources/openapi/rbac-api.yaml</a><span class="line">第 921–998 行</span>
+        <button class="copy" data-copy="rbac-contract/src/main/resources/openapi/rbac-api.yaml:921">复制位置</button>
+        <a class="github" href="https://github.com/vintcessun/OOAD/blob/827ca45/rbac-contract/src/main/resources/openapi/rbac-api.yaml#L921-L998" target="_blank" rel="noopener">GitHub 定位 ↗</a>
+      </div>
+      <details><summary>查看这一段原代码 <span>921–998 行</span></summary><pre><code> 921 │   # ------------------------------------------------------------------ org
+ 922 │   /companies:
+ 923 │     get:
+ 924 │       tags: [org]
+ 925 │       operationId: listCompanies
+ 926 │       summary: 公司列表（只含管理范围涉及的公司）
+ 927 │       description: |
+ 928 │         需要 rbac:org:view。只返回该权限管理范围涉及且已配置根部门的公司，超级管理员可查看所有已配置根部门的公司。
+ 929 │         data 为包含 id、companyCode、companyName、rootDepartmentId 的数组，用于选择部门树和批量授权目标，不分页。
+ 930 │       x-required-permission: rbac:org:view
+ 931 │       responses:
+ 932 │         &#x27;200&#x27;: { $ref: &#x27;#/components/responses/Ok&#x27; }
+ 933 │
+ 934 │   /departments/tree:
+ 935 │     get:
+ 936 │       tags: [org]
+ 937 │       operationId: getDepartmentTree
+ 938 │       summary: 部门树（管理范围内的部门及通往它们的祖先）
+ 939 │       description: |
+ 940 │         需要 rbac:org:view，companyId 必填，公司不存在时返回 404。
+ 941 │         返回管理范围内部门及下级，并补充通往这些部门的祖先节点以便展示；祖先可见不表示可管理祖先下的其他部门。
+ 942 │         data 为包含层级、负责人及 children 的部门树；公司没有可见部门时返回空数组。
+ 943 │       x-required-permission: rbac:org:view
+ 944 │       parameters:
+ 945 │         - { name: companyId, in: query, required: true, schema: { type: integer, format: int64 }, description: 待查询部门树的公司 ID，可通过 /companies 获取 }
+ 946 │       responses:
+ 947 │         &#x27;200&#x27;: { $ref: &#x27;#/components/responses/Ok&#x27; }
+ 948 │
+ 949 │   /imports/organization:
+ 950 │     post:
+ 951 │       tags: [org]
+ 952 │       operationId: importOrganization
+ 953 │       summary: 导入部门信息表与员工信息表
+ 954 │       description: |
+ 955 │         需要 rbac:org:import。通过 query 指定公司编码与名称，multipart/form-data 同时上传 departments、employees 两份 xlsx。
+ 956 │         按项目部门信息表、员工信息表格式读取首个工作表，目标公司不存在时创建，已存在的部门和用户名跳过。
+ 957 │         无法唯一定位部门、负责人等数据时记录 anomalies，并跳过无法处理的数据；有效数据仍可导入。
+ 958 │         不自动分配角色，部门负责人也不会因此获得管理权限。200 返回 counts、notes、anomalies，应检查异常后人工授权。
+ 959 │       x-required-permission: rbac:org:import
+ 960 │       parameters:
+ 961 │         - { name: companyCode, in: query, required: true, schema: { type: string }, description: 目标公司编码，已存在时沿用该公司 }
+ 962 │         - { name: companyName, in: query, required: true, schema: { type: string }, description: 目标公司名称，创建新公司时使用 }
+ 963 │       requestBody:
+ 964 │         required: true
+ 965 │         content:
+ 966 │           multipart/form-data:
+ 967 │             schema:
+ 968 │               type: object
+ 969 │               required: [departments, employees]
+ 970 │               properties:
+ 971 │                 departments: { type: string, format: binary, description: 项目格式的部门信息表 xlsx 文件，读取首个工作表 }
+ 972 │                 employees: { type: string, format: binary, description: 项目格式的员工信息表 xlsx 文件，读取首个工作表 }
+ 973 │       responses:
+ 974 │         &#x27;200&#x27;: { $ref: &#x27;#/components/responses/ImportOk&#x27; }
+ 975 │
+ 976 │   /imports/permissions:
+ 977 │     post:
+ 978 │       tags: [org]
+ 979 │       operationId: importPermissions
+ 980 │       summary: 导入应用软件功能权限清单（业务系统、模块、资源、权限、五类角色模板）
+ 981 │       description: |
+ 982 │         需要 rbac:permission:create，通过 multipart/form-data 的 file 上传项目格式的功能权限清单 xlsx，读取首个工作表。
+ 983 │         建立或沿用系统、模块、资源及五类业务操作权限，并按清单同步五类角色模板的业务权限和本人数据限制。
+ 984 │         重复导入可新增、更新，也会回收清单中移除的模板业务权限；权限中心自身 rbac:* 权限保留。
+ 985 │         异常单元格对应的原有授权保留；存在无法定位的功能点时暂停本次删除同步。导入不会给用户分配角色。
+ 986 │         200 返回 counts、notes、anomalies，应检查异常清单及回收统计，变更授权后更新缓存版本。
+ 987 │       x-required-permission: rbac:permission:create
+ 988 │       requestBody:
+ 989 │         required: true
+ 990 │         content:
+ 991 │           multipart/form-data:
+ 992 │             schema:
+ 993 │               type: object
+ 994 │               required: [file]
+ 995 │               properties:
+ 996 │                 file: { type: string, format: binary, description: 项目格式的应用软件功能权限清单 xlsx 文件，读取首个工作表 }
+ 997 │       responses:
+ 998 │         &#x27;200&#x27;: { $ref: &#x27;#/components/responses/ImportOk&#x27; }</code></pre></details>
+    </article>
+
+    <article class="card" id="q8" data-cat="接口与范围" data-search="接口与范围 e01 为什么只返回一些公司？ companies 公司列表 rootdepartmentid 范围 orgservice 先取操作者的 org:view 授权范围，再遍历公司及其根部门；只有已有根部门且授权范围与公司组织树有交集的公司才返回。超级管理员按全范围处理。 没有根部门的公司不会显示；它是查询过滤，不会修改数据。 rbac-structured/src/main/java/com/xmu/rbac/structured/service/orgservice.java">
+      <div class="card-top"><span class="pill">接口与范围</span><span class="number">#08</span></div>
+      <h2>E01 为什么只返回一些公司？</h2>
+      <p class="answer">OrgService 先取操作者的 org:view 授权范围，再遍历公司及其根部门；只有已有根部门且授权范围与公司组织树有交集的公司才返回。超级管理员按全范围处理。</p>
+      <div class="followup"><strong>老师追问时补充</strong><br>没有根部门的公司不会显示；它是查询过滤，不会修改数据。</div>
+      <div class="source"><span>源码：</span><a href="../rbac-structured/src/main/java/com/xmu/rbac/structured/service/OrgService.java" target="_blank">rbac-structured/src/main/java/com/xmu/rbac/structured/service/OrgService.java</a><span class="line">第 38–53 行</span>
+        <button class="copy" data-copy="rbac-structured/src/main/java/com/xmu/rbac/structured/service/OrgService.java:38">复制位置</button>
+        <a class="github" href="https://github.com/vintcessun/OOAD/blob/827ca45/rbac-structured/src/main/java/com/xmu/rbac/structured/service/OrgService.java#L38-L53" target="_blank" rel="noopener">GitHub 定位 ↗</a>
+      </div>
+      <details><summary>查看这一段原代码 <span>38–53 行</span></summary><pre><code>  38 │     @Transactional(readOnly = true)
+  39 │     public List&lt;CompanyView&gt; companies(Operator op) {
+  40 │         Scope scope = authz.scopeOf(op.userId(), PERM_VIEW);
+  41 │         List&lt;CompanyView&gt; out = new ArrayList&lt;&gt;();
+  42 │         for (Company c : companyMapper.findAll()) {
+  43 │             Department root = departmentMapper.findByCompanyIdAndParentIdIsNull(c.id).orElse(null);
+  44 │             if (root == null) {
+  45 │                 continue;
+  46 │             }
+  47 │             boolean visible = scope.all() || scope.paths().stream().anyMatch(p -&gt; p.startsWith(root.path));
+  48 │             if (visible) {
+  49 │                 out.add(new CompanyView(c.id, c.companyCode, c.companyName, root.id));
+  50 │             }
+  51 │         }
+  52 │         return out;
+  53 │     }</code></pre></details>
+    </article>
+
+    <article class="card" id="q9" data-cat="接口与范围" data-search="接口与范围 e02 为什么祖先可见却不能管理？ tree 祖先 节点 兄弟分支 作用域 为了显示路径，部门树会保留通往可管理节点的祖先；但祖先的其他兄弟分支不会因此进入管理范围。真正的管理动作仍要单独检查目标部门。 可见性和可操作性不同；测试里的道路分公司示例能快速演示。 rbac-structured/src/main/java/com/xmu/rbac/structured/service/orgservice.java">
+      <div class="card-top"><span class="pill">接口与范围</span><span class="number">#09</span></div>
+      <h2>E02 为什么祖先可见却不能管理？</h2>
+      <p class="answer">为了显示路径，部门树会保留通往可管理节点的祖先；但祖先的其他兄弟分支不会因此进入管理范围。真正的管理动作仍要单独检查目标部门。</p>
+      <div class="followup"><strong>老师追问时补充</strong><br>可见性和可操作性不同；测试里的道路分公司示例能快速演示。</div>
+      <div class="source"><span>源码：</span><a href="../rbac-structured/src/main/java/com/xmu/rbac/structured/service/OrgService.java" target="_blank">rbac-structured/src/main/java/com/xmu/rbac/structured/service/OrgService.java</a><span class="line">第 55–85 行</span>
+        <button class="copy" data-copy="rbac-structured/src/main/java/com/xmu/rbac/structured/service/OrgService.java:55">复制位置</button>
+        <a class="github" href="https://github.com/vintcessun/OOAD/blob/827ca45/rbac-structured/src/main/java/com/xmu/rbac/structured/service/OrgService.java#L55-L85" target="_blank" rel="noopener">GitHub 定位 ↗</a>
+      </div>
+      <details><summary>查看这一段原代码 <span>55–85 行</span></summary><pre><code>  55 │     @Transactional(readOnly = true)
+  56 │     public List&lt;DeptNode&gt; tree(Operator op, Long companyId) {
+  57 │         if (!companyMapper.existsById(companyId)) {
+  58 │             throw BizException.notFound(&quot;公司&quot;);
+  59 │         }
+  60 │         Scope scope = authz.scopeOf(op.userId(), PERM_VIEW);
+  61 │         List&lt;Department&gt; all = departmentMapper.findByCompanyIdOrderByLevelAscSortOrderAscIdAsc(companyId);
+  62 │         // 可见：在范围内，或是范围内某节点的祖先
+  63 │         List&lt;Department&gt; visible = all.stream()
+  64 │                 .filter(d -&gt; scope.all() || AuthorizationService.inScope(scope, d.path)
+  65 │                         || scope.paths().stream().anyMatch(p -&gt; p.startsWith(d.path)))
+  66 │                 .toList();
+  67 │         Map&lt;Long, List&lt;Department&gt;&gt; children = new HashMap&lt;&gt;();
+  68 │         List&lt;Department&gt; roots = new ArrayList&lt;&gt;();
+  69 │         for (Department d : visible) {
+  70 │             if (d.parentId == null || visible.stream().noneMatch(x -&gt; x.id.equals(d.parentId))) {
+  71 │                 roots.add(d);
+  72 │             } else {
+  73 │                 children.computeIfAbsent(d.parentId, k -&gt; new ArrayList&lt;&gt;()).add(d);
+  74 │             }
+  75 │         }
+  76 │         return build(roots, children);
+  77 │     }
+  78 │
+  79 │     private static List&lt;DeptNode&gt; build(List&lt;Department&gt; level, Map&lt;Long, List&lt;Department&gt;&gt; children) {
+  80 │         return level.stream()
+  81 │                 .map(d -&gt; new DeptNode(d.id, d.parentId, d.deptName, d.level, d.managerName, d.managerUserId,
+  82 │                         build(children.getOrDefault(d.id, List.of()), children)))
+  83 │                 .toList();
+  84 │     }
+  85 │ }</code></pre></details>
+    </article>
+
+    <article class="card" id="q10" data-cat="接口与范围" data-search="接口与范围 scopeof 怎么取管理范围？ scopeof scope paths super_admin 它读取用户的授权集合；超级管理员得到全范围，普通用户筛出指定权限的作用部门路径。orgservice 用这些路径判断公司与节点是否可见。 同一个权限可能有多个作用部门，返回的是路径集合。 rbac-structured/src/main/java/com/xmu/rbac/structured/service/authorizationservice.java">
+      <div class="card-top"><span class="pill">接口与范围</span><span class="number">#10</span></div>
+      <h2>scopeOf 怎么取管理范围？</h2>
+      <p class="answer">它读取用户的授权集合；超级管理员得到全范围，普通用户筛出指定权限的作用部门路径。OrgService 用这些路径判断公司与节点是否可见。</p>
+      <div class="followup"><strong>老师追问时补充</strong><br>同一个权限可能有多个作用部门，返回的是路径集合。</div>
+      <div class="source"><span>源码：</span><a href="../rbac-structured/src/main/java/com/xmu/rbac/structured/service/AuthorizationService.java" target="_blank">rbac-structured/src/main/java/com/xmu/rbac/structured/service/AuthorizationService.java</a><span class="line">第 221–244 行</span>
+        <button class="copy" data-copy="rbac-structured/src/main/java/com/xmu/rbac/structured/service/AuthorizationService.java:221">复制位置</button>
+        <a class="github" href="https://github.com/vintcessun/OOAD/blob/827ca45/rbac-structured/src/main/java/com/xmu/rbac/structured/service/AuthorizationService.java#L221-L244" target="_blank" rel="noopener">GitHub 定位 ↗</a>
+      </div>
+      <details><summary>查看这一段原代码 <span>221–244 行</span></summary><pre><code> 221 │
+ 222 │     public boolean isSuperAdmin(Long userId) {
+ 223 │         return holdsSuperAdmin(loadGrants(userId).grants());
+ 224 │     }
+ 225 │
+ 226 │     /** 用户持有某权限的部门范围（超级管理员为全部）。 */
+ 227 │     public Scope scopeOf(Long userId, String permissionCode) {
+ 228 │         GrantSet grants = loadGrants(userId).grants();
+ 229 │         if (holdsSuperAdmin(grants)) {
+ 230 │             return Scope.ALL;
+ 231 │         }
+ 232 │         List&lt;String&gt; paths = grants.grants().stream()
+ 233 │                 .filter(g -&gt; g.permissionCode().equals(permissionCode))
+ 234 │                 .map(GrantRow::scopePath)
+ 235 │                 .distinct()
+ 236 │                 .toList();
+ 237 │         return new Scope(false, paths);
+ 238 │     }
+ 239 │
+ 240 │     public static boolean inScope(Scope scope, String targetPath) {
+ 241 │         return scope.all() || scope.paths().stream().anyMatch(p -&gt; covers(p, targetPath));
+ 242 │     }
+ 243 │
+ 244 │     /**</code></pre></details>
+    </article>
+<h2 class="section" data-cat="组织导入">组织导入</h2>
+
+    <article class="card" id="q11" data-cat="组织导入" data-search="组织导入 e03 上传了什么？ multipart departments employees companycode companyname 接口接收公司编码、公司名称和两份 xlsx。先读取部门表与员工表，再创建或复用公司、建部门树、定位员工归属，最后关联部门负责人并返回导入报告。 参数和字段名要能在 controller 与前端 orgapi 中对上。 rbac-structured/src/main/java/com/xmu/rbac/structured/controller/catalogcontroller.java">
+      <div class="card-top"><span class="pill">组织导入</span><span class="number">#11</span></div>
+      <h2>E03 上传了什么？</h2>
+      <p class="answer">接口接收公司编码、公司名称和两份 xlsx。先读取部门表与员工表，再创建或复用公司、建部门树、定位员工归属，最后关联部门负责人并返回导入报告。</p>
+      <div class="followup"><strong>老师追问时补充</strong><br>参数和字段名要能在 Controller 与前端 orgApi 中对上。</div>
+      <div class="source"><span>源码：</span><a href="../rbac-structured/src/main/java/com/xmu/rbac/structured/controller/CatalogController.java" target="_blank">rbac-structured/src/main/java/com/xmu/rbac/structured/controller/CatalogController.java</a><span class="line">第 139–150 行</span>
+        <button class="copy" data-copy="rbac-structured/src/main/java/com/xmu/rbac/structured/controller/CatalogController.java:139">复制位置</button>
+        <a class="github" href="https://github.com/vintcessun/OOAD/blob/827ca45/rbac-structured/src/main/java/com/xmu/rbac/structured/controller/CatalogController.java#L139-L150" target="_blank" rel="noopener">GitHub 定位 ↗</a>
+      </div>
+      <details><summary>查看这一段原代码 <span>139–150 行</span></summary><pre><code> 139 │     @PostMapping(&quot;/imports/organization&quot;)
+ 140 │     public ApiResponse&lt;ImportReport&gt; importOrganization(@RequestAttribute(OP) Operator op,
+ 141 │                                                         @RequestParam String companyCode,
+ 142 │                                                         @RequestParam String companyName,
+ 143 │                                                         @RequestPart(&quot;departments&quot;) MultipartFile departments,
+ 144 │                                                         @RequestPart(&quot;employees&quot;) MultipartFile employees) {
+ 145 │         try (InputStream d = departments.getInputStream(); InputStream e = employees.getInputStream()) {
+ 146 │             return ApiResponse.ok(imports.importOrganization(op, companyCode, companyName, d, e));
+ 147 │         } catch (IOException ex) {
+ 148 │             throw BizException.badRequest(&quot;读取上传文件失败&quot;);
+ 149 │         }
+ 150 │     }</code></pre></details>
+    </article>
+
+    <article class="card" id="q12" data-cat="组织导入" data-search="组织导入 组织导入总体顺序是什么？ importorganization 事务 部门 员工 负责人 importservice.importorganization 是一个事务：查找或创建公司、读取两表、先导部门、再导员工、最后关联负责人。有效数据会进入数据库，逐行无法处理的数据进入 anomalies。 方法末尾明确写了不会自动分配角色；审计会记录导入结果。 rbac-structured/src/main/java/com/xmu/rbac/structured/service/importservice.java">
+      <div class="card-top"><span class="pill">组织导入</span><span class="number">#12</span></div>
+      <h2>组织导入总体顺序是什么？</h2>
+      <p class="answer">ImportService.importOrganization 是一个事务：查找或创建公司、读取两表、先导部门、再导员工、最后关联负责人。有效数据会进入数据库，逐行无法处理的数据进入 anomalies。</p>
+      <div class="followup"><strong>老师追问时补充</strong><br>方法末尾明确写了不会自动分配角色；审计会记录导入结果。</div>
+      <div class="source"><span>源码：</span><a href="../rbac-structured/src/main/java/com/xmu/rbac/structured/service/ImportService.java" target="_blank">rbac-structured/src/main/java/com/xmu/rbac/structured/service/ImportService.java</a><span class="line">第 139–169 行</span>
+        <button class="copy" data-copy="rbac-structured/src/main/java/com/xmu/rbac/structured/service/ImportService.java:139">复制位置</button>
+        <a class="github" href="https://github.com/vintcessun/OOAD/blob/827ca45/rbac-structured/src/main/java/com/xmu/rbac/structured/service/ImportService.java#L139-L169" target="_blank" rel="noopener">GitHub 定位 ↗</a>
+      </div>
+      <details><summary>查看这一段原代码 <span>139–169 行</span></summary><pre><code> 139 │     @Transactional
+ 140 │     public ImportReport importOrganization(Operator op, String companyCode, String companyName,
+ 141 │                                            InputStream deptXlsx, InputStream employeeXlsx) {
+ 142 │         if (companyCode == null || companyCode.isBlank() || companyName == null || companyName.isBlank()) {
+ 143 │             throw BizException.badRequest(&quot;companyCode、companyName 必填&quot;);
+ 144 │         }
+ 145 │         Map&lt;String, Integer&gt; counts = new LinkedHashMap&lt;&gt;();
+ 146 │         List&lt;String&gt; notes = new ArrayList&lt;&gt;();
+ 147 │         List&lt;Anomaly&gt; anomalies = new ArrayList&lt;&gt;();
+ 148 │
+ 149 │         Company company = companyMapper.findByCompanyCode(companyCode.trim()).orElseGet(() -&gt; {
+ 150 │             Company c = new Company();
+ 151 │             c.companyCode = companyCode.trim();
+ 152 │             c.companyName = companyName.trim();
+ 153 │             return companyMapper.save(c);
+ 154 │         });
+ 155 │
+ 156 │         List&lt;List&lt;String&gt;&gt; deptRows = readSheet(deptXlsx, &quot;部门名称&quot;);
+ 157 │         List&lt;List&lt;String&gt;&gt; empRows = readSheet(employeeXlsx, &quot;用户名&quot;);
+ 158 │
+ 159 │         Map&lt;String, Department&gt; byName = importDepartments(company, deptRows, counts, anomalies);
+ 160 │         Map&lt;Long, Department&gt; byId = new HashMap&lt;&gt;();
+ 161 │         byName.values().forEach(d -&gt; byId.put(d.id, d));
+ 162 │         List&lt;User&gt; created = importEmployees(company, byName, empRows, counts, anomalies);
+ 163 │         linkManagers(company, deptRows, byName, byId, created, counts, notes, anomalies);
+ 164 │
+ 165 │         notes.add(&quot;导入不分配任何角色：请审核后用批量授权（POST /assignments/batch）人工分配&quot;);
+ 166 │         audit.record(op, &quot;IMPORT_ORG&quot;, &quot;COMPANY&quot;, company.id, company.companyName, counts.toString(),
+ 167 │                 anomalies.isEmpty() ? AuditService.SUCCESS : AuditService.FAILED,
+ 168 │                 anomalies.isEmpty() ? null : anomalies.size() + &quot; 行异常&quot;);
+ 169 │         return new ImportReport(counts, notes, anomalies);</code></pre></details>
+    </article>
+
+    <article class="card" id="q13" data-cat="组织导入" data-search="组织导入 部门树如何按上级关系建立？ importdepartments pending done 上级 缺失 成环 把部门行先放进 pending，多轮处理：上级已建好的部门才能创建孩子。重复名、多个根、找不到上级或成环都进入异常清单。部门 path 保存从根到自己的编号路径。 这里的名称在一份表内要求唯一；已存在部门会复用并更新 managername。 rbac-structured/src/main/java/com/xmu/rbac/structured/service/importservice.java">
+      <div class="card-top"><span class="pill">组织导入</span><span class="number">#13</span></div>
+      <h2>部门树如何按上级关系建立？</h2>
+      <p class="answer">把部门行先放进 pending，多轮处理：上级已建好的部门才能创建孩子。重复名、多个根、找不到上级或成环都进入异常清单。部门 path 保存从根到自己的编号路径。</p>
+      <div class="followup"><strong>老师追问时补充</strong><br>这里的名称在一份表内要求唯一；已存在部门会复用并更新 managerName。</div>
+      <div class="source"><span>源码：</span><a href="../rbac-structured/src/main/java/com/xmu/rbac/structured/service/ImportService.java" target="_blank">rbac-structured/src/main/java/com/xmu/rbac/structured/service/ImportService.java</a><span class="line">第 172–236 行</span>
+        <button class="copy" data-copy="rbac-structured/src/main/java/com/xmu/rbac/structured/service/ImportService.java:172">复制位置</button>
+        <a class="github" href="https://github.com/vintcessun/OOAD/blob/827ca45/rbac-structured/src/main/java/com/xmu/rbac/structured/service/ImportService.java#L172-L236" target="_blank" rel="noopener">GitHub 定位 ↗</a>
+      </div>
+      <details><summary>查看这一段原代码 <span>172–236 行</span></summary><pre><code> 172 │     /** 按「上级部门」列建树。名称在表内唯一；上级缺失、重名、成环的行进入异常清单。 */
+ 173 │     Map&lt;String, Department&gt; importDepartments(Company company, List&lt;List&lt;String&gt;&gt; rows,
+ 174 │                                               Map&lt;String, Integer&gt; counts, List&lt;Anomaly&gt; anomalies) {
+ 175 │         Map&lt;String, List&lt;String&gt;&gt; pending = new LinkedHashMap&lt;&gt;();   // 名称 → 行
+ 176 │         Map&lt;String, Integer&gt; rowNo = new HashMap&lt;&gt;();
+ 177 │         for (int i = 0; i &lt; rows.size(); i++) {
+ 178 │             List&lt;String&gt; r = rows.get(i);
+ 179 │             String name = cell(r, 0);
+ 180 │             if (name == null) {
+ 181 │                 anomalies.add(new Anomaly(&quot;部门信息&quot;, i + 2, &quot;部门名称为空&quot;, String.join(&quot;,&quot;, r)));
+ 182 │                 continue;
+ 183 │             }
+ 184 │             if (pending.containsKey(name)) {
+ 185 │                 anomalies.add(new Anomaly(&quot;部门信息&quot;, i + 2, &quot;部门名称重复&quot;, name));
+ 186 │                 continue;
+ 187 │             }
+ 188 │             pending.put(name, r);
+ 189 │             rowNo.put(name, i + 2);
+ 190 │         }
+ 191 │         Map&lt;String, Department&gt; done = new LinkedHashMap&lt;&gt;();
+ 192 │         int created = 0;
+ 193 │         boolean progress = true;
+ 194 │         while (!pending.isEmpty() &amp;&amp; progress) {
+ 195 │             progress = false;
+ 196 │             for (var it = pending.entrySet().iterator(); it.hasNext(); ) {
+ 197 │                 var e = it.next();
+ 198 │                 String parentName = cell(e.getValue(), 2);
+ 199 │                 Department parent = parentName == null ? null : done.get(parentName);
+ 200 │                 if (parentName != null &amp;&amp; parent == null) {
+ 201 │                     continue;   // 上级还没建好，下一轮
+ 202 │                 }
+ 203 │                 if (parentName == null &amp;&amp; done.values().stream().anyMatch(d -&gt; d.parentId == null)) {
+ 204 │                     anomalies.add(new Anomaly(&quot;部门信息&quot;, rowNo.get(e.getKey()), &quot;一家公司只能有一个根部门&quot;, e.getKey()));
+ 205 │                     it.remove();
+ 206 │                     continue;
+ 207 │                 }
+ 208 │                 Long parentId = parent == null ? null : parent.id;
+ 209 │                 Department d = (parentId == null
+ 210 │                         ? departmentMapper.findByCompanyIdAndParentIdIsNull(company.id)
+ 211 │                         : departmentMapper.findByCompanyIdAndParentIdAndDeptName(company.id, parentId, e.getKey()))
+ 212 │                         .orElse(null);
+ 213 │                 if (d == null) {
+ 214 │                     d = new Department();
+ 215 │                     d.companyId = company.id;
+ 216 │                     d.parentId = parentId;
+ 217 │                     d.deptName = e.getKey();
+ 218 │                     d.level = parent == null ? 1 : parent.level + 1;
+ 219 │                     d.path = &quot;/&quot;;   // 拿到 id 后再写真正的路径
+ 220 │                     d.sortOrder = rowNo.get(e.getKey());
+ 221 │                     departmentMapper.save(d);
+ 222 │                     d.path = (parent == null ? &quot;/&quot; : parent.path) + d.id + &quot;/&quot;;
+ 223 │                     created++;
+ 224 │                 }
+ 225 │                 d.managerName = cell(e.getValue(), 1);
+ 226 │                 departmentMapper.save(d);
+ 227 │                 done.put(e.getKey(), d);
+ 228 │                 it.remove();
+ 229 │                 progress = true;
+ 230 │             }
+ 231 │         }
+ 232 │         pending.forEach((name, r) -&gt; anomalies.add(new Anomaly(&quot;部门信息&quot;, rowNo.get(name),
+ 233 │                 &quot;上级部门不存在或成环&quot;, name + &quot; ← &quot; + cell(r, 2))));
+ 234 │         counts.put(&quot;departmentsInSheet&quot;, rows.size());
+ 235 │         counts.put(&quot;departmentsCreated&quot;, created);
+ 236 │         return done;</code></pre></details>
+    </article>
+
+    <article class="card" id="q14" data-cat="组织导入" data-search="组织导入 同名财务部为何不会串公司？ locate 分公司 部门 公司归属 员工不能只按部门名匹配。locate 先确定分公司节点，再在其下找部门；分公司直属人员归分公司本节点，避免把不同公司或不同分公司的同名财务部混起来。 测试 t19 验证同名部门的跨公司授权隔离；导入测试验证员工部门归属。 rbac-structured/src/main/java/com/xmu/rbac/structured/service/importservice.java">
+      <div class="card-top"><span class="pill">组织导入</span><span class="number">#14</span></div>
+      <h2>同名财务部为何不会串公司？</h2>
+      <p class="answer">员工不能只按部门名匹配。locate 先确定分公司节点，再在其下找部门；分公司直属人员归分公司本节点，避免把不同公司或不同分公司的同名财务部混起来。</p>
+      <div class="followup"><strong>老师追问时补充</strong><br>测试 t19 验证同名部门的跨公司授权隔离；导入测试验证员工部门归属。</div>
+      <div class="source"><span>源码：</span><a href="../rbac-structured/src/main/java/com/xmu/rbac/structured/service/ImportService.java" target="_blank">rbac-structured/src/main/java/com/xmu/rbac/structured/service/ImportService.java</a><span class="line">第 239–319 行</span>
+        <button class="copy" data-copy="rbac-structured/src/main/java/com/xmu/rbac/structured/service/ImportService.java:239">复制位置</button>
+        <a class="github" href="https://github.com/vintcessun/OOAD/blob/827ca45/rbac-structured/src/main/java/com/xmu/rbac/structured/service/ImportService.java#L239-L319" target="_blank" rel="noopener">GitHub 定位 ↗</a>
+      </div>
+      <details><summary>查看这一段原代码 <span>239–319 行</span></summary><pre><code> 239 │     /**
+ 240 │      * 员工的部门按「分公司 + 部门」两列定位，并校验部门确实在该分公司之下：
+ 241 │      * &lt;ul&gt;
+ 242 │      *   &lt;li&gt;分公司 = 根部门（总公司）：部门是根部门的直接下级；&lt;/li&gt;
+ 243 │      *   &lt;li&gt;部门 = 分公司：分公司直属人员，归到分公司节点本身；&lt;/li&gt;
+ 244 │      *   &lt;li&gt;否则：在该分公司的下级中找「分公司-部门」或「部门」。&lt;/li&gt;
+ 245 │      * &lt;/ul&gt;
+ 246 │      * 只凭部门名查找会把「财务部」错配到总公司财务部或别的分公司财务部。
+ 247 │      */
+ 248 │     List&lt;User&gt; importEmployees(Company company, Map&lt;String, Department&gt; byName, List&lt;List&lt;String&gt;&gt; rows,
+ 249 │                                Map&lt;String, Integer&gt; counts, List&lt;Anomaly&gt; anomalies) {
+ 250 │         Department root = byName.values().stream().filter(d -&gt; d.parentId == null).findFirst().orElse(null);
+ 251 │         if (root == null) {
+ 252 │             throw BizException.badRequest(&quot;部门信息表中没有根部门&quot;);
+ 253 │         }
+ 254 │         Map&lt;String, Department&gt; child = new HashMap&lt;&gt;();   // parentId|name → dept
+ 255 │         byName.values().forEach(d -&gt; child.put(d.parentId + &quot;|&quot; + d.deptName, d));
+ 256 │
+ 257 │         Set&lt;String&gt; existing = new HashSet&lt;&gt;(userMapper.findAllUsernames());
+ 258 │         Set&lt;String&gt; seen = new HashSet&lt;&gt;();
+ 259 │         String hash = users.initialPasswordHash();
+ 260 │         List&lt;User&gt; created = new ArrayList&lt;&gt;();
+ 261 │         int skipped = 0;
+ 262 │         for (int i = 0; i &lt; rows.size(); i++) {
+ 263 │             List&lt;String&gt; r = rows.get(i);
+ 264 │             int line = i + 2;
+ 265 │             String name = cell(r, 0);
+ 266 │             String username = cell(r, 1);
+ 267 │             String branch = cell(r, 2);
+ 268 │             String deptName = cell(r, 3);
+ 269 │             if (name == null || username == null || branch == null || deptName == null) {
+ 270 │                 anomalies.add(new Anomaly(&quot;员工信息&quot;, line, &quot;姓名、用户名、分公司、部门不能为空&quot;, String.join(&quot;,&quot;, r)));
+ 271 │                 continue;
+ 272 │             }
+ 273 │             if (!seen.add(username)) {
+ 274 │                 anomalies.add(new Anomaly(&quot;员工信息&quot;, line, &quot;用户名在表内重复&quot;, username));
+ 275 │                 continue;
+ 276 │             }
+ 277 │             if (existing.contains(username)) {
+ 278 │                 skipped++;
+ 279 │                 continue;
+ 280 │             }
+ 281 │             Department dept = locate(root, child, branch, deptName);
+ 282 │             if (dept == null) {
+ 283 │                 anomalies.add(new Anomaly(&quot;员工信息&quot;, line, &quot;无法在该分公司下唯一定位部门&quot;, branch + &quot; / &quot; + deptName));
+ 284 │                 continue;
+ 285 │             }
+ 286 │             User u = new User();
+ 287 │             u.companyId = company.id;
+ 288 │             u.departmentId = dept.id;
+ 289 │             u.username = username;
+ 290 │             u.employeeNo = username;
+ 291 │             u.realName = name;
+ 292 │             u.position = cell(r, 4);
+ 293 │             u.phone = cell(r, 5);
+ 294 │             u.userType = User.EMPLOYEE;
+ 295 │             u.passwordHash = hash;
+ 296 │             u.mustChangePwd = true;
+ 297 │             created.add(u);
+ 298 │         }
+ 299 │         userMapper.saveAll(created);
+ 300 │         counts.put(&quot;employeesInSheet&quot;, rows.size());
+ 301 │         counts.put(&quot;usersCreated&quot;, created.size());
+ 302 │         counts.put(&quot;usersAlreadyPresent&quot;, skipped);
+ 303 │         return created;
+ 304 │     }
+ 305 │
+ 306 │     static Department locate(Department root, Map&lt;String, Department&gt; child, String branch, String deptName) {
+ 307 │         if (branch.equals(root.deptName)) {
+ 308 │             return deptName.equals(root.deptName) ? root : child.get(root.id + &quot;|&quot; + deptName);
+ 309 │         }
+ 310 │         Department branchNode = child.get(root.id + &quot;|&quot; + branch);
+ 311 │         if (branchNode == null) {
+ 312 │             return null;
+ 313 │         }
+ 314 │         if (deptName.equals(branch)) {
+ 315 │             return branchNode;
+ 316 │         }
+ 317 │         Department d = child.get(branchNode.id + &quot;|&quot; + branch + &quot;-&quot; + deptName);
+ 318 │         return d != null ? d : child.get(branchNode.id + &quot;|&quot; + deptName);
+ 319 │     }</code></pre></details>
+    </article>
+
+    <article class="card" id="q15" data-cat="组织导入" data-search="组织导入 重复导入员工怎么处理？ importemployees username 已存在 skip 密码 导入前取已有用户名；工作簿内重名报异常，数据库里已存在的用户名会跳过。新用户才写入公司、部门、工号、岗位、电话和预编码的初始口令，并标记首次登录须改密。 跳过意味着已有用户的部门、岗位等不会按新表自动更新；是否需要同步必须单独定规则。 rbac-structured/src/main/java/com/xmu/rbac/structured/service/importservice.java">
+      <div class="card-top"><span class="pill">组织导入</span><span class="number">#15</span></div>
+      <h2>重复导入员工怎么处理？</h2>
+      <p class="answer">导入前取已有用户名；工作簿内重名报异常，数据库里已存在的用户名会跳过。新用户才写入公司、部门、工号、岗位、电话和预编码的初始口令，并标记首次登录须改密。</p>
+      <div class="followup"><strong>老师追问时补充</strong><br>跳过意味着已有用户的部门、岗位等不会按新表自动更新；是否需要同步必须单独定规则。</div>
+      <div class="source"><span>源码：</span><a href="../rbac-structured/src/main/java/com/xmu/rbac/structured/service/ImportService.java" target="_blank">rbac-structured/src/main/java/com/xmu/rbac/structured/service/ImportService.java</a><span class="line">第 257–303 行</span>
+        <button class="copy" data-copy="rbac-structured/src/main/java/com/xmu/rbac/structured/service/ImportService.java:257">复制位置</button>
+        <a class="github" href="https://github.com/vintcessun/OOAD/blob/827ca45/rbac-structured/src/main/java/com/xmu/rbac/structured/service/ImportService.java#L257-L303" target="_blank" rel="noopener">GitHub 定位 ↗</a>
+      </div>
+      <details><summary>查看这一段原代码 <span>257–303 行</span></summary><pre><code> 257 │         Set&lt;String&gt; existing = new HashSet&lt;&gt;(userMapper.findAllUsernames());
+ 258 │         Set&lt;String&gt; seen = new HashSet&lt;&gt;();
+ 259 │         String hash = users.initialPasswordHash();
+ 260 │         List&lt;User&gt; created = new ArrayList&lt;&gt;();
+ 261 │         int skipped = 0;
+ 262 │         for (int i = 0; i &lt; rows.size(); i++) {
+ 263 │             List&lt;String&gt; r = rows.get(i);
+ 264 │             int line = i + 2;
+ 265 │             String name = cell(r, 0);
+ 266 │             String username = cell(r, 1);
+ 267 │             String branch = cell(r, 2);
+ 268 │             String deptName = cell(r, 3);
+ 269 │             if (name == null || username == null || branch == null || deptName == null) {
+ 270 │                 anomalies.add(new Anomaly(&quot;员工信息&quot;, line, &quot;姓名、用户名、分公司、部门不能为空&quot;, String.join(&quot;,&quot;, r)));
+ 271 │                 continue;
+ 272 │             }
+ 273 │             if (!seen.add(username)) {
+ 274 │                 anomalies.add(new Anomaly(&quot;员工信息&quot;, line, &quot;用户名在表内重复&quot;, username));
+ 275 │                 continue;
+ 276 │             }
+ 277 │             if (existing.contains(username)) {
+ 278 │                 skipped++;
+ 279 │                 continue;
+ 280 │             }
+ 281 │             Department dept = locate(root, child, branch, deptName);
+ 282 │             if (dept == null) {
+ 283 │                 anomalies.add(new Anomaly(&quot;员工信息&quot;, line, &quot;无法在该分公司下唯一定位部门&quot;, branch + &quot; / &quot; + deptName));
+ 284 │                 continue;
+ 285 │             }
+ 286 │             User u = new User();
+ 287 │             u.companyId = company.id;
+ 288 │             u.departmentId = dept.id;
+ 289 │             u.username = username;
+ 290 │             u.employeeNo = username;
+ 291 │             u.realName = name;
+ 292 │             u.position = cell(r, 4);
+ 293 │             u.phone = cell(r, 5);
+ 294 │             u.userType = User.EMPLOYEE;
+ 295 │             u.passwordHash = hash;
+ 296 │             u.mustChangePwd = true;
+ 297 │             created.add(u);
+ 298 │         }
+ 299 │         userMapper.saveAll(created);
+ 300 │         counts.put(&quot;employeesInSheet&quot;, rows.size());
+ 301 │         counts.put(&quot;usersCreated&quot;, created.size());
+ 302 │         counts.put(&quot;usersAlreadyPresent&quot;, skipped);
+ 303 │         return created;</code></pre></details>
+    </article>
+
+    <article class="card" id="q16" data-cat="组织导入" data-search="组织导入 初始密码为什么只编码一次？ bcrypt initialpasswordhash mustchangepwd usermanagementservice 启动时把配置的初始口令做一次 bcrypt 编码，importservice 导入时复用该哈希，避免每名员工都重复计算。新账号会设 mustchangepwd=true。 这是导入性能选择；不要现场说出生产环境明文口令。 rbac-structured/src/main/java/com/xmu/rbac/structured/service/usermanagementservice.java">
+      <div class="card-top"><span class="pill">组织导入</span><span class="number">#16</span></div>
+      <h2>初始密码为什么只编码一次？</h2>
+      <p class="answer">UserManagementService 启动时把配置的初始口令做一次 BCrypt 编码，ImportService 导入时复用该哈希，避免每名员工都重复计算。新账号会设 mustChangePwd=true。</p>
+      <div class="followup"><strong>老师追问时补充</strong><br>这是导入性能选择；不要现场说出生产环境明文口令。</div>
+      <div class="source"><span>源码：</span><a href="../rbac-structured/src/main/java/com/xmu/rbac/structured/service/UserManagementService.java" target="_blank">rbac-structured/src/main/java/com/xmu/rbac/structured/service/UserManagementService.java</a><span class="line">第 62–81 行</span>
+        <button class="copy" data-copy="rbac-structured/src/main/java/com/xmu/rbac/structured/service/UserManagementService.java:62">复制位置</button>
+        <a class="github" href="https://github.com/vintcessun/OOAD/blob/827ca45/rbac-structured/src/main/java/com/xmu/rbac/structured/service/UserManagementService.java#L62-L81" target="_blank" rel="noopener">GitHub 定位 ↗</a>
+      </div>
+      <details><summary>查看这一段原代码 <span>62–81 行</span></summary><pre><code>  62 │     private final String initialPasswordHash;
+  63 │
+  64 │     public UserManagementService(UserMapper userMapper, DepartmentMapper departmentMapper,
+  65 │                                  UserRoleMapper userRoleMapper, AuthorizationService authz, AuditService audit,
+  66 │                                  PasswordEncoder passwordEncoder, Clock clock,
+  67 │                                  @Value(&quot;${rbac.initial-password}&quot;) String initialPassword) {
+  68 │         this.userMapper = userMapper;
+  69 │         this.departmentMapper = departmentMapper;
+  70 │         this.userRoleMapper = userRoleMapper;
+  71 │         this.authz = authz;
+  72 │         this.audit = audit;
+  73 │         this.passwordEncoder = passwordEncoder;
+  74 │         this.clock = clock;
+  75 │         // 初始口令只算一次哈希：导入一万名员工时逐个计算 BCrypt 要好几分钟
+  76 │         this.initialPasswordHash = passwordEncoder.encode(initialPassword);
+  77 │     }
+  78 │
+  79 │     public String initialPasswordHash() {
+  80 │         return initialPasswordHash;
+  81 │     }</code></pre></details>
+    </article>
+
+    <article class="card" id="q17" data-cat="组织导入" data-search="组织导入 负责人如何关联？会自动授权吗？ linkmanagers managername manageruserid 重名 先在负责人姓名对应的员工里查部门子树；子树内恰好一人就关联，子树内没人时再考虑全公司唯一匹配。重名或找不到会记异常。manageruserid 只表示组织信息，不产生角色指派。 现实现只索引本轮新建员工；重复导入改成已有员工时存在 hr-003 待复现问题。 rbac-structured/src/main/java/com/xmu/rbac/structured/service/importservice.java">
+      <div class="card-top"><span class="pill">组织导入</span><span class="number">#17</span></div>
+      <h2>负责人如何关联？会自动授权吗？</h2>
+      <p class="answer">先在负责人姓名对应的员工里查部门子树；子树内恰好一人就关联，子树内没人时再考虑全公司唯一匹配。重名或找不到会记异常。managerUserId 只表示组织信息，不产生角色指派。</p>
+      <div class="followup"><strong>老师追问时补充</strong><br>现实现只索引本轮新建员工；重复导入改成已有员工时存在 HR-003 待复现问题。</div>
+      <div class="source"><span>源码：</span><a href="../rbac-structured/src/main/java/com/xmu/rbac/structured/service/ImportService.java" target="_blank">rbac-structured/src/main/java/com/xmu/rbac/structured/service/ImportService.java</a><span class="line">第 321–356 行</span>
+        <button class="copy" data-copy="rbac-structured/src/main/java/com/xmu/rbac/structured/service/ImportService.java:321">复制位置</button>
+        <a class="github" href="https://github.com/vintcessun/OOAD/blob/827ca45/rbac-structured/src/main/java/com/xmu/rbac/structured/service/ImportService.java#L321-L356" target="_blank" rel="noopener">GitHub 定位 ↗</a>
+      </div>
+      <details><summary>查看这一段原代码 <span>321–356 行</span></summary><pre><code> 321 │     /**
+ 322 │      * 部门负责人只按姓名登记，可能重名。先在该部门子树内找，找不到再在全公司找；恰好一人才关联。
+ 323 │      * 关联只是组织信息，不产生任何管理权限。
+ 324 │      */
+ 325 │     void linkManagers(Company company, List&lt;List&lt;String&gt;&gt; deptRows, Map&lt;String, Department&gt; byName,
+ 326 │                       Map&lt;Long, Department&gt; byId, List&lt;User&gt; created, Map&lt;String, Integer&gt; counts,
+ 327 │                       List&lt;String&gt; notes, List&lt;Anomaly&gt; anomalies) {
+ 328 │         Map&lt;String, List&lt;User&gt;&gt; byRealName = new HashMap&lt;&gt;();
+ 329 │         for (User u : created) {
+ 330 │             byRealName.computeIfAbsent(u.realName, k -&gt; new ArrayList&lt;&gt;()).add(u);
+ 331 │         }
+ 332 │         int linked = 0;
+ 333 │         for (int i = 0; i &lt; deptRows.size(); i++) {
+ 334 │             String deptName = cell(deptRows.get(i), 0);
+ 335 │             String manager = cell(deptRows.get(i), 1);
+ 336 │             Department d = deptName == null ? null : byName.get(deptName);
+ 337 │             if (d == null || manager == null) {
+ 338 │                 continue;
+ 339 │             }
+ 340 │             List&lt;User&gt; sameName = byRealName.getOrDefault(manager, List.of());
+ 341 │             List&lt;User&gt; inSubtree = sameName.stream()
+ 342 │                     .filter(u -&gt; AuthorizationService.covers(d.path, byId.get(u.departmentId).path))
+ 343 │                     .toList();
+ 344 │             List&lt;User&gt; pick = inSubtree.size() == 1 ? inSubtree : (inSubtree.isEmpty() ? sameName : inSubtree);
+ 345 │             if (pick.size() == 1) {
+ 346 │                 d.managerUserId = pick.get(0).id;
+ 347 │                 departmentMapper.save(d);
+ 348 │                 linked++;
+ 349 │             } else {
+ 350 │                 anomalies.add(new Anomaly(&quot;部门信息&quot;, i + 2,
+ 351 │                         pick.isEmpty() ? &quot;负责人在员工表中找不到&quot; : &quot;负责人重名，无法唯一确定（&quot; + pick.size() + &quot; 人）&quot;,
+ 352 │                         deptName + &quot; / &quot; + manager));
+ 353 │             }
+ 354 │         }
+ 355 │         counts.put(&quot;managersLinked&quot;, linked);
+ 356 │         notes.add(&quot;部门负责人只作为组织信息，不会因此获得任何管理权限&quot;);</code></pre></details>
+    </article>
+
+    <article class="card" id="q18" data-cat="组织导入" data-search="组织导入 异常报告的行号从哪来？ anomaly row readsheet 标题行 空行 hr-002 报告用 anomaly(sheet,row,reason,value) 表示异常。但组织导入的 readsheet 跳过表头和空行后只保留单元格值，下游按列表下标加 2 算行号；标题行或空行会使行号偏移。 这是静态发现 hr-002，尚未在真实运行中复现；不要表述为已经验证的线上事故。 rbac-structured/src/main/java/com/xmu/rbac/structured/service/importservice.java">
+      <div class="card-top"><span class="pill">组织导入</span><span class="number">#18</span></div>
+      <h2>异常报告的行号从哪来？</h2>
+      <p class="answer">报告用 Anomaly(sheet,row,reason,value) 表示异常。但组织导入的 readSheet 跳过表头和空行后只保留单元格值，下游按列表下标加 2 算行号；标题行或空行会使行号偏移。</p>
+      <div class="followup"><strong>老师追问时补充</strong><br>这是静态发现 HR-002，尚未在真实运行中复现；不要表述为已经验证的线上事故。</div>
+      <div class="source"><span>源码：</span><a href="../rbac-structured/src/main/java/com/xmu/rbac/structured/service/ImportService.java" target="_blank">rbac-structured/src/main/java/com/xmu/rbac/structured/service/ImportService.java</a><span class="line">第 681–729 行</span>
+        <button class="copy" data-copy="rbac-structured/src/main/java/com/xmu/rbac/structured/service/ImportService.java:681">复制位置</button>
+        <a class="github" href="https://github.com/vintcessun/OOAD/blob/827ca45/rbac-structured/src/main/java/com/xmu/rbac/structured/service/ImportService.java#L681-L729" target="_blank" rel="noopener">GitHub 定位 ↗</a>
+      </div>
+      <details><summary>查看这一段原代码 <span>681–729 行</span></summary><pre><code> 681 │     /** 读出第一张表中表头之后的所有行（每个单元格转成去掉首尾空白的文本，空单元格为 null）。 */
+ 682 │     static List&lt;List&lt;String&gt;&gt; readSheet(InputStream xlsx, String headerMarker) {
+ 683 │         if (xlsx == null) {
+ 684 │             throw BizException.badRequest(&quot;缺少 xlsx 文件&quot;);
+ 685 │         }
+ 686 │         try (Workbook wb = WorkbookFactory.create(xlsx)) {
+ 687 │             Sheet sheet = wb.getSheetAt(0);
+ 688 │             DataFormatter fmt = new DataFormatter();
+ 689 │             int header = findHeaderRow(sheet, fmt, headerMarker);
+ 690 │             int width = sheet.getRow(header).getLastCellNum();
+ 691 │             List&lt;List&lt;String&gt;&gt; rows = new ArrayList&lt;&gt;();
+ 692 │             for (int r = header + 1; r &lt;= sheet.getLastRowNum(); r++) {
+ 693 │                 Row row = sheet.getRow(r);
+ 694 │                 if (row == null) {
+ 695 │                     continue;
+ 696 │                 }
+ 697 │                 List&lt;String&gt; cells = new ArrayList&lt;&gt;();
+ 698 │                 boolean any = false;
+ 699 │                 for (int c = 0; c &lt; width; c++) {
+ 700 │                     String v = text(fmt, row.getCell(c));
+ 701 │                     any |= v != null;
+ 702 │                     cells.add(v);
+ 703 │                 }
+ 704 │                 if (any) {
+ 705 │                     rows.add(cells);
+ 706 │                 }
+ 707 │             }
+ 708 │             return rows;
+ 709 │         } catch (IOException | RuntimeException e) {
+ 710 │             if (e instanceof BizException be) {
+ 711 │                 throw be;
+ 712 │             }
+ 713 │             throw BizException.badRequest(&quot;无法读取 xlsx：&quot; + e.getMessage());
+ 714 │         }
+ 715 │     }
+ 716 │
+ 717 │     static int findHeaderRow(Sheet sheet, DataFormatter fmt, String marker) {
+ 718 │         for (int r = sheet.getFirstRowNum(); r &lt;= Math.min(sheet.getLastRowNum(), 10); r++) {
+ 719 │             Row row = sheet.getRow(r);
+ 720 │             if (row == null) {
+ 721 │                 continue;
+ 722 │             }
+ 723 │             for (Cell c : row) {
+ 724 │                 if (marker.equals(text(fmt, c))) {
+ 725 │                     return r;
+ 726 │                 }
+ 727 │             }
+ 728 │         }
+ 729 │         throw BizException.badRequest(&quot;找不到表头「&quot; + marker + &quot;」，请确认上传的是正确的表格&quot;);</code></pre></details>
+    </article>
+<h2 class="section" data-cat="权限导入">权限导入</h2>
+
+    <article class="card" id="q19" data-cat="权限导入" data-search="权限导入 e04 上传清单后做什么？ importpermissions 系统 模块 资源 权限 角色模板 读取首个工作表，定位表头；系统与模块列允许合并单元格延续上一行。每个功能点建立五类操作的权限定义，再按角色列单元格给模板角色同步实际授权。 权限定义存在，不等于所有角色都获得这些权限。 rbac-structured/src/main/java/com/xmu/rbac/structured/service/importservice.java">
+      <div class="card-top"><span class="pill">权限导入</span><span class="number">#19</span></div>
+      <h2>E04 上传清单后做什么？</h2>
+      <p class="answer">读取首个工作表，定位表头；系统与模块列允许合并单元格延续上一行。每个功能点建立五类操作的权限定义，再按角色列单元格给模板角色同步实际授权。</p>
+      <div class="followup"><strong>老师追问时补充</strong><br>权限定义存在，不等于所有角色都获得这些权限。</div>
+      <div class="source"><span>源码：</span><a href="../rbac-structured/src/main/java/com/xmu/rbac/structured/service/ImportService.java" target="_blank">rbac-structured/src/main/java/com/xmu/rbac/structured/service/ImportService.java</a><span class="line">第 368–465 行</span>
+        <button class="copy" data-copy="rbac-structured/src/main/java/com/xmu/rbac/structured/service/ImportService.java:368">复制位置</button>
+        <a class="github" href="https://github.com/vintcessun/OOAD/blob/827ca45/rbac-structured/src/main/java/com/xmu/rbac/structured/service/ImportService.java#L368-L465" target="_blank" rel="noopener">GitHub 定位 ↗</a>
+      </div>
+      <details><summary>查看这一段原代码 <span>368–465 行</span></summary><pre><code> 368 │     @Transactional
+ 369 │     public ImportReport importPermissions(Operator op, InputStream xlsx) {
+ 370 │         Map&lt;String, Integer&gt; counts = new LinkedHashMap&lt;&gt;();
+ 371 │         List&lt;String&gt; notes = new ArrayList&lt;&gt;();
+ 372 │         List&lt;Anomaly&gt; anomalies = new ArrayList&lt;&gt;();
+ 373 │         Sheet sheet;
+ 374 │         Workbook wb;
+ 375 │         try {
+ 376 │             wb = WorkbookFactory.create(xlsx);
+ 377 │             sheet = wb.getSheetAt(0);
+ 378 │         } catch (IOException | RuntimeException e) {
+ 379 │             throw BizException.badRequest(&quot;无法读取 xlsx：&quot; + e.getMessage());
+ 380 │         }
+ 381 │         DataFormatter fmt = new DataFormatter();
+ 382 │         int header = findHeaderRow(sheet, fmt, &quot;软件系统&quot;);
+ 383 │         Row h = sheet.getRow(header);
+ 384 │         List&lt;String&gt; roleColumns = new ArrayList&lt;&gt;();
+ 385 │         for (int c = 4; c &lt; h.getLastCellNum(); c++) {
+ 386 │             String v = text(fmt, h.getCell(c));
+ 387 │             if (v != null) {
+ 388 │                 roleColumns.add(v);
+ 389 │             }
+ 390 │         }
+ 391 │
+ 392 │         Map&lt;String, Action&gt; actions = new HashMap&lt;&gt;();
+ 393 │         for (String a : BUSINESS_ACTIONS) {
+ 394 │             actions.put(a, actionMapper.findByActionCode(a).orElseThrow());
+ 395 │         }
+ 396 │         List&lt;Role&gt; roles = new ArrayList&lt;&gt;();
+ 397 │         for (String col : roleColumns) {
+ 398 │             roles.add(roleTemplate(col, roles.size()));
+ 399 │         }
+ 400 │
+ 401 │         Set&lt;String&gt; normalized = new LinkedHashSet&lt;&gt;();
+ 402 │         int systems = 0;
+ 403 │         int modules = 0;
+ 404 │         int resources = 0;
+ 405 │         int permissions = 0;
+ 406 │         int grants = 0;
+ 407 │         int[] perRole = new int[roles.size()];
+ 408 │         int selfOnlyChanged = 0;
+ 409 │         boolean unresolvedRows = false;
+ 410 │         // 每个角色：清单要求的 permissionId → 是否只限本人；单元格异常、原有授权不动的 resourceId
+ 411 │         List&lt;Map&lt;Long, Boolean&gt;&gt; wanted = new ArrayList&lt;&gt;();
+ 412 │         List&lt;Set&lt;Long&gt;&gt; untouched = new ArrayList&lt;&gt;();
+ 413 │         for (int i = 0; i &lt; roles.size(); i++) {
+ 414 │             wanted.add(new HashMap&lt;&gt;());
+ 415 │             untouched.add(new HashSet&lt;&gt;());
+ 416 │         }
+ 417 │         SoftwareSystem sys = null;
+ 418 │         FunctionModule mod = null;
+ 419 │         int resourceSeq = 0;
+ 420 │         Map&lt;Long, Map&lt;String, Integer&gt;&gt; seenNames = new HashMap&lt;&gt;();
+ 421 │         for (int r = header + 1; r &lt;= sheet.getLastRowNum(); r++) {
+ 422 │             Row row = sheet.getRow(r);
+ 423 │             if (row == null) {
+ 424 │                 continue;
+ 425 │             }
+ 426 │             String sysName = text(fmt, row.getCell(0));
+ 427 │             String modName = text(fmt, row.getCell(1));
+ 428 │             String resName = text(fmt, row.getCell(2));
+ 429 │             if (sysName != null) {
+ 430 │                 SoftwareSystem before = sys;
+ 431 │                 sys = system(sysName);
+ 432 │                 systems += (before == null || !before.id.equals(sys.id)) ? 1 : 0;
+ 433 │                 mod = null;
+ 434 │             }
+ 435 │             if (modName != null &amp;&amp; sys != null) {
+ 436 │                 mod = module(sys, modName);
+ 437 │                 modules++;
+ 438 │                 resourceSeq = 0;
+ 439 │             }
+ 440 │             if (resName == null) {
+ 441 │                 continue;
+ 442 │             }
+ 443 │             if (sys == null || mod == null) {
+ 444 │                 anomalies.add(new Anomaly(&quot;功能权限清单&quot;, r + 1, &quot;功能点缺少所属系统或模块&quot;, resName));
+ 445 │                 unresolvedRows = true;
+ 446 │                 continue;
+ 447 │             }
+ 448 │             resourceSeq++;
+ 449 │             int occurrence = seenNames.computeIfAbsent(mod.id, k -&gt; new HashMap&lt;&gt;()).merge(resName, 1, Integer::sum);
+ 450 │             Resource res = resource(sys, mod, resourceSeq, occurrence, resName, text(fmt, row.getCell(3)));
+ 451 │             resources++;
+ 452 │             Map&lt;String, Permission&gt; permOf = new HashMap&lt;&gt;();
+ 453 │             for (Permission p : permissionMapper.findByResourceId(res.id)) {
+ 454 │                 permOf.put(p.permissionCode, p);
+ 455 │             }
+ 456 │             for (String a : BUSINESS_ACTIONS) {
+ 457 │                 String code = res.resourceCode + &quot;:&quot; + a;
+ 458 │                 if (!permOf.containsKey(code)) {
+ 459 │                     Permission p = new Permission();
+ 460 │                     p.resourceId = res.id;
+ 461 │                     p.actionId = actions.get(a).id;
+ 462 │                     p.permissionCode = code;
+ 463 │                     permOf.put(code, permissionMapper.save(p));
+ 464 │                 }
+ 465 │                 permissions++;</code></pre></details>
+    </article>
+
+    <article class="card" id="q20" data-cat="权限导入" data-search="权限导入 “全部”“无”“查看/编辑本人”如何解析？ parsecell 全部 无 本人 空白 view 全部映射五类操作，无映射空授权；查看/编辑本人会把相关操作标为 selfonly。空白和无法识别的词会产生异常，不直接当成“无”撤权。 selfonly 需要业务系统继续按记录归属过滤，权限中心只传出限制标记。 rbac-structured/src/main/java/com/xmu/rbac/structured/service/importservice.java">
+      <div class="card-top"><span class="pill">权限导入</span><span class="number">#20</span></div>
+      <h2>“全部”“无”“查看/编辑本人”如何解析？</h2>
+      <p class="answer">全部映射五类操作，无映射空授权；查看/编辑本人会把相关操作标为 selfOnly。空白和无法识别的词会产生异常，不直接当成“无”撤权。</p>
+      <div class="followup"><strong>老师追问时补充</strong><br>selfOnly 需要业务系统继续按记录归属过滤，权限中心只传出限制标记。</div>
+      <div class="source"><span>源码：</span><a href="../rbac-structured/src/main/java/com/xmu/rbac/structured/service/ImportService.java" target="_blank">rbac-structured/src/main/java/com/xmu/rbac/structured/service/ImportService.java</a><span class="line">第 563–603 行</span>
+        <button class="copy" data-copy="rbac-structured/src/main/java/com/xmu/rbac/structured/service/ImportService.java:563">复制位置</button>
+        <a class="github" href="https://github.com/vintcessun/OOAD/blob/827ca45/rbac-structured/src/main/java/com/xmu/rbac/structured/service/ImportService.java#L563-L603" target="_blank" rel="noopener">GitHub 定位 ↗</a>
+      </div>
+      <details><summary>查看这一段原代码 <span>563–603 行</span></summary><pre><code> 563 │     record ParsedCell(Set&lt;String&gt; actions, Set&lt;String&gt; selfOnly, String note, String error) {
+ 564 │     }
+ 565 │
+ 566 │     /**
+ 567 │      * 解析单元格：「全部」→ 五类操作；「无」→ 不授权；「查看/编辑本人」→ 查看 + 编辑（只限本人）；
+ 568 │      * 「view/新增」中的英文取值归一为中文同义词；空白单元格不能默认当作「无」，列为异常。
+ 569 │      */
+ 570 │     static ParsedCell parseCell(String raw) {
+ 571 │         if (raw == null || raw.isBlank()) {
+ 572 │             return new ParsedCell(Set.of(), Set.of(), null, &quot;空白权限单元格，未授权&quot;);
+ 573 │         }
+ 574 │         String v = raw.trim();
+ 575 │         if (v.equals(&quot;无&quot;)) {
+ 576 │             return new ParsedCell(Set.of(), Set.of(), null, null);
+ 577 │         }
+ 578 │         if (v.equals(&quot;全部&quot;)) {
+ 579 │             return new ParsedCell(new LinkedHashSet&lt;&gt;(BUSINESS_ACTIONS), Set.of(), null, null);
+ 580 │         }
+ 581 │         Set&lt;String&gt; acts = new LinkedHashSet&lt;&gt;();
+ 582 │         Set&lt;String&gt; self = new HashSet&lt;&gt;();
+ 583 │         String note = null;
+ 584 │         for (String token : v.split(&quot;/&quot;)) {
+ 585 │             String t = token.trim();
+ 586 │             boolean onlySelf = t.endsWith(&quot;本人&quot;);
+ 587 │             if (onlySelf) {
+ 588 │                 t = t.substring(0, t.length() - 2);
+ 589 │             }
+ 590 │             String a = ACTION_WORDS.get(t);
+ 591 │             if (a == null) {
+ 592 │                 return new ParsedCell(Set.of(), Set.of(), null, &quot;无法识别的操作「&quot; + token + &quot;」&quot;);
+ 593 │             }
+ 594 │             if (t.equals(&quot;view&quot;)) {
+ 595 │                 note = &quot;单元格中的英文「view」已按「查看」处理&quot;;
+ 596 │             }
+ 597 │             acts.add(a);
+ 598 │             if (onlySelf) {
+ 599 │                 self.add(a);
+ 600 │             }
+ 601 │         }
+ 602 │         return new ParsedCell(acts, self, note, null);
+ 603 │     }</code></pre></details>
+    </article>
+
+    <article class="card" id="q21" data-cat="权限导入" data-search="权限导入 清单异常时会不会误撤权？ untouched unresolvedrows revokemissing 异常 单元格解析失败时将该资源放进 untouched，保留原授权。若功能点本身找不到系统或模块，unresolvedrows 会阻止本次删除同步，但仍允许新增和更新。 要区分“单元格异常”和“功能点定位失败”两种保护分支。 rbac-structured/src/main/java/com/xmu/rbac/structured/service/importservice.java">
+      <div class="card-top"><span class="pill">权限导入</span><span class="number">#21</span></div>
+      <h2>清单异常时会不会误撤权？</h2>
+      <p class="answer">单元格解析失败时将该资源放进 untouched，保留原授权。若功能点本身找不到系统或模块，unresolvedRows 会阻止本次删除同步，但仍允许新增和更新。</p>
+      <div class="followup"><strong>老师追问时补充</strong><br>要区分“单元格异常”和“功能点定位失败”两种保护分支。</div>
+      <div class="source"><span>源码：</span><a href="../rbac-structured/src/main/java/com/xmu/rbac/structured/service/ImportService.java" target="_blank">rbac-structured/src/main/java/com/xmu/rbac/structured/service/ImportService.java</a><span class="line">第 467–518 行</span>
+        <button class="copy" data-copy="rbac-structured/src/main/java/com/xmu/rbac/structured/service/ImportService.java:467">复制位置</button>
+        <a class="github" href="https://github.com/vintcessun/OOAD/blob/827ca45/rbac-structured/src/main/java/com/xmu/rbac/structured/service/ImportService.java#L467-L518" target="_blank" rel="noopener">GitHub 定位 ↗</a>
+      </div>
+      <details><summary>查看这一段原代码 <span>467–518 行</span></summary><pre><code> 467 │             for (int i = 0; i &lt; roles.size(); i++) {
+ 468 │                 String raw = text(fmt, row.getCell(4 + i));
+ 469 │                 ParsedCell parsed = parseCell(raw);
+ 470 │                 if (parsed.error() != null) {
+ 471 │                     anomalies.add(new Anomaly(&quot;功能权限清单&quot;, r + 1, parsed.error(),
+ 472 │                             sysName(sys) + &quot; / &quot; + resName + &quot; / &quot; + roleColumns.get(i) + &quot; = &quot; + raw));
+ 473 │                     untouched.get(i).add(res.id);
+ 474 │                     continue;
+ 475 │                 }
+ 476 │                 if (parsed.note() != null) {
+ 477 │                     normalized.add(parsed.note());
+ 478 │                 }
+ 479 │                 for (String a : parsed.actions()) {
+ 480 │                     Permission p = permOf.get(res.resourceCode + &quot;:&quot; + a);
+ 481 │                     boolean selfOnly = parsed.selfOnly().contains(a);
+ 482 │                     wanted.get(i).put(p.id, selfOnly);
+ 483 │                     RolePermission rp = rolePermissionMapper.findByRoleIdAndPermissionId(roles.get(i).id, p.id)
+ 484 │                             .orElse(null);
+ 485 │                     if (rp == null) {
+ 486 │                         rp = new RolePermission();
+ 487 │                         rp.roleId = roles.get(i).id;
+ 488 │                         rp.permissionId = p.id;
+ 489 │                         rp.selfOnly = selfOnly;
+ 490 │                         rp.grantedBy = op.userId();
+ 491 │                         rp.grantedAt = LocalDateTime.now(clock);
+ 492 │                         rolePermissionMapper.save(rp);
+ 493 │                     } else if (rp.selfOnly != selfOnly) {
+ 494 │                         rp.selfOnly = selfOnly;
+ 495 │                         rolePermissionMapper.save(rp);
+ 496 │                         selfOnlyChanged++;
+ 497 │                         audit.record(op, &quot;PERMISSION_ASSIGN&quot;, &quot;ROLE&quot;, roles.get(i).id, roles.get(i).roleCode,
+ 498 │                                 &quot;permission=&quot; + p.permissionCode + &quot; selfOnly=&quot; + selfOnly + &quot; source=import&quot;,
+ 499 │                                 AuditService.SUCCESS, null);
+ 500 │                     }
+ 501 │                     grants++;
+ 502 │                     perRole[i]++;
+ 503 │                 }
+ 504 │             }
+ 505 │         }
+ 506 │         try {
+ 507 │             wb.close();
+ 508 │         } catch (IOException ignored) {
+ 509 │             // 输入流由调用方关闭
+ 510 │         }
+ 511 │         int revoked = 0;
+ 512 │         if (unresolvedRows) {
+ 513 │             notes.add(&quot;有功能点定位不到所属系统或模块，本次只新增与更新授权，未回收清单中去掉的授权&quot;);
+ 514 │         } else {
+ 515 │             for (int i = 0; i &lt; roles.size(); i++) {
+ 516 │                 revoked += revokeMissing(op, roles.get(i), wanted.get(i), untouched.get(i));
+ 517 │             }
+ 518 │         }</code></pre></details>
+    </article>
+
+    <article class="card" id="q22" data-cat="权限导入" data-search="权限导入 删除清单中的权限如何回收？ revokemissing wanted 业务权限 rbac 先收集这次清单要求的 wanted 授权，之后只在业务系统的模板角色授权中删除不再出现的项。rbac 自身的管理权限不由这份清单回收，每条回收都有审计记录。 界面手工加给模板角色的业务授权，下次导入也可能被清单同步回收。 rbac-structured/src/main/java/com/xmu/rbac/structured/service/importservice.java">
+      <div class="card-top"><span class="pill">权限导入</span><span class="number">#22</span></div>
+      <h2>删除清单中的权限如何回收？</h2>
+      <p class="answer">先收集这次清单要求的 wanted 授权，之后只在业务系统的模板角色授权中删除不再出现的项。rbac 自身的管理权限不由这份清单回收，每条回收都有审计记录。</p>
+      <div class="followup"><strong>老师追问时补充</strong><br>界面手工加给模板角色的业务授权，下次导入也可能被清单同步回收。</div>
+      <div class="source"><span>源码：</span><a href="../rbac-structured/src/main/java/com/xmu/rbac/structured/service/ImportService.java" target="_blank">rbac-structured/src/main/java/com/xmu/rbac/structured/service/ImportService.java</a><span class="line">第 538–559 行</span>
+        <button class="copy" data-copy="rbac-structured/src/main/java/com/xmu/rbac/structured/service/ImportService.java:538">复制位置</button>
+        <a class="github" href="https://github.com/vintcessun/OOAD/blob/827ca45/rbac-structured/src/main/java/com/xmu/rbac/structured/service/ImportService.java#L538-L559" target="_blank" rel="noopener">GitHub 定位 ↗</a>
+      </div>
+      <details><summary>查看这一段原代码 <span>538–559 行</span></summary><pre><code> 538 │     /**
+ 539 │      * 回收角色模板在业务系统上、最新清单里已不再要求的授权（权限中心自身的 rbac:* 权限不归清单管）。
+ 540 │      * 清单是角色模板业务权限的唯一来源，界面上给模板角色加的业务权限也会在下次导入时按清单回收。
+ 541 │      * 每回收一条记一条 PERMISSION_REVOKE，与界面上回收一致。
+ 542 │      */
+ 543 │     private int revokeMissing(Operator op, Role role, Map&lt;Long, Boolean&gt; wanted, Set&lt;Long&gt; untouched) {
+ 544 │         List&lt;RolePermission&gt; stale = new ArrayList&lt;&gt;();
+ 545 │         for (Object[] row : rolePermissionMapper.findBusinessGrantsOfRole(role.id)) {
+ 546 │             RolePermission rp = (RolePermission) row[0];
+ 547 │             if (!wanted.containsKey(rp.permissionId) &amp;&amp; !untouched.contains((Long) row[1])) {
+ 548 │                 stale.add(rp);
+ 549 │             }
+ 550 │         }
+ 551 │         rolePermissionMapper.deleteAll(stale);
+ 552 │         Map&lt;Long, String&gt; codes = new HashMap&lt;&gt;();
+ 553 │         permissionMapper.findAllById(stale.stream().map(rp -&gt; rp.permissionId).toList())
+ 554 │                 .forEach(p -&gt; codes.put(p.id, p.permissionCode));
+ 555 │         for (RolePermission rp : stale) {
+ 556 │             audit.record(op, &quot;PERMISSION_REVOKE&quot;, &quot;ROLE&quot;, role.id, role.roleCode,
+ 557 │                     &quot;permission=&quot; + codes.get(rp.permissionId) + &quot; source=import&quot;, AuditService.SUCCESS, null);
+ 558 │         }
+ 559 │         return stale.size();</code></pre></details>
+    </article>
+
+    <article class="card" id="q23" data-cat="权限导入" data-search="权限导入 授权变更为何下一次请求生效？ bumpgrantversion 缓存 事务 导入同步完成后调用 bumpgrantversion；版本号存在 mysql 的 sys_grant_version，并与授权数据的事务一起提交或回滚。新请求读到新版本后，不会继续用旧版本缓存。 这是代码设计目标；本机没有运行 mysql/redis 集成测试，实际生效时间仍需实测。 rbac-structured/src/main/java/com/xmu/rbac/structured/service/authorizationservice.java">
+      <div class="card-top"><span class="pill">权限导入</span><span class="number">#23</span></div>
+      <h2>授权变更为何下一次请求生效？</h2>
+      <p class="answer">导入同步完成后调用 bumpGrantVersion；版本号存在 MySQL 的 sys_grant_version，并与授权数据的事务一起提交或回滚。新请求读到新版本后，不会继续用旧版本缓存。</p>
+      <div class="followup"><strong>老师追问时补充</strong><br>这是代码设计目标；本机没有运行 MySQL/Redis 集成测试，实际生效时间仍需实测。</div>
+      <div class="source"><span>源码：</span><a href="../rbac-structured/src/main/java/com/xmu/rbac/structured/service/AuthorizationService.java" target="_blank">rbac-structured/src/main/java/com/xmu/rbac/structured/service/AuthorizationService.java</a><span class="line">第 199–214 行</span>
+        <button class="copy" data-copy="rbac-structured/src/main/java/com/xmu/rbac/structured/service/AuthorizationService.java:199">复制位置</button>
+        <a class="github" href="https://github.com/vintcessun/OOAD/blob/827ca45/rbac-structured/src/main/java/com/xmu/rbac/structured/service/AuthorizationService.java#L199-L214" target="_blank" rel="noopener">GitHub 定位 ↗</a>
+      </div>
+      <details><summary>查看这一段原代码 <span>199–214 行</span></summary><pre><code> 199 │         }
+ 200 │         return new LoadedGrants(grants, false);
+ 201 │     }
+ 202 │
+ 203 │     /**
+ 204 │      * 授权数据（指派、角色权限、角色状态）变更时调用：在当前事务里让版本号加一，随修改一起提交或回滚。
+ 205 │      * 提交前其他请求读不到新版本号，读的仍是旧键里与已提交数据一致的内容；提交后它们读新版本号，缓存未命中，查库得到新数据。
+ 206 │      * 版本号那一行会被锁到本事务提交，并发的授权修改因此排队，读请求不受影响。
+ 207 │      * 版本行缺失时抛异常让整个修改回滚，宁可改不成，也不留下缓存与数据库不一致的状态。
+ 208 │      */
+ 209 │     public void bumpGrantVersion() {
+ 210 │         if (grantVersionMapper.bump() != 1) {
+ 211 │             throw new IllegalStateException(&quot;sys_grant_version 缺少 id = 1 的行，授权修改已回滚&quot;);
+ 212 │         }
+ 213 │     }
+ 214 │</code></pre></details>
+    </article>
+
+    <article class="card" id="q24" data-cat="权限导入" data-search="权限导入 资源编码怎样保持稳定？ resource occurrence 同名 换序 hr-004 已有资源按模块、名称和同名第几次出现来认领；新资源用该模块已用的最大序号加一。不同名功能点插删行通常不会使后面资源错认，但同名不同义的行换序有风险。 hr-004 是待组内确认源清单允许同名的规则与待复现问题。 rbac-structured/src/main/java/com/xmu/rbac/structured/service/importservice.java">
+      <div class="card-top"><span class="pill">权限导入</span><span class="number">#24</span></div>
+      <h2>资源编码怎样保持稳定？</h2>
+      <p class="answer">已有资源按模块、名称和同名第几次出现来认领；新资源用该模块已用的最大序号加一。不同名功能点插删行通常不会使后面资源错认，但同名不同义的行换序有风险。</p>
+      <div class="followup"><strong>老师追问时补充</strong><br>HR-004 是待组内确认源清单允许同名的规则与待复现问题。</div>
+      <div class="source"><span>源码：</span><a href="../rbac-structured/src/main/java/com/xmu/rbac/structured/service/ImportService.java" target="_blank">rbac-structured/src/main/java/com/xmu/rbac/structured/service/ImportService.java</a><span class="line">第 648–674 行</span>
+        <button class="copy" data-copy="rbac-structured/src/main/java/com/xmu/rbac/structured/service/ImportService.java:648">复制位置</button>
+        <a class="github" href="https://github.com/vintcessun/OOAD/blob/827ca45/rbac-structured/src/main/java/com/xmu/rbac/structured/service/ImportService.java#L648-L674" target="_blank" rel="noopener">GitHub 定位 ↗</a>
+      </div>
+      <details><summary>查看这一段原代码 <span>648–674 行</span></summary><pre><code> 648 │     /**
+ 649 │      * 功能点按「所属模块 + 名称」认领已有资源（同一模块里同名的按出现次序对应），不按行号：
+ 650 │      * 清单中间删掉或插入一行时，后面的功能点不会错认成别的资源，授权也就不会挪到别的功能点上。
+ 651 │      * 新功能点的编码取该模块已用的最大序号 + 1。
+ 652 │      */
+ 653 │     private Resource resource(SoftwareSystem sys, FunctionModule mod, int seq, int occurrence, String name,
+ 654 │                               String description) {
+ 655 │         List&lt;Resource&gt; existing = resourceMapper.findByModuleIdOrderByIdAsc(mod.id);
+ 656 │         int sameName = 0;
+ 657 │         int maxSeq = 0;
+ 658 │         String prefix = sys.systemCode + &quot;:&quot; + mod.moduleCode + &quot;:f&quot;;
+ 659 │         for (Resource r : existing) {
+ 660 │             if (r.resourceName.equals(name) &amp;&amp; ++sameName == occurrence) {
+ 661 │                 return r;
+ 662 │             }
+ 663 │             if (r.resourceCode.startsWith(prefix) &amp;&amp; r.resourceCode.substring(prefix.length()).matches(&quot;\\d+&quot;)) {
+ 664 │                 maxSeq = Math.max(maxSeq, Integer.parseInt(r.resourceCode.substring(prefix.length())));
+ 665 │             }
+ 666 │         }
+ 667 │         Resource r = new Resource();
+ 668 │         r.moduleId = mod.id;
+ 669 │         r.resourceCode = prefix + String.format(&quot;%02d&quot;, maxSeq + 1);
+ 670 │         r.resourceName = name;
+ 671 │         r.resourceType = Resource.BUSINESS;
+ 672 │         r.description = description;
+ 673 │         r.sortOrder = seq;
+ 674 │         return resourceMapper.save(r);</code></pre></details>
+    </article>
+
+    <article class="card" id="q25" data-cat="权限导入" data-search="权限导入 未知角色列会怎样？ roletemplate role_col 默认角色 roletemplate 对已知的五类中文角色列映射固定编码；未知列目前回退为 role_col 加序号并创建角色。若老师问“五类是否被强制限定”，答案是当前代码未严格拒绝额外角色列。 这可能是范围收敛问题，需与小组确认是否把未知表头列为异常；不要说已经修改。 rbac-structured/src/main/java/com/xmu/rbac/structured/service/importservice.java">
+      <div class="card-top"><span class="pill">权限导入</span><span class="number">#25</span></div>
+      <h2>未知角色列会怎样？</h2>
+      <p class="answer">roleTemplate 对已知的五类中文角色列映射固定编码；未知列目前回退为 ROLE_COL 加序号并创建角色。若老师问“五类是否被强制限定”，答案是当前代码未严格拒绝额外角色列。</p>
+      <div class="followup"><strong>老师追问时补充</strong><br>这可能是范围收敛问题，需与小组确认是否把未知表头列为异常；不要说已经修改。</div>
+      <div class="source"><span>源码：</span><a href="../rbac-structured/src/main/java/com/xmu/rbac/structured/service/ImportService.java" target="_blank">rbac-structured/src/main/java/com/xmu/rbac/structured/service/ImportService.java</a><span class="line">第 607–615 行</span>
+        <button class="copy" data-copy="rbac-structured/src/main/java/com/xmu/rbac/structured/service/ImportService.java:607">复制位置</button>
+        <a class="github" href="https://github.com/vintcessun/OOAD/blob/827ca45/rbac-structured/src/main/java/com/xmu/rbac/structured/service/ImportService.java#L607-L615" target="_blank" rel="noopener">GitHub 定位 ↗</a>
+      </div>
+      <details><summary>查看这一段原代码 <span>607–615 行</span></summary><pre><code> 607 │     private Role roleTemplate(String column, int index) {
+ 608 │         String code = ROLE_CODES.getOrDefault(column, &quot;ROLE_COL&quot; + (index + 1));
+ 609 │         return roleMapper.findByRoleCode(code).orElseGet(() -&gt; {
+ 610 │             Role r = new Role();
+ 611 │             r.roleCode = code;
+ 612 │             r.roleName = column;
+ 613 │             r.description = &quot;权限清单「&quot; + column + &quot;」列的角色模板（全局角色）&quot;;
+ 614 │             return roleMapper.save(r);
+ 615 │         });</code></pre></details>
+    </article>
+<h2 class="section" data-cat="数据库">数据库</h2>
+
+    <article class="card" id="q26" data-cat="数据库" data-search="数据库 组织数据在哪几张表？ sys_company sys_department sys_user path 外键 sys_company 是公司，sys_department 保存公司、父部门、层级和物化路径；sys_user 保存员工所属公司和部门。部门 manager_user_id 关联用户，但和授权用的 sys_user_role 是两件事。 根部门的 parent_id 为空；同级唯一键涉及 null 时，数据库层不一定保证每家公司只有一个根，导入逻辑另有约束。 rbac-contract/src/main/resources/db/migration/v1__rbac0_baseline.sql">
+      <div class="card-top"><span class="pill">数据库</span><span class="number">#26</span></div>
+      <h2>组织数据在哪几张表？</h2>
+      <p class="answer">sys_company 是公司，sys_department 保存公司、父部门、层级和物化路径；sys_user 保存员工所属公司和部门。部门 manager_user_id 关联用户，但和授权用的 sys_user_role 是两件事。</p>
+      <div class="followup"><strong>老师追问时补充</strong><br>根部门的 parent_id 为空；同级唯一键涉及 NULL 时，数据库层不一定保证每家公司只有一个根，导入逻辑另有约束。</div>
+      <div class="source"><span>源码：</span><a href="../rbac-contract/src/main/resources/db/migration/V1__rbac0_baseline.sql" target="_blank">rbac-contract/src/main/resources/db/migration/V1__rbac0_baseline.sql</a><span class="line">第 23–89 行</span>
+        <button class="copy" data-copy="rbac-contract/src/main/resources/db/migration/V1__rbac0_baseline.sql:23">复制位置</button>
+        <a class="github" href="https://github.com/vintcessun/OOAD/blob/827ca45/rbac-contract/src/main/resources/db/migration/V1__rbac0_baseline.sql#L23-L89" target="_blank" rel="noopener">GitHub 定位 ↗</a>
+      </div>
+      <details><summary>查看这一段原代码 <span>23–89 行</span></summary><pre><code>  23 │ CREATE TABLE sys_company (
+  24 │     id           BIGINT       NOT NULL AUTO_INCREMENT,
+  25 │     company_code VARCHAR(32)  NOT NULL,
+  26 │     company_name VARCHAR(128) NOT NULL,
+  27 │     created_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  28 │     PRIMARY KEY (id),
+  29 │     UNIQUE KEY uk_company_code (company_code)
+  30 │ ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT=&#x27;公司&#x27;;
+  31 │
+  32 │ -- 部门树。每家公司一个根节点（parent_id 为空）。
+  33 │ -- path 是物化路径（如 /3/15/27/）：判断「目标部门是否在某部门之下」只需一次前缀比较，不用递归。
+  34 │ CREATE TABLE sys_department (
+  35 │     id              BIGINT       NOT NULL AUTO_INCREMENT,
+  36 │     company_id      BIGINT       NOT NULL,
+  37 │     parent_id       BIGINT       NULL                 COMMENT &#x27;上级部门；根节点为空&#x27;,
+  38 │     dept_name       VARCHAR(128) NOT NULL             COMMENT &#x27;原表名称，如「道路工程分公司-财务部」&#x27;,
+  39 │     path            VARCHAR(255) NOT NULL             COMMENT &#x27;物化路径 /祖先id/.../本id/&#x27;,
+  40 │     level           INT          NOT NULL             COMMENT &#x27;根为 1&#x27;,
+  41 │     manager_name    VARCHAR(64)  NULL                 COMMENT &#x27;部门表登记的负责人姓名（原样保留）&#x27;,
+  42 │     manager_user_id BIGINT       NULL                 COMMENT &#x27;负责人对应的用户；只是组织信息，不产生任何管理权限&#x27;,
+  43 │     sort_order      INT          NOT NULL DEFAULT 0,
+  44 │     created_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  45 │     PRIMARY KEY (id),
+  46 │     UNIQUE KEY uk_dept_sibling (company_id, parent_id, dept_name),
+  47 │     KEY idx_parent (parent_id),
+  48 │     KEY idx_path (path),
+  49 │     CONSTRAINT fk_dept_company FOREIGN KEY (company_id) REFERENCES sys_company (id),
+  50 │     CONSTRAINT fk_dept_parent  FOREIGN KEY (parent_id)  REFERENCES sys_department (id)
+  51 │ ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT=&#x27;部门（每家公司一棵树）&#x27;;
+  52 │
+  53 │ -- -----------------------------------------------------------------------------
+  54 │ -- 2. 用户
+  55 │ -- -----------------------------------------------------------------------------
+  56 │
+  57 │ -- 一个用户只属于一个部门（department_id）；他能在哪些部门行使权限，由 sys_user_role.scope_dept_id 决定。
+  58 │ CREATE TABLE sys_user (
+  59 │     id                     BIGINT       NOT NULL AUTO_INCREMENT,
+  60 │     company_id             BIGINT       NOT NULL,
+  61 │     department_id          BIGINT       NOT NULL,
+  62 │     username               VARCHAR(64)  NOT NULL          COMMENT &#x27;登录名；正式员工为工号，如 SG000001&#x27;,
+  63 │     password_hash          VARCHAR(100) NOT NULL          COMMENT &#x27;BCrypt&#x27;,
+  64 │     real_name              VARCHAR(64)  NOT NULL,
+  65 │     user_type              VARCHAR(16)  NOT NULL DEFAULT &#x27;EMPLOYEE&#x27; COMMENT &#x27;EMPLOYEE 正式员工 | TEMPORARY 临时用户 | SYSTEM 业务系统账号&#x27;,
+  66 │     employee_no            VARCHAR(32)  NULL              COMMENT &#x27;工号；临时用户没有&#x27;,
+  67 │     phone                  VARCHAR(20)  NULL              COMMENT &#x27;电话；临时用户没有&#x27;,
+  68 │     position               VARCHAR(32)  NULL              COMMENT &#x27;岗位；只是人事信息，不参与鉴权&#x27;,
+  69 │     status                 VARCHAR(16)  NOT NULL DEFAULT &#x27;ACTIVE&#x27; COMMENT &#x27;ACTIVE 启用 | DISABLED 停用 | DELETED 删除&#x27;,
+  70 │     status_reason          VARCHAR(255) NULL,
+  71 │     expires_at             DATETIME     NULL              COMMENT &#x27;账号到期时间；临时用户必填&#x27;,
+  72 │     login_fail_count       INT          NOT NULL DEFAULT 0,
+  73 │     locked_until           DATETIME     NULL,
+  74 │     must_change_pwd        TINYINT      NOT NULL DEFAULT 0,
+  75 │     token_version          INT          NOT NULL DEFAULT 0 COMMENT &#x27;修改口令时加一；令牌中的版本号与它不等即失效&#x27;,
+  76 │     created_at             DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  77 │     updated_at             DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  78 │     deleted_at             DATETIME     NULL,
+  79 │     PRIMARY KEY (id),
+  80 │     UNIQUE KEY uk_username (username),
+  81 │     UNIQUE KEY uk_employee_no (employee_no),
+  82 │     KEY idx_dept_status (department_id, status),
+  83 │     KEY idx_company (company_id),
+  84 │     CONSTRAINT fk_user_company FOREIGN KEY (company_id)    REFERENCES sys_company (id),
+  85 │     CONSTRAINT fk_user_dept    FOREIGN KEY (department_id) REFERENCES sys_department (id)
+  86 │ ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT=&#x27;用户&#x27;;
+  87 │
+  88 │ ALTER TABLE sys_department
+  89 │     ADD CONSTRAINT fk_dept_manager FOREIGN KEY (manager_user_id) REFERENCES sys_user (id);</code></pre></details>
+    </article>
+
+    <article class="card" id="q27" data-cat="数据库" data-search="数据库 资源、操作、权限的关系？ resource action permission resource_action 资源是功能点，操作是查看/新增/编辑等动作，权限是资源×操作的组合。sys_permission 同时存资源 id、操作 id、权限码，并用复合唯一键避免同一组合重复。 角色通过 sys_role_permission 关联权限；用户再通过 sys_user_role 获得角色。 rbac-contract/src/main/resources/db/migration/v1__rbac0_baseline.sql">
+      <div class="card-top"><span class="pill">数据库</span><span class="number">#27</span></div>
+      <h2>资源、操作、权限的关系？</h2>
+      <p class="answer">资源是功能点，操作是查看/新增/编辑等动作，权限是资源×操作的组合。sys_permission 同时存资源 ID、操作 ID、权限码，并用复合唯一键避免同一组合重复。</p>
+      <div class="followup"><strong>老师追问时补充</strong><br>角色通过 sys_role_permission 关联权限；用户再通过 sys_user_role 获得角色。</div>
+      <div class="source"><span>源码：</span><a href="../rbac-contract/src/main/resources/db/migration/V1__rbac0_baseline.sql" target="_blank">rbac-contract/src/main/resources/db/migration/V1__rbac0_baseline.sql</a><span class="line">第 96–153 行</span>
+        <button class="copy" data-copy="rbac-contract/src/main/resources/db/migration/V1__rbac0_baseline.sql:96">复制位置</button>
+        <a class="github" href="https://github.com/vintcessun/OOAD/blob/827ca45/rbac-contract/src/main/resources/db/migration/V1__rbac0_baseline.sql#L96-L153" target="_blank" rel="noopener">GitHub 定位 ↗</a>
+      </div>
+      <details><summary>查看这一段原代码 <span>96–153 行</span></summary><pre><code>  96 │ CREATE TABLE sys_software_system (
+  97 │     id          BIGINT      NOT NULL AUTO_INCREMENT,
+  98 │     system_code VARCHAR(32) NOT NULL COMMENT &#x27;权限码第一段&#x27;,
+  99 │     system_name VARCHAR(64) NOT NULL,
+ 100 │     sort_order  INT         NOT NULL DEFAULT 0,
+ 101 │     PRIMARY KEY (id),
+ 102 │     UNIQUE KEY uk_system_code (system_code)
+ 103 │ ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT=&#x27;业务系统&#x27;;
+ 104 │
+ 105 │ CREATE TABLE sys_function_module (
+ 106 │     id          BIGINT      NOT NULL AUTO_INCREMENT,
+ 107 │     system_id   BIGINT      NOT NULL,
+ 108 │     module_code VARCHAR(32) NOT NULL,
+ 109 │     module_name VARCHAR(64) NOT NULL,
+ 110 │     sort_order  INT         NOT NULL DEFAULT 0,
+ 111 │     PRIMARY KEY (id),
+ 112 │     UNIQUE KEY uk_module (system_id, module_code),
+ 113 │     CONSTRAINT fk_module_system FOREIGN KEY (system_id) REFERENCES sys_software_system (id)
+ 114 │ ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT=&#x27;功能模块&#x27;;
+ 115 │
+ 116 │ -- 资源。resource_type：
+ 117 │ --   BUSINESS 业务功能点（权限清单导入）；
+ 118 │ --   MENU     权限中心自身的管理页面，菜单挂在它上面（「前端菜单也是一种 Resource」）；
+ 119 │ --   API      不对应页面的接口能力，如供业务系统调用的鉴权接口。
+ 120 │ CREATE TABLE sys_resource (
+ 121 │     id            BIGINT       NOT NULL AUTO_INCREMENT,
+ 122 │     module_id     BIGINT       NOT NULL,
+ 123 │     resource_code VARCHAR(96)  NOT NULL COMMENT &#x27;完整编码，如 oa:m01:f02、rbac:user&#x27;,
+ 124 │     resource_name VARCHAR(128) NOT NULL,
+ 125 │     resource_type VARCHAR(16)  NOT NULL DEFAULT &#x27;BUSINESS&#x27; COMMENT &#x27;BUSINESS | MENU | API&#x27;,
+ 126 │     description   VARCHAR(512) NULL,
+ 127 │     sort_order    INT          NOT NULL DEFAULT 0,
+ 128 │     PRIMARY KEY (id),
+ 129 │     UNIQUE KEY uk_resource_code (resource_code),
+ 130 │     KEY idx_module (module_id),
+ 131 │     CONSTRAINT fk_resource_module FOREIGN KEY (module_id) REFERENCES sys_function_module (id)
+ 132 │ ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT=&#x27;资源&#x27;;
+ 133 │
+ 134 │ CREATE TABLE sys_action (
+ 135 │     id          BIGINT      NOT NULL AUTO_INCREMENT,
+ 136 │     action_code VARCHAR(32) NOT NULL,
+ 137 │     action_name VARCHAR(32) NOT NULL,
+ 138 │     sort_order  INT         NOT NULL DEFAULT 0,
+ 139 │     PRIMARY KEY (id),
+ 140 │     UNIQUE KEY uk_action_code (action_code)
+ 141 │ ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT=&#x27;操作&#x27;;
+ 142 │
+ 143 │ -- 权限 = 资源 × 操作。permission_code = resource_code:action_code，是鉴权时比对的字符串。
+ 144 │ CREATE TABLE sys_permission (
+ 145 │     id              BIGINT       NOT NULL AUTO_INCREMENT,
+ 146 │     resource_id     BIGINT       NOT NULL,
+ 147 │     action_id       BIGINT       NOT NULL,
+ 148 │     permission_code VARCHAR(128) NOT NULL,
+ 149 │     PRIMARY KEY (id),
+ 150 │     UNIQUE KEY uk_permission_code (permission_code),
+ 151 │     UNIQUE KEY uk_resource_action (resource_id, action_id),
+ 152 │     CONSTRAINT fk_perm_resource FOREIGN KEY (resource_id) REFERENCES sys_resource (id),
+ 153 │     CONSTRAINT fk_perm_action   FOREIGN KEY (action_id)   REFERENCES sys_action (id)</code></pre></details>
+    </article>
+
+    <article class="card" id="q28" data-cat="数据库" data-search="数据库 角色权限与用户角色有什么区别？ sys_role_permission sys_user_role self_only scope_dept_id sys_role_permission 说某角色能做什么，含 self_only；sys_user_role 说某用户持有什么角色，以及这个角色在哪个部门范围内生效。两者不能混为一张表。 清单导入主要改模板角色的 role_permission，不给任何用户自动插入 user_role。 rbac-contract/src/main/resources/db/migration/v1__rbac0_baseline.sql">
+      <div class="card-top"><span class="pill">数据库</span><span class="number">#28</span></div>
+      <h2>角色权限与用户角色有什么区别？</h2>
+      <p class="answer">sys_role_permission 说某角色能做什么，含 self_only；sys_user_role 说某用户持有什么角色，以及这个角色在哪个部门范围内生效。两者不能混为一张表。</p>
+      <div class="followup"><strong>老师追问时补充</strong><br>清单导入主要改模板角色的 role_permission，不给任何用户自动插入 user_role。</div>
+      <div class="source"><span>源码：</span><a href="../rbac-contract/src/main/resources/db/migration/V1__rbac0_baseline.sql" target="_blank">rbac-contract/src/main/resources/db/migration/V1__rbac0_baseline.sql</a><span class="line">第 179–210 行</span>
+        <button class="copy" data-copy="rbac-contract/src/main/resources/db/migration/V1__rbac0_baseline.sql:179">复制位置</button>
+        <a class="github" href="https://github.com/vintcessun/OOAD/blob/827ca45/rbac-contract/src/main/resources/db/migration/V1__rbac0_baseline.sql#L179-L210" target="_blank" rel="noopener">GitHub 定位 ↗</a>
+      </div>
+      <details><summary>查看这一段原代码 <span>179–210 行</span></summary><pre><code> 179 │ CREATE TABLE sys_role_permission (
+ 180 │     id            BIGINT   NOT NULL AUTO_INCREMENT,
+ 181 │     role_id       BIGINT   NOT NULL,
+ 182 │     permission_id BIGINT   NOT NULL,
+ 183 │     self_only     TINYINT  NOT NULL DEFAULT 0,
+ 184 │     granted_by    BIGINT   NULL COMMENT &#x27;授权人，只用于审计&#x27;,
+ 185 │     granted_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ 186 │     PRIMARY KEY (id),
+ 187 │     UNIQUE KEY uk_role_perm (role_id, permission_id),
+ 188 │     KEY idx_permission (permission_id),
+ 189 │     CONSTRAINT fk_rp_role FOREIGN KEY (role_id)       REFERENCES sys_role (id) ON DELETE CASCADE,
+ 190 │     CONSTRAINT fk_rp_perm FOREIGN KEY (permission_id) REFERENCES sys_permission (id)
+ 191 │ ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT=&#x27;角色-权限&#x27;;
+ 192 │
+ 193 │ -- 一次指派 = 用户 + 角色 + 适用部门。scope_dept_id 覆盖该部门及其全部下级部门。
+ 194 │ -- 同一用户可以在不同部门持有不同角色，或在多个部门持有同一角色（需求「可以有属于多个部门的权限」）。
+ 195 │ -- granted_by 只是审计属性：撤销授权人自己的角色，不影响他过去授出的指派（需求「不会导致级联删除」）。
+ 196 │ CREATE TABLE sys_user_role (
+ 197 │     id            BIGINT       NOT NULL AUTO_INCREMENT,
+ 198 │     user_id       BIGINT       NOT NULL,
+ 199 │     role_id       BIGINT       NOT NULL,
+ 200 │     scope_dept_id BIGINT       NOT NULL COMMENT &#x27;适用部门（含下级）&#x27;,
+ 201 │     granted_by    BIGINT       NULL,
+ 202 │     granted_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ 203 │     reason        VARCHAR(255) NULL,
+ 204 │     PRIMARY KEY (id),
+ 205 │     UNIQUE KEY uk_user_role_scope (user_id, role_id, scope_dept_id),
+ 206 │     KEY idx_role (role_id),
+ 207 │     KEY idx_scope (scope_dept_id),
+ 208 │     CONSTRAINT fk_ur_user  FOREIGN KEY (user_id)       REFERENCES sys_user (id),
+ 209 │     CONSTRAINT fk_ur_role  FOREIGN KEY (role_id)       REFERENCES sys_role (id),
+ 210 │     CONSTRAINT fk_ur_scope FOREIGN KEY (scope_dept_id) REFERENCES sys_department (id)</code></pre></details>
+    </article>
+
+    <article class="card" id="q29" data-cat="数据库" data-search="数据库 v1、v2、v3、v4 分别改了什么？ flyway 迁移 v1 v2 v3 v4 expires_at v1 建 rbac0 基线表和初始化数据；v2 新增授权版本表；v3 把普通员工自增 id 起点调到 10000，低号段留给内部账号；v4 先停用已到期且仍启用的账号，再删除 expires_at。 这些是按顺序执行的迁移；v1 出现旧字段不代表当前库仍有该字段。 rbac-contract/src/main/resources/db/migration/v4__drop_user_expiry.sql">
+      <div class="card-top"><span class="pill">数据库</span><span class="number">#29</span></div>
+      <h2>V1、V2、V3、V4 分别改了什么？</h2>
+      <p class="answer">V1 建 RBAC0 基线表和初始化数据；V2 新增授权版本表；V3 把普通员工自增 ID 起点调到 10000，低号段留给内部账号；V4 先停用已到期且仍启用的账号，再删除 expires_at。</p>
+      <div class="followup"><strong>老师追问时补充</strong><br>这些是按顺序执行的迁移；V1 出现旧字段不代表当前库仍有该字段。</div>
+      <div class="source"><span>源码：</span><a href="../rbac-contract/src/main/resources/db/migration/V4__drop_user_expiry.sql" target="_blank">rbac-contract/src/main/resources/db/migration/V4__drop_user_expiry.sql</a><span class="line">第 1–15 行</span>
+        <button class="copy" data-copy="rbac-contract/src/main/resources/db/migration/V4__drop_user_expiry.sql:1">复制位置</button>
+        <a class="github" href="https://github.com/vintcessun/OOAD/blob/827ca45/rbac-contract/src/main/resources/db/migration/V4__drop_user_expiry.sql#L1-L15" target="_blank" rel="noopener">GitHub 定位 ↗</a>
+      </div>
+      <details><summary>查看这一段原代码 <span>1–15 行</span></summary><pre><code>   1 │ -- =============================================================================
+   2 │ -- V4 取消账号到期时间（docs/03-database.md §3.2，docs/12-design-log.md R-21）
+   3 │ --
+   4 │ -- 课程要求账号只有启用、停用、删除三种状态，老师明确不要「到期」：临时用户用完由管理员手工停用。
+   5 │ -- 删列前先把已经到期、仍为启用的账号改为停用并写明原因，避免删列后它们重新可以登录。
+   6 │ -- =============================================================================
+   7 │
+   8 │ UPDATE sys_user
+   9 │    SET status = &#x27;DISABLED&#x27;,
+  10 │        status_reason = &#x27;账号到期（V4 取消到期时间时自动停用）&#x27;
+  11 │  WHERE status = &#x27;ACTIVE&#x27;
+  12 │    AND expires_at IS NOT NULL
+  13 │    AND expires_at &lt;= NOW();
+  14 │
+  15 │ ALTER TABLE sys_user DROP COLUMN expires_at;</code></pre></details>
+    </article>
+
+    <article class="card" id="q30" data-cat="数据库" data-search="数据库 为什么 staruml 和 v4 字段不一致？ rbac.mdj er expires_at 模型 e-04 现有 mermaid er 与 v4 删除字段一致，但可编辑的 staruml rbac.mdj 仍有 expires_at。结构校验只检查 json 引用等合法性，不能证明它与当前 ddl 字段一致。 这是 e-04 文档/模型同步问题，答辩时应以迁移后的当前数据库为准，并说明模型待更新。 diagrams/readme.md">
+      <div class="card-top"><span class="pill">数据库</span><span class="number">#30</span></div>
+      <h2>为什么 StarUML 和 V4 字段不一致？</h2>
+      <p class="answer">现有 Mermaid ER 与 V4 删除字段一致，但可编辑的 StarUML rbac.mdj 仍有 expires_at。结构校验只检查 JSON 引用等合法性，不能证明它与当前 DDL 字段一致。</p>
+      <div class="followup"><strong>老师追问时补充</strong><br>这是 E-04 文档/模型同步问题，答辩时应以迁移后的当前数据库为准，并说明模型待更新。</div>
+      <div class="source"><span>源码：</span><a href="../diagrams/README.md" target="_blank">diagrams/README.md</a><span class="line">第 1–80 行</span>
+        <button class="copy" data-copy="diagrams/README.md:1">复制位置</button>
+        <a class="github" href="https://github.com/vintcessun/OOAD/blob/827ca45/diagrams/README.md#L1-L80" target="_blank" rel="noopener">GitHub 定位 ↗</a>
+      </div>
+      <details><summary>查看这一段原代码 <span>1–80 行</span></summary><pre><code>   1 │ # UML 模型与图
+   2 │
+   3 │ 课程**明确建议采用 StarUML**（https://staruml.io/）。本目录存放模型源文件与导出图。
+   4 │
+   5 │ ## 目录
+   6 │
+   7 │ ```
+   8 │ diagrams/
+   9 │ ├── rbac.mdj                 手工维护：StarUML 原生 ER 图 + 用例总图 + 领域模型
+  10 │ ├── src/                     Mermaid 参考源文件（用例图、领域模型导出图的来源）
+  11 │ │   ├── er-diagram.mmd       数据库结构参考；当前 ER 导出图以 rbac.mdj 为准
+  12 │ │   ├── usecase-overall.mmd  用例总图（Mermaid 无用例图类型，用 flowchart 表示）
+  13 │ │   └── domain-model.mmd     领域模型（01-srs.md §3.1）
+  14 │ ├── export/                  SVG / PNG，供文档引用
+  15 │ │   ├── er-diagram.svg/.png   本地已有的 StarUML 原生导出
+  16 │ │   ├── usecase-overall.svg/.png  Mermaid 导出，待 StarUML 内核对
+  17 │ │   └── domain-model.svg/.png     Mermaid 导出，待 StarUML 内核对
+  18 │ └── tools/
+  19 │     ├── gen-mdj.mjs          初始化生成器与结构校验（纯 Node，无依赖）
+  20 │     ├── gen-mdj.test.mjs     原生文字标注、实体重叠和引用校验的回归测试
+  21 │     ├── mermaid-config.json  中文字体等渲染配置
+  22 │     └── puppeteer-config.json 指定本机 Chrome（Chromium 下载失败时用）
+  23 │ ```
+  24 │
+  25 │ ## 校验与导出
+  26 │
+  27 │ 日常编辑使用 StarUML，保存后从仓库根目录运行：
+  28 │
+  29 │ ```powershell
+  30 │ node diagrams/tools/gen-mdj.mjs --check-only
+  31 │ node --test diagrams/tools/gen-mdj.test.mjs
+  32 │ ```
+  33 │
+  34 │ 校验覆盖 JSON、唯一 `_id`、可解析的 `$ref`、父子关系、视图引用和实体等节点的重叠。StarUML 原生的 `UMLTextView` 是独立文字标注，不要求 `model`，也不把其空白边界当成实体节点；其中已有的引用仍会检查。脚本校验不能代替 StarUML 打开模型后的显示检查。
+  35 │
+  36 │ **用例总图、领域模型的 Mermaid 导出图**（在仓库外的临时目录装一次 mermaid-cli，不要把 node_modules 放进仓库）：
+  37 │
+  38 │ ```powershell
+  39 │ # 临时目录里：npm i @mermaid-js/mermaid-cli@11.4.2 puppeteer@23.11.1（设 $env:PUPPETEER_SKIP_DOWNLOAD=&#x27;true&#x27; 可跳过下载 Chromium）
+  40 │ $d = &quot;D:\__大三上\ooad\OOAD\diagrams&quot; # 替换为自己的仓库路径
+  41 │ foreach ($n in &#x27;usecase-overall&#x27;,&#x27;domain-model&#x27;) { foreach ($ext in &#x27;svg&#x27;,&#x27;png&#x27;) {
+  42 │   .\node_modules\.bin\mmdc.cmd -i &quot;$d\src\$n.mmd&quot; -o &quot;$d\export\$n.$ext&quot; `
+  43 │     -c &quot;$d\tools\mermaid-config.json&quot; -p &quot;$d\tools\puppeteer-config.json&quot; -w 2000 -s 2 -b white
+  44 │ } }
+  45 │ ```
+  46 │
+  47 │ `puppeteer-config.json` 写的是 Chrome 的默认安装路径，机器不同时自行修改；能正常下载 Chromium 时可去掉 `-p`。
+  48 │
+  49 │ **重新初始化 StarUML 模型**（仅用于独立参考文件）：
+  50 │
+  51 │ ```powershell
+  52 │ node diagrams/tools/gen-mdj.mjs --out &lt;临时目录&gt;/rbac-reference.mdj
+  53 │ ```
+  54 │
+  55 │ 生成器按 [staruml-samples](https://github.com/staruml/staruml-samples) 的 `ERDExample.mdj`、`UMLExample.mdj` 编写，`--samples &lt;样例目录&gt;` 可对生成的参考文件比对结构；原生保存的模型可能包含样例未覆盖的视图类型。
+  56 │
+  57 │ &gt; ⚠️ **不带 `--check-only` 或 `--out` 运行生成器会覆盖 `rbac.mdj`，丢失已选用的原生 ER 图与手工布局。** 当前模型已转为手工维护。ER 图应从 StarUML 导出，不要用 Mermaid 输出覆盖。
+  58 │
+  59 │ ## 工作方式
+  60 │
+  61 │ 文档撰写阶段用 **Mermaid** 内嵌在 Markdown 里，方便 GitHub 渲染与文本 diff。数据库结构以迁移脚本为准，StarUML 图以 `rbac.mdj` 为编辑来源；导出图的来源见上方目录。
+  62 │
+  63 │ **提交给老师之前，图必须在 StarUML 中核对并导出**：
+  64 │ 1. 课程明确建议使用 StarUML，交付物应符合课程要求；
+  65 │ 2. StarUML 能表达 Mermaid 表达不了的东西——用例图的 `&lt;&lt;include&gt;&gt;` / `&lt;&lt;extend&gt;&gt;`、构造型、多重性标注、约束等。
+  66 │
+  67 │ 2026-10-18 合并时，保留本地已由 StarUML 7.1.1 原生保存的 ER 模型与 PNG/SVG，并加入 `afa01a6` 的用例总图、领域模型。ER 图含 **14 张表、105 个字段、17 个外键**，与迁移脚本及远端 ER 模型结构一致；中文标题、布局、联合唯一约束说明和试用水印均保留。**组合后的模型尚未在 StarUML 中重新打开，用例和领域模型仍待原生验证。** 提交前须有人：
+  68 │ - [ ] 用 StarUML 打开组合后的 `rbac.mdj`，确认三张图都能正常显示；
+  69 │ - [ ] 调整布局（生成的连线是直线，部分会穿过其他元素）；
+  70 │ - [ ] 从 StarUML 导出用例总图、领域模型的 PNG/SVG，替换对应 Mermaid 导出图；ER 图如有修改也同步导出。
+  71 │ - [ ] 10/21 V4 删除了 `sys_user.expires_at`（docs/12 R-21）：在 StarUML 的 ER 图里删掉 `sys_user` 的 `expires_at` 列（字段数 105 → 104），重新导出 `er-diagram.png/svg`。Mermaid 源 `src/er-diagram.mmd`、`src/domain-model.mmd` 与生成器已同步；`domain-model` 导出图已重新生成。
+  72 │
+  73 │ `.mdj` 是文本 JSON，但嵌套深、`_id` 互相引用，**冲突难以手工合并**。因此：
+  74 │
+  75 │ &gt; ⚠️ **同一时间只能有一人编辑 `.mdj`。** 编辑前在群里知会一声，改完立即提交。
+  76 │ &gt; 若确实需要并行，按包拆成多个 `.mdj` 文件（`rbac-usecase.mdj`、`rbac-domain.mdj`、`rbac-class.mdj`…）。
+  77 │
+  78 │ ## 需要绘制的图清单
+  79 │
+  80 │ ### 迭代一（10/27 检查）</code></pre></details>
+    </article>
+<h2 class="section" data-cat="前端">前端</h2>
+
+    <article class="card" id="q31" data-cat="前端" data-search="前端 页面怎样调用四个 e api？ orgapi companies tree importorganization importpermissions formdata 前端 orgapi 对应两个 get 和两个 post。组织导入用 formdata 放 departments、employees 两份文件，公司编码和名称放查询参数；权限导入用 file 字段上传。 现场从 orgview 的调用跳到 orgapi，再到 controller。 rbac-web/src/api/index.ts">
+      <div class="card-top"><span class="pill">前端</span><span class="number">#31</span></div>
+      <h2>页面怎样调用四个 E API？</h2>
+      <p class="answer">前端 orgApi 对应两个 GET 和两个 POST。组织导入用 FormData 放 departments、employees 两份文件，公司编码和名称放查询参数；权限导入用 file 字段上传。</p>
+      <div class="followup"><strong>老师追问时补充</strong><br>现场从 OrgView 的调用跳到 orgApi，再到 Controller。</div>
+      <div class="source"><span>源码：</span><a href="../rbac-web/src/api/index.ts" target="_blank">rbac-web/src/api/index.ts</a><span class="line">第 90–104 行</span>
+        <button class="copy" data-copy="rbac-web/src/api/index.ts:90">复制位置</button>
+        <a class="github" href="https://github.com/vintcessun/OOAD/blob/827ca45/rbac-web/src/api/index.ts#L90-L104" target="_blank" rel="noopener">GitHub 定位 ↗</a>
+      </div>
+      <details><summary>查看这一段原代码 <span>90–104 行</span></summary><pre><code>  90 │ export const orgApi = {
+  91 │   companies: () =&gt; get&lt;CompanyView[]&gt;(&#x27;/companies&#x27;),
+  92 │   tree: (companyId: number) =&gt; get&lt;DeptNode[]&gt;(&#x27;/departments/tree&#x27;, { companyId }),
+  93 │   importOrganization: (companyCode: string, companyName: string, departments: File, employees: File) =&gt; {
+  94 │     const form = new FormData()
+  95 │     form.append(&#x27;departments&#x27;, departments)
+  96 │     form.append(&#x27;employees&#x27;, employees)
+  97 │     return post&lt;ImportReport&gt;(&#x27;/imports/organization&#x27;, form, { params: { companyCode, companyName } })
+  98 │   },
+  99 │   importPermissions: (file: File) =&gt; {
+ 100 │     const form = new FormData()
+ 101 │     form.append(&#x27;file&#x27;, file)
+ 102 │     return post&lt;ImportReport&gt;(&#x27;/imports/permissions&#x27;, form)
+ 103 │   },
+ 104 │ }</code></pre></details>
+    </article>
+
+    <article class="card" id="q32" data-cat="前端" data-search="前端 导入按钮与结果在哪个页面？ orgview importreportview 权限导入 组织管理页面 orgview 同时放组织与权限清单两个导入弹窗。importreportview 展示 counts、notes、anomalies；权限目录页 permissionview 并不包含导入按钮。 导入成功后组织树会刷新；权限导入只更新报告和成功提示。 rbac-web/src/views/orgview.vue">
+      <div class="card-top"><span class="pill">前端</span><span class="number">#32</span></div>
+      <h2>导入按钮与结果在哪个页面？</h2>
+      <p class="answer">组织管理页面 OrgView 同时放组织与权限清单两个导入弹窗。ImportReportView 展示 counts、notes、anomalies；权限目录页 PermissionView 并不包含导入按钮。</p>
+      <div class="followup"><strong>老师追问时补充</strong><br>导入成功后组织树会刷新；权限导入只更新报告和成功提示。</div>
+      <div class="source"><span>源码：</span><a href="../rbac-web/src/views/OrgView.vue" target="_blank">rbac-web/src/views/OrgView.vue</a><span class="line">第 44–103 行</span>
+        <button class="copy" data-copy="rbac-web/src/views/OrgView.vue:44">复制位置</button>
+        <a class="github" href="https://github.com/vintcessun/OOAD/blob/827ca45/rbac-web/src/views/OrgView.vue#L44-L103" target="_blank" rel="noopener">GitHub 定位 ↗</a>
+      </div>
+      <details><summary>查看这一段原代码 <span>44–103 行</span></summary><pre><code>  44 │           &lt;/div&gt;
+  45 │           &lt;el-alert type=&quot;info&quot; :closable=&quot;false&quot; show-icon
+  46 │                     title=&quot;导入不会分配任何角色。导入后请审核异常清单，再用批量授权人工分配。&quot; /&gt;
+  47 │         &lt;/el-card&gt;
+  48 │       &lt;/el-col&gt;
+  49 │     &lt;/el-row&gt;
+  50 │
+  51 │     &lt;BatchAssignDialog v-if=&quot;batchVisible&quot; v-model=&quot;batchVisible&quot; :revoke=&quot;batchRevoke&quot; initial-target-type=&quot;DEPARTMENT&quot;
+  52 │                        :initial-dept-id=&quot;selected?.id&quot; :initial-company-id=&quot;companyId&quot; /&gt;
+  53 │
+  54 │     &lt;el-dialog v-model=&quot;orgImportVisible&quot; title=&quot;导入部门信息表与员工信息表&quot; width=&quot;640px&quot; data-test=&quot;import-org-dialog&quot;&gt;
+  55 │       &lt;el-form label-width=&quot;110px&quot;&gt;
+  56 │         &lt;el-form-item label=&quot;公司编码&quot;&gt;&lt;el-input v-model=&quot;orgForm.companyCode&quot; placeholder=&quot;如 SZ&quot; data-test=&quot;import-code&quot; /&gt;&lt;/el-form-item&gt;
+  57 │         &lt;el-form-item label=&quot;公司名称&quot;&gt;&lt;el-input v-model=&quot;orgForm.companyName&quot; data-test=&quot;import-name&quot; /&gt;&lt;/el-form-item&gt;
+  58 │         &lt;el-form-item label=&quot;部门信息表&quot;&gt;
+  59 │           &lt;input type=&quot;file&quot; accept=&quot;.xlsx&quot; data-test=&quot;import-dept-file&quot; @change=&quot;pick($event, &#x27;dept&#x27;)&quot; /&gt;
+  60 │         &lt;/el-form-item&gt;
+  61 │         &lt;el-form-item label=&quot;员工信息表&quot;&gt;
+  62 │           &lt;input type=&quot;file&quot; accept=&quot;.xlsx&quot; data-test=&quot;import-emp-file&quot; @change=&quot;pick($event, &#x27;emp&#x27;)&quot; /&gt;
+  63 │         &lt;/el-form-item&gt;
+  64 │       &lt;/el-form&gt;
+  65 │       &lt;ImportReportView v-if=&quot;orgReport&quot; :report=&quot;orgReport&quot; /&gt;
+  66 │       &lt;template #footer&gt;
+  67 │         &lt;el-button @click=&quot;orgImportVisible = false&quot;&gt;关闭&lt;/el-button&gt;
+  68 │         &lt;el-button type=&quot;primary&quot; :loading=&quot;importing&quot; :disabled=&quot;!files.dept || !files.emp || !orgForm.companyCode&quot;
+  69 │                    @click=&quot;importOrg&quot; data-test=&quot;import-org-submit&quot;&gt;导入&lt;/el-button&gt;
+  70 │       &lt;/template&gt;
+  71 │     &lt;/el-dialog&gt;
+  72 │
+  73 │     &lt;el-dialog v-model=&quot;permImportVisible&quot; title=&quot;导入应用软件功能权限清单&quot; width=&quot;640px&quot; data-test=&quot;import-perm-dialog&quot;&gt;
+  74 │       &lt;input type=&quot;file&quot; accept=&quot;.xlsx&quot; data-test=&quot;import-perm-file&quot; @change=&quot;pick($event, &#x27;perm&#x27;)&quot; /&gt;
+  75 │       &lt;ImportReportView v-if=&quot;permReport&quot; :report=&quot;permReport&quot; /&gt;
+  76 │       &lt;template #footer&gt;
+  77 │         &lt;el-button @click=&quot;permImportVisible = false&quot;&gt;关闭&lt;/el-button&gt;
+  78 │         &lt;el-button type=&quot;primary&quot; :loading=&quot;importing&quot; :disabled=&quot;!files.perm&quot; @click=&quot;importPerm&quot;
+  79 │                    data-test=&quot;import-perm-submit&quot;&gt;导入&lt;/el-button&gt;
+  80 │       &lt;/template&gt;
+  81 │     &lt;/el-dialog&gt;
+  82 │   &lt;/div&gt;
+  83 │ &lt;/template&gt;
+  84 │
+  85 │ &lt;script setup lang=&quot;ts&quot;&gt;
+  86 │ import { onMounted, reactive, ref, watch } from &#x27;vue&#x27;
+  87 │ import { useRouter } from &#x27;vue-router&#x27;
+  88 │ import { ElMessage } from &#x27;element-plus&#x27;
+  89 │ import type { TreeInstance } from &#x27;element-plus&#x27;
+  90 │ import { orgApi } from &#x27;@/api&#x27;
+  91 │ import type { CompanyView, DeptNode, ImportReport } from &#x27;@/api/types&#x27;
+  92 │ import { useAuthStore } from &#x27;@/stores/auth&#x27;
+  93 │ import BatchAssignDialog from &#x27;@/components/BatchAssignDialog.vue&#x27;
+  94 │ import ImportReportView from &#x27;@/components/ImportReportView.vue&#x27;
+  95 │
+  96 │ /** 组织管理（docs/05-ui.md §3.9）：部门树、按部门批量授权、导入三份 Excel。 */
+  97 │ const auth = useAuthStore()
+  98 │ const router = useRouter()
+  99 │ const companies = ref&lt;CompanyView[]&gt;([])
+ 100 │ const companyId = ref&lt;number&gt;()
+ 101 │ const tree = ref&lt;DeptNode[]&gt;([])
+ 102 │ const treeRef = ref&lt;TreeInstance&gt;()
+ 103 │ const filter = ref(&#x27;&#x27;)</code></pre></details>
+    </article>
+
+    <article class="card" id="q33" data-cat="前端" data-search="前端 为什么旧报告会误导用户？ e-05 orgreport permreport 旧结果 打开或关闭弹窗只切换可见状态，没有清空 orgreport/permreport。第二次选择新文件时旧报告还在；新请求失败时也会继续显示，可能误认成新文件的结果。 e-05 是代码静态发现，前端手工复现与修复还没做。 rbac-web/src/views/orgview.vue">
+      <div class="card-top"><span class="pill">前端</span><span class="number">#33</span></div>
+      <h2>为什么旧报告会误导用户？</h2>
+      <p class="answer">打开或关闭弹窗只切换可见状态，没有清空 orgReport/permReport。第二次选择新文件时旧报告还在；新请求失败时也会继续显示，可能误认成新文件的结果。</p>
+      <div class="followup"><strong>老师追问时补充</strong><br>E-05 是代码静态发现，前端手工复现与修复还没做。</div>
+      <div class="source"><span>源码：</span><a href="../rbac-web/src/views/OrgView.vue" target="_blank">rbac-web/src/views/OrgView.vue</a><span class="line">第 113–164 行</span>
+        <button class="copy" data-copy="rbac-web/src/views/OrgView.vue:113">复制位置</button>
+        <a class="github" href="https://github.com/vintcessun/OOAD/blob/827ca45/rbac-web/src/views/OrgView.vue#L113-L164" target="_blank" rel="noopener">GitHub 定位 ↗</a>
+      </div>
+      <details><summary>查看这一段原代码 <span>113–164 行</span></summary><pre><code> 113 │ const permReport = ref&lt;ImportReport | null&gt;(null)
+ 114 │
+ 115 │ watch(filter, (v) =&gt; treeRef.value?.filter(v))
+ 116 │ const filterNode = (value: string, data: Record&lt;string, unknown&gt;) =&gt; !value || String(data.deptName).includes(value)
+ 117 │
+ 118 │ async function loadCompanies() {
+ 119 │   companies.value = await orgApi.companies()
+ 120 │   if (!companies.value.some((c) =&gt; c.id === companyId.value)) {
+ 121 │     companyId.value = companies.value.find((c) =&gt; c.companyCode !== &#x27;PLATFORM&#x27;)?.id ?? companies.value[0]?.id
+ 122 │   }
+ 123 │   await loadTree()
+ 124 │ }
+ 125 │
+ 126 │ async function loadTree() {
+ 127 │   selected.value = null
+ 128 │   tree.value = companyId.value ? await orgApi.tree(companyId.value) : []
+ 129 │ }
+ 130 │
+ 131 │ function openBatch(revoke: boolean) {
+ 132 │   batchRevoke.value = revoke
+ 133 │   batchVisible.value = true
+ 134 │ }
+ 135 │
+ 136 │ function pick(e: Event, kind: &#x27;dept&#x27; | &#x27;emp&#x27; | &#x27;perm&#x27;) {
+ 137 │   files[kind] = (e.target as HTMLInputElement).files?.[0] ?? null
+ 138 │ }
+ 139 │
+ 140 │ async function importOrg() {
+ 141 │   importing.value = true
+ 142 │   try {
+ 143 │     orgReport.value = await orgApi.importOrganization(orgForm.companyCode, orgForm.companyName, files.dept!, files.emp!)
+ 144 │     ElMessage.success(&#x27;导入完成，请核对异常清单&#x27;)
+ 145 │     companies.value = await orgApi.companies()
+ 146 │     // 切到刚导入的公司
+ 147 │     companyId.value = companies.value.find((c) =&gt; c.companyCode === orgForm.companyCode)?.id ?? companyId.value
+ 148 │     await loadTree()
+ 149 │   } finally {
+ 150 │     importing.value = false
+ 151 │   }
+ 152 │ }
+ 153 │
+ 154 │ async function importPerm() {
+ 155 │   importing.value = true
+ 156 │   try {
+ 157 │     permReport.value = await orgApi.importPermissions(files.perm!)
+ 158 │     ElMessage.success(&#x27;导入完成，请核对异常清单&#x27;)
+ 159 │   } finally {
+ 160 │     importing.value = false
+ 161 │   }
+ 162 │ }
+ 163 │
+ 164 │ onMounted(loadCompanies)</code></pre></details>
+    </article>
+
+    <article class="card" id="q34" data-cat="前端" data-search="前端 换公司为何清空已选部门？ depttreeselect switchcompany model null 部门选择组件在切换公司时先把已选部门设为 null，再加载新公司的部门树，避免把旧公司的部门编号提交上去。 祖先节点可能仅用于展示，服务端仍要对最终目标做范围检查。 rbac-web/src/components/depttreeselect.vue">
+      <div class="card-top"><span class="pill">前端</span><span class="number">#34</span></div>
+      <h2>换公司为何清空已选部门？</h2>
+      <p class="answer">部门选择组件在切换公司时先把已选部门设为 null，再加载新公司的部门树，避免把旧公司的部门编号提交上去。</p>
+      <div class="followup"><strong>老师追问时补充</strong><br>祖先节点可能仅用于展示，服务端仍要对最终目标做范围检查。</div>
+      <div class="source"><span>源码：</span><a href="../rbac-web/src/components/DeptTreeSelect.vue" target="_blank">rbac-web/src/components/DeptTreeSelect.vue</a><span class="line">第 32–58 行</span>
+        <button class="copy" data-copy="rbac-web/src/components/DeptTreeSelect.vue:32">复制位置</button>
+        <a class="github" href="https://github.com/vintcessun/OOAD/blob/827ca45/rbac-web/src/components/DeptTreeSelect.vue#L32-L58" target="_blank" rel="noopener">GitHub 定位 ↗</a>
+      </div>
+      <details><summary>查看这一段原代码 <span>32–58 行</span></summary><pre><code>  32 │   model.value = null
+  33 │   await loadTree()
+  34 │ }
+  35 │
+  36 │ async function loadTree() {
+  37 │   emit(&#x27;company&#x27;, companyId.value)
+  38 │   tree.value = companyId.value ? await orgApi.tree(companyId.value) : []
+  39 │ }
+  40 │
+  41 │ onMounted(async () =&gt; {
+  42 │   companies.value = await orgApi.companies()
+  43 │   // 默认选业务公司（平台运维公司只有超级管理员一个人）
+  44 │   const preferred = companies.value.find((c) =&gt; c.id === props.initialCompanyId)
+  45 │     ?? companies.value.find((c) =&gt; c.companyCode !== &#x27;PLATFORM&#x27;) ?? companies.value[0]
+  46 │   companyId.value = preferred?.id
+  47 │   await loadTree()
+  48 │ })
+  49 │
+  50 │ defineExpose({ companyId })
+  51 │ &lt;/script&gt;
+  52 │
+  53 │ &lt;style scoped&gt;
+  54 │ .dept-select {
+  55 │   display: inline-flex;
+  56 │   gap: 8px;
+  57 │ }
+  58 │ .company {</code></pre></details>
+    </article>
+<h2 class="section" data-cat="测试与问题">测试与问题</h2>
+
+    <article class="card" id="q35" data-cat="测试与问题" data-search="测试与问题 现有测试覆盖哪些导入场景？ excelimportintegrationtest t21 重导 错文件 后端集成测试覆盖组织归属与重复导入数量、权限清单归一化和异常、删行回收与 selfonly、错误文件与无权限。测试通过与否本轮未运行。 缺标题/空行号、已有员工改负责人、同名功能点换序反例。 rbac-structured/src/test/java/com/xmu/rbac/structured/integration/excelimportintegrationtest.java">
+      <div class="card-top"><span class="pill">测试与问题</span><span class="number">#35</span></div>
+      <h2>现有测试覆盖哪些导入场景？</h2>
+      <p class="answer">后端集成测试覆盖组织归属与重复导入数量、权限清单归一化和异常、删行回收与 selfOnly、错误文件与无权限。测试通过与否本轮未运行。</p>
+      <div class="followup"><strong>老师追问时补充</strong><br>缺标题/空行号、已有员工改负责人、同名功能点换序反例。</div>
+      <div class="source"><span>源码：</span><a href="../rbac-structured/src/test/java/com/xmu/rbac/structured/integration/ExcelImportIntegrationTest.java" target="_blank">rbac-structured/src/test/java/com/xmu/rbac/structured/integration/ExcelImportIntegrationTest.java</a><span class="line">第 33–109 行</span>
+        <button class="copy" data-copy="rbac-structured/src/test/java/com/xmu/rbac/structured/integration/ExcelImportIntegrationTest.java:33">复制位置</button>
+        <a class="github" href="https://github.com/vintcessun/OOAD/blob/827ca45/rbac-structured/src/test/java/com/xmu/rbac/structured/integration/ExcelImportIntegrationTest.java#L33-L109" target="_blank" rel="noopener">GitHub 定位 ↗</a>
+      </div>
+      <details><summary>查看这一段原代码 <span>33–109 行</span></summary><pre><code>  33 │     @Test
+  34 │     void t21_importsOrganizationWithCorrectDepartmentOwnership() throws Exception {
+  35 │         byte[] depts = workbook(&quot;部门信息&quot;, null, new String[][]{
+  36 │                 {&quot;部门名称&quot;, &quot;部门经理&quot;, &quot;上级部门&quot;},
+  37 │                 {&quot;总公司&quot;, &quot;甲一&quot;, null},
+  38 │                 {&quot;财务部&quot;, &quot;乙二&quot;, &quot;总公司&quot;},
+  39 │                 {&quot;道路工程分公司&quot;, &quot;丙三&quot;, &quot;总公司&quot;},
+  40 │                 {&quot;道路工程分公司-财务部&quot;, &quot;丁四&quot;, &quot;道路工程分公司&quot;},
+  41 │                 {&quot;道路工程分公司-第一项目经理部&quot;, &quot;同名&quot;, &quot;道路工程分公司&quot;},
+  42 │                 {&quot;桥梁工程分公司&quot;, &quot;戊五&quot;, &quot;总公司&quot;},
+  43 │                 {&quot;桥梁工程分公司-财务部&quot;, &quot;己六&quot;, &quot;桥梁工程分公司&quot;},
+  44 │                 {&quot;孤儿部门&quot;, &quot;无人&quot;, &quot;不存在的上级&quot;},
+  45 │         });
+  46 │         byte[] employees = workbook(&quot;员工信息&quot;, null, new String[][]{
+  47 │                 {&quot;姓名&quot;, &quot;用户名&quot;, &quot;分公司&quot;, &quot;部门&quot;, &quot;岗位&quot;, &quot;电话号码&quot;},
+  48 │                 {&quot;甲一&quot;, &quot;T0001&quot;, &quot;总公司&quot;, &quot;公司领导&quot;, &quot;董事长&quot;, &quot;13800000001&quot;},       // 部门不存在 → 异常
+  49 │                 {&quot;乙二&quot;, &quot;T0002&quot;, &quot;总公司&quot;, &quot;财务部&quot;, &quot;部长&quot;, &quot;13800000002&quot;},
+  50 │                 {&quot;丙三&quot;, &quot;T0003&quot;, &quot;道路工程分公司&quot;, &quot;道路工程分公司&quot;, &quot;经理&quot;, &quot;13800000003&quot;},  // 分公司直属
+  51 │                 {&quot;丁四&quot;, &quot;T0004&quot;, &quot;道路工程分公司&quot;, &quot;财务部&quot;, &quot;部长&quot;, &quot;13800000004&quot;},
+  52 │                 {&quot;同名&quot;, &quot;T0005&quot;, &quot;道路工程分公司&quot;, &quot;第一项目经理部&quot;, &quot;项目经理&quot;, &quot;13800000005&quot;},
+  53 │                 {&quot;同名&quot;, &quot;T0006&quot;, &quot;桥梁工程分公司&quot;, &quot;财务部&quot;, &quot;会计&quot;, &quot;13800000006&quot;},
+  54 │                 {&quot;己六&quot;, &quot;T0007&quot;, &quot;桥梁工程分公司&quot;, &quot;财务部&quot;, &quot;部长&quot;, &quot;13800000007&quot;},
+  55 │                 {&quot;庚七&quot;, &quot;T0007&quot;, &quot;桥梁工程分公司&quot;, &quot;财务部&quot;, &quot;会计&quot;, &quot;13800000008&quot;},  // 用户名重复 → 异常
+  56 │                 {&quot;辛八&quot;, &quot;T0009&quot;, &quot;隧道工程分公司&quot;, &quot;财务部&quot;, &quot;会计&quot;, &quot;13800000009&quot;},  // 分公司不存在 → 异常
+  57 │         });
+  58 │         String root = login(&quot;root&quot;);
+  59 │         Resp r = call(root, multipart(&quot;/imports/organization&quot;)
+  60 │                 .file(new MockMultipartFile(&quot;departments&quot;, &quot;d.xlsx&quot;, null, depts))
+  61 │                 .file(new MockMultipartFile(&quot;employees&quot;, &quot;e.xlsx&quot;, null, employees))
+  62 │                 .param(&quot;companyCode&quot;, &quot;IMP&quot;)
+  63 │                 .param(&quot;companyName&quot;, &quot;导入测试公司&quot;));
+  64 │         assertEquals(200, r.status(), r.toString());
+  65 │         JsonNode counts = r.data().path(&quot;counts&quot;);
+  66 │         assertEquals(7, counts.path(&quot;departmentsCreated&quot;).asInt());
+  67 │         assertEquals(6, counts.path(&quot;usersCreated&quot;).asInt());
+  68 │         List&lt;String&gt; reasons = new ArrayList&lt;&gt;();
+  69 │         r.data().path(&quot;anomalies&quot;).forEach(a -&gt; reasons.add(a.path(&quot;reason&quot;).asText()));
+  70 │         assertTrue(reasons.contains(&quot;上级部门不存在或成环&quot;), reasons.toString());
+  71 │         assertTrue(reasons.contains(&quot;用户名在表内重复&quot;), reasons.toString());
+  72 │         assertTrue(reasons.stream().filter(x -&gt; x.startsWith(&quot;无法在该分公司下唯一定位部门&quot;)).count() == 2,
+  73 │                 reasons.toString());
+  74 │
+  75 │         // 「财务部」按分公司归属，不会串到总公司或别的分公司
+  76 │         assertEquals(&quot;财务部&quot;, deptOf(&quot;T0002&quot;).deptName);
+  77 │         assertEquals(&quot;道路工程分公司-财务部&quot;, deptOf(&quot;T0004&quot;).deptName);
+  78 │         assertEquals(&quot;桥梁工程分公司-财务部&quot;, deptOf(&quot;T0006&quot;).deptName);
+  79 │         assertEquals(&quot;道路工程分公司&quot;, deptOf(&quot;T0003&quot;).deptName);   // 分公司直属人员
+  80 │         User imported = userMapper.findByUsername(&quot;T0004&quot;).orElseThrow();
+  81 │         assertTrue(imported.mustChangePwd);
+  82 │         assertEquals(&quot;T0004&quot;, imported.employeeNo);
+  83 │         // 导入的员工全部编在 10000 段，内部账号段只有 root
+  84 │         assertTrue(userMapper.findAll().stream()
+  85 │                 .allMatch(u -&gt; u.id &gt;= User.INTERNAL_ID_LIMIT || &quot;root&quot;.equals(u.username)));
+  86 │
+  87 │         // 导入不分配任何角色
+  88 │         assertEquals(0, userRoleMapper.findAll().stream().filter(ur -&gt; !ur.userId.equals(1L)).count());
+  89 │
+  90 │         // 负责人：唯一匹配的关联上；子树内重名则进异常清单，且关联不产生任何权限
+  91 │         Department roadFinance = deptOf(&quot;T0004&quot;);
+  92 │         assertEquals(userMapper.findByUsername(&quot;T0004&quot;).orElseThrow().id, roadFinance.managerUserId);
+  93 │         assertTrue(r.data().path(&quot;anomalies&quot;).toString().contains(&quot;负责人&quot;), r.toString());
+  94 │         String managerToken = login(&quot;T0004&quot;, &quot;Init@2026&quot;);
+  95 │         assertEquals(403, getJson(managerToken, &quot;/users&quot;).status());   // 首次登录先改口令
+  96 │         assertEquals(200, postJson(managerToken, &quot;/auth/password&quot;,
+  97 │                 java.util.Map.of(&quot;oldPassword&quot;, &quot;Init@2026&quot;, &quot;newPassword&quot;, &quot;N3w-Passw0rd&quot;)).status());
+  98 │         assertEquals(403, getJson(login(&quot;T0004&quot;, &quot;N3w-Passw0rd&quot;), &quot;/users&quot;).status());
+  99 │
+ 100 │         // 可重复执行：再导一次不新增
+ 101 │         Resp again = call(root, multipart(&quot;/imports/organization&quot;)
+ 102 │                 .file(new MockMultipartFile(&quot;departments&quot;, &quot;d.xlsx&quot;, null, depts))
+ 103 │                 .file(new MockMultipartFile(&quot;employees&quot;, &quot;e.xlsx&quot;, null, employees))
+ 104 │                 .param(&quot;companyCode&quot;, &quot;IMP&quot;)
+ 105 │                 .param(&quot;companyName&quot;, &quot;导入测试公司&quot;));
+ 106 │         assertEquals(0, again.data().path(&quot;counts&quot;).path(&quot;departmentsCreated&quot;).asInt());
+ 107 │         assertEquals(0, again.data().path(&quot;counts&quot;).path(&quot;usersCreated&quot;).asInt());
+ 108 │         assertEquals(6, again.data().path(&quot;counts&quot;).path(&quot;usersAlreadyPresent&quot;).asInt());
+ 109 │     }</code></pre></details>
+    </article>
+
+    <article class="card" id="q36" data-cat="测试与问题" data-search="测试与问题 部门树的范围怎么验证？ organizationtreeislimitedtoscope 404 祖先 managementapitest 用 root 和道路分公司的管理员对比：root 可见完整公司 a 树，普通管理员只见到祖先和道路分支；不存在的公司返回 404。 这是测试断言内容，不要说本机已跑过。 rbac-structured/src/test/java/com/xmu/rbac/structured/integration/managementapitest.java">
+      <div class="card-top"><span class="pill">测试与问题</span><span class="number">#36</span></div>
+      <h2>部门树的范围怎么验证？</h2>
+      <p class="answer">ManagementApiTest 用 root 和道路分公司的管理员对比：root 可见完整公司 A 树，普通管理员只见到祖先和道路分支；不存在的公司返回 404。</p>
+      <div class="followup"><strong>老师追问时补充</strong><br>这是测试断言内容，不要说本机已跑过。</div>
+      <div class="source"><span>源码：</span><a href="../rbac-structured/src/test/java/com/xmu/rbac/structured/integration/ManagementApiTest.java" target="_blank">rbac-structured/src/test/java/com/xmu/rbac/structured/integration/ManagementApiTest.java</a><span class="line">第 627–648 行</span>
+        <button class="copy" data-copy="rbac-structured/src/test/java/com/xmu/rbac/structured/integration/ManagementApiTest.java:627">复制位置</button>
+        <a class="github" href="https://github.com/vintcessun/OOAD/blob/827ca45/rbac-structured/src/test/java/com/xmu/rbac/structured/integration/ManagementApiTest.java#L627-L648" target="_blank" rel="noopener">GitHub 定位 ↗</a>
+      </div>
+      <details><summary>查看这一段原代码 <span>627–648 行</span></summary><pre><code> 627 │     @Test
+ 628 │     void organizationTreeIsLimitedToScope() throws Exception {
+ 629 │         String root = login(&quot;root&quot;);
+ 630 │         assertEquals(3, getJson(root, &quot;/companies&quot;).data().size());   // 平台、A、B
+ 631 │         JsonNode tree = getJson(root, &quot;/departments/tree?companyId=&quot; + org.a().id).data();
+ 632 │         assertEquals(1, tree.size());
+ 633 │         assertEquals(3, tree.get(0).path(&quot;children&quot;).size());
+ 634 │         assertEquals(404, getJson(root, &quot;/departments/tree?companyId=999999&quot;).status());
+ 635 │
+ 636 │         User admin = user(&quot;admin&quot;, org.road());
+ 637 │         grant(admin, org.rbacAdmin(), org.road());
+ 638 │         JsonNode mine = getJson(login(&quot;admin&quot;), &quot;/departments/tree?companyId=&quot; + org.a().id).data();
+ 639 │         // 只看到通往道路分公司的祖先（总公司）与道路分公司子树
+ 640 │         assertEquals(1, mine.get(0).path(&quot;children&quot;).size());
+ 641 │         assertEquals(&quot;道路分公司&quot;, mine.get(0).path(&quot;children&quot;).get(0).path(&quot;deptName&quot;).asText());
+ 642 │         assertEquals(2, mine.get(0).path(&quot;children&quot;).get(0).path(&quot;children&quot;).size());
+ 643 │     }
+ 644 │
+ 645 │     // ------------------------------------------------------------------ 审计、Dashboard、热力图
+ 646 │
+ 647 │     @Test
+ 648 │     void auditDashboardAndHeatmapComeFromRealEvents() throws Exception {</code></pre></details>
+    </article>
+
+    <article class="card" id="q37" data-cat="测试与问题" data-search="测试与问题 为什么端到端导入用例可能误报失败？ e-06 orgdialog el-alert 提示位置 测试在 orgdialog 内寻找“导入不分配任何角色”，但该提示位于 orgview 弹窗外的页面卡片。导入本身可能成功，测试仍会因为找错范围失败。 这是静态定位的 e-06，等待测试环境运行确认。 rbac-web/e2e/console.spec.ts">
+      <div class="card-top"><span class="pill">测试与问题</span><span class="number">#37</span></div>
+      <h2>为什么端到端导入用例可能误报失败？</h2>
+      <p class="answer">测试在 orgDialog 内寻找“导入不分配任何角色”，但该提示位于 OrgView 弹窗外的页面卡片。导入本身可能成功，测试仍会因为找错范围失败。</p>
+      <div class="followup"><strong>老师追问时补充</strong><br>这是静态定位的 E-06，等待测试环境运行确认。</div>
+      <div class="source"><span>源码：</span><a href="../rbac-web/e2e/console.spec.ts" target="_blank">rbac-web/e2e/console.spec.ts</a><span class="line">第 75–98 行</span>
+        <button class="copy" data-copy="rbac-web/e2e/console.spec.ts:75">复制位置</button>
+        <a class="github" href="https://github.com/vintcessun/OOAD/blob/827ca45/rbac-web/e2e/console.spec.ts#L75-L98" target="_blank" rel="noopener">GitHub 定位 ↗</a>
+      </div>
+      <details><summary>查看这一段原代码 <span>75–98 行</span></summary><pre><code>  75 │
+  76 │ test(&#x27;导入功能权限清单与组织、员工（虚构数据），导入不分配角色&#x27;, async () =&gt; {
+  77 │   await shot(&#x27;01-dashboard&#x27;)
+  78 │   await menu(&#x27;组织管理&#x27;)
+  79 │   await page.getByTestId(&#x27;open-import-perm&#x27;).click()
+  80 │   await page.getByTestId(&#x27;import-perm-file&#x27;).setInputFiles(path.join(FIXTURES, &#x27;permissions.xlsx&#x27;))
+  81 │   await page.getByTestId(&#x27;import-perm-submit&#x27;).click()
+  82 │   const permDialog = page.getByTestId(&#x27;import-perm-dialog&#x27;)
+  83 │   await expect(permDialog.getByTestId(&#x27;count-permissions&#x27;)).toHaveText(&#x27;20&#x27;)
+  84 │   await expect(permDialog.getByTestId(&#x27;count-rolePermissions&#x27;)).toHaveText(&#x27;45&#x27;)
+  85 │   await shot(&#x27;02-import-permissions&#x27;)
+  86 │   await permDialog.locator(&#x27;.el-dialog__footer&#x27;).getByRole(&#x27;button&#x27;, { name: &#x27;关闭&#x27; }).click()
+  87 │
+  88 │   await page.getByTestId(&#x27;open-import-org&#x27;).click()
+  89 │   await page.getByTestId(&#x27;import-dept-file&#x27;).setInputFiles(path.join(FIXTURES, &#x27;departments.xlsx&#x27;))
+  90 │   await page.getByTestId(&#x27;import-emp-file&#x27;).setInputFiles(path.join(FIXTURES, &#x27;employees.xlsx&#x27;))
+  91 │   await page.getByTestId(&#x27;import-org-submit&#x27;).click()
+  92 │   const orgDialog = page.getByTestId(&#x27;import-org-dialog&#x27;)
+  93 │   await expect(orgDialog.getByTestId(&#x27;count-departmentsCreated&#x27;)).toHaveText(&#x27;11&#x27;)
+  94 │   await expect(orgDialog.getByTestId(&#x27;count-usersCreated&#x27;)).toHaveText(&#x27;28&#x27;)
+  95 │   await expect(orgDialog).toContainText(&#x27;导入不分配任何角色&#x27;)
+  96 │   await shot(&#x27;03-import-org&#x27;)
+  97 │   await orgDialog.locator(&#x27;.el-dialog__footer&#x27;).getByRole(&#x27;button&#x27;, { name: &#x27;关闭&#x27; }).click()
+  98 │   await expect(page.getByTestId(&#x27;org-tree&#x27;)).toContainText(&#x27;道路工程分公司&#x27;)</code></pre></details>
+    </article></div><div id="empty" class="empty" hidden>没有匹配项。试试“部门”“权限”“V4”“异常”“导入”。</div>
+  <p class="footer">生成方式：python human-review/build-e-guide.py。网页内代码片段是生成时的源码快照；若小组继续修改源码，请重新生成并核对行号。详细问题与状态见 E.md 和 problems/E/E-review-20261026.md。</p>
+</main></div>
+<script>
+const cards=[...document.querySelectorAll('.card')], search=document.querySelector('#search'), cats=document.querySelector('#cats'), nav=document.querySelector('#nav'), count=document.querySelector('#count'), empty=document.querySelector('#empty');
+const groups=[...new Set(cards.map(c=>c.dataset.cat))]; let active='全部';
+function render(){
+ const q=search.value.trim().toLocaleLowerCase('zh-CN');
+ const visible=cards.filter(c=>(active==='全部'||c.dataset.cat===active)&&(!q||c.dataset.search.includes(q)));
+ cards.forEach(c=>c.hidden=!visible.includes(c));
+ document.querySelectorAll('.section').forEach(s=>s.hidden=!visible.some(c=>c.dataset.cat===s.dataset.cat));
+ count.textContent='显示 '+visible.length+' / '+cards.length+' 条讲解'; empty.hidden=visible.length>0;
+ cats.innerHTML=['全部',...groups].map(g=>'<button class="cat '+(g===active?'active':'')+'" data-cat="'+g+'">'+g+'</button>').join('');
+ nav.innerHTML=groups.map(g=>{const subset=visible.filter(c=>c.dataset.cat===g);return subset.length?'<div class="group">'+g+'</div>'+subset.map(c=>'<a href="#'+c.id+'">'+c.querySelector('h2').textContent+'</a>').join(''):''}).join('');
+}
+search.addEventListener('input',render); cats.addEventListener('click',e=>{if(e.target.matches('.cat')){active=e.target.dataset.cat;render()}});
+document.addEventListener('keydown',e=>{if(e.key==='/'&&document.activeElement!==search){e.preventDefault();search.focus()}if(e.key==='Escape'&&document.activeElement===search){search.value='';render();search.blur()}});
+document.addEventListener('click',async e=>{const b=e.target.closest('.copy');if(!b)return;try{await navigator.clipboard.writeText(b.dataset.copy);b.textContent='已复制';setTimeout(()=>b.textContent='复制位置',1200)}catch{b.textContent='请手动复制路径'}});
+render();
+</script>
+</body></html>

@@ -13,7 +13,7 @@ import org.springframework.stereotype.Service;
  * <p>先确定「谁能查谁」（docs/06 §5.2.3），再调用与拦截器相同的 {@link AuthorizationService#decide}：
  * <ul>
  *   <li>查自己：任何已登录用户都可以；</li>
- *   <li>查别人（业务系统代用户鉴权、管理员查看他人）：调用者必须在被查用户的部门持有
+ *   <li>查别人（管理员或其他获授权调用者）：调用者必须在被查用户的部门持有
  *       rbac:authz:invoke（解释为 rbac:authz:explain）。</li>
  * </ul>
  * 调用者无权查询时返回 403；调用者有权、被查用户无权时，是一次正常完成的判定，返回 200 与 allowed=false。
@@ -34,6 +34,10 @@ public class AuthzQueryService {
         this.audit = audit;
     }
 
+    /**
+     * 解析请求中的主体和权限后调用统一判定内核，并记录 AUTH_SUCCESS/AUTH_FAILED。
+     * 调用者无权查询他人时在 resolveSubject 阶段抛 403；被查主体本身无权限时正常返回 allowed=false。
+     */
     public Decision check(Operator caller, AuthzRequest req, boolean explain) {
         String permission = permissionOf(req);
         Long subjectId = resolveSubject(caller, req, explain ? PERM_EXPLAIN : PERM_INVOKE);
@@ -42,6 +46,7 @@ public class AuthzQueryService {
         return d;
     }
 
+    /** 完整 permission 优先；未提供时才由 resource + action 组合。 */
     static String permissionOf(AuthzRequest req) {
         if (req == null) {
             throw BizException.badRequest("请求体不能为空");
@@ -77,6 +82,8 @@ public class AuthzQueryService {
             throw denied(caller, callerPermission);
         }
         if (subject == null) {
+            // 调用者已先通过“可查询他人”检查，此时才允许统一判定内核返回 SUBJECT_NOT_FOUND。
+            // username 查询不存在时 userId 为空也没关系，decide(null, ...) 会生成同一原因码。
             return req.userId();   // 判定结果为 SUBJECT_NOT_FOUND
         }
         if (!authz.decide(caller.userId(), callerPermission, subject.departmentId, false).allowed()) {

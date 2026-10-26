@@ -90,8 +90,8 @@ public class PermissionInterceptor implements HandlerInterceptor {
         if (ContractRoutes.SELF.equals(route.permission())) {
             return true;
         }
-
-        // 8. 一般权限校验：走授权决策并留审计，拒绝时返回原因
+        // 8. 一般权限校验：路由层只判断“能否调用这一类接口”并留审计；
+        // 没有具体目标部门，对象级管理范围由 Service 根据实际目标二次校验。
         Decision d = authorization.decide(auth.userId(), route.permission(), null, false);
         audit.recordDecision(d, op, "api " + key);
         if (!d.allowed()) {
