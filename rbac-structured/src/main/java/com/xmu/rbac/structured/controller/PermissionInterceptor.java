@@ -53,32 +53,45 @@ public class PermissionInterceptor implements HandlerInterceptor {
 
     @Override
     public boolean preHandle(HttpServletRequest req, HttpServletResponse resp, Object handler) throws IOException {
+        // 1. 拿到本次请求实际匹配的 URL 模板，据此算出契约里的路由 key
         Object pattern = req.getAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE);
         String key = pattern == null ? null : ContractRoutes.key(req.getMethod(), pattern.toString());
         ContractRoutes.Route route = key == null ? null : routes.find(req.getMethod(), pattern.toString());
+
+        // 2. 契约校验：路由不存在，或非匿名却没声明权限
         if (route == null || (!route.anonymous() && route.permission() == null)) {
             return reject(resp, 403, BizException.FORBIDDEN, "接口未在契约中声明权限，默认拒绝", null);
         }
+
+        // 3. 匿名接口直接放行，不做认证，比如login
         if (route.anonymous()) {
             return true;
         }
 
+        // 4. 认证：解析 Bearer token
         Authenticated auth;
         try {
             auth = authentication.authenticate(bearerToken(req));
         } catch (BizException e) {
             return reject(resp, e.httpStatus(), e.code(), e.getMessage(), null);
         }
+
+        // 5. 认证通过，把操作信息放进 req 属性
         Operator op = new Operator(auth.userId(), auth.username(), clientIp(req));
         req.setAttribute(ATTR_OPERATOR, op);
         req.setAttribute(ATTR_AUTH, auth);
 
+        // 6. 强制改密拦截：需改密且当前接口不在非改密放行名单里
         if (auth.mustChangePwd() && !BEFORE_PASSWORD_CHANGE.contains(key)) {
             return reject(resp, 403, BizException.PASSWORD_CHANGE_REQUIRED, "首次登录请先修改口令", null);
         }
+
+        // 7. "本人"级权限，认证已过即可放行
         if (ContractRoutes.SELF.equals(route.permission())) {
             return true;
         }
+
+        // 8. 一般权限校验：走授权决策并留审计，拒绝时返回原因
         Decision d = authorization.decide(auth.userId(), route.permission(), null, false);
         audit.recordDecision(d, op, "api " + key);
         if (!d.allowed()) {
