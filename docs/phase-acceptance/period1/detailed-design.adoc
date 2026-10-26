@@ -1,0 +1,414 @@
+= RBAC0 权限中心详细设计说明书
+:lang: zh-CN
+:project-root: ../../OOAD
+:toc: left
+:toc-title: 目录
+:sectnums:
+:src: {project-root}/rbac-structured/src/main/java/com/xmu/rbac/structured
+:tests: {project-root}/rbac-structured/src/test/java/com/xmu/rbac/structured
+
+[cols="1,3",options="header"]
+|===
+|项目 |内容
+|文档版本 |1.2
+|修订日期 |2026-10-26
+|适用版本 |当前结构化实现和数据库结构
+|编制依据 |GB/T 8567-2006《计算机软件文档编制规范》7.13 软件（结构）设计说明（SDD）
+|===
+
+== 引言
+
+=== 标识
+
+本文描述 RBAC0 权限中心的软件设计，供项目开发、测试和课程评审使用。后端软件配置项为 `rbac-structured`；配套配置项为接口与迁移模块 `rbac-contract`、管理前端 `rbac-web` 和接入示例 `rbac-mock-biz`。
+
+=== 系统概述
+
+系统为多个业务系统提供统一认证和授权服务。员工访问已获授权的功能，管理员维护用户、角色和授权，审计人员查询操作记录。用户归属一个部门，可以在多个部门持有角色。权限采用 RBAC0 模型，不包含角色继承和会话角色。
+
+后端使用 Java 21、Spring Boot 3.3.5 和 Spring Data JPA，前端使用 Vue 3、TypeScript。MySQL 8.0 保存业务数据，Redis 7 保存授权缓存和令牌注销标记。
+
+=== 文档概述
+
+本文按 SDD 的七章结构编排。第 3 章规定系统行为，第 4 章说明模块、数据和接口，第 5 章给出模块处理规约，第 6 章建立需求与测试的对应关系。数据库字段定义另见数据库设计说明书，HTTP 字段类型和必填规则引用 OpenAPI 契约。
+
+本项目没有硬件接口、中断处理或实时调度要求，省略相应条目。文档不收录部署凭据和真实人员数据。
+
+=== 设计依据
+
+本文依据当前工作区的结构化实现、`rbac-api.yaml` 接口契约和数据库迁移 SQL 编写。账号使用 ACTIVE、DISABLED、DELETED 三种状态，临时账号由管理员手工停用。
+
+== 引用文件
+
+[cols="3,2",options="header"]
+|===
+|文件 |使用范围
+|https://openstd.samr.gov.cn/bzgk/gb/newGbInfo?hcno=84C42B6277D2714B7176B10C6E6B1A44[GB/T 8567-2006《计算机软件文档编制规范》] |软件设计说明书的章节结构。
+|link:{project-root}/docs/01-srs.md[01-srs.md（需求规格说明书）] |功能需求与业务场景。
+|link:{project-root}/docs/02-architecture.md[02-architecture.md（概要设计）] |系统边界与部署结构。
+|xref:database-design.adoc[database-design.adoc（数据库设计说明书）] |当前表结构、ER 图、字段与约束。
+|link:{project-root}/rbac-contract/src/main/resources/openapi/rbac-api.yaml[rbac-api.yaml（接口契约）] |HTTP 方法、路径、报文、权限声明。
+|xref:jacoco-guide.adoc[jacoco-guide.adoc（JaCoCo 测试操作说明）] |测试环境、运行命令、报告与覆盖率门槛。
+|===
+
+文中链接直接指向设计文档、源码和测试文件。
+
+== CSCI 级设计决策
+
+=== 授权规则
+
+权限由“资源＋操作”组成，角色保存权限集合，用户通过带适用部门的角色指派获得权限。一般用户的一次访问须由同一条指派同时满足权限和部门范围。用户所属部门只表示组织归属，部门负责人和岗位名称不产生授权。
+
+普通管理员分配角色时须覆盖被授权人的所属部门和指派适用部门，且不能授出自己在该范围内没有的能力。仅限本人的权限不能扩大为不限本人。回收他人指派只检查适用部门，支持收回外公司人员在本公司的权限。
+
+=== 身份与安全
+
+每次请求检查令牌和账号当前状态。停用、删除账号在新请求中被拒绝；持有超级管理员角色的账号也须先通过状态检查。接口契约声明操作权限，服务层再检查具体对象范围。未声明权限的受拦截路由默认拒绝。
+
+用户删除采用逻辑删除，用户名继续占用。连续登录失败达到 5 次时锁定 15 分钟。JWT 有效期控制令牌的使用时间，登录锁定时间控制连续失败后的等待时间。
+
+=== 一致性与批量处理
+
+指派、角色状态和角色权限变更与全局授权版本在同一数据库事务中提交。提交后的新请求读取新版本，避开变更前的授权缓存。
+
+批量授权默认采用 ATOMIC：预检有失败项即整批不写入。PARTIAL 写入通过预检的项目并返回失败清单。两种模式均使用一个批次事务；数据库异常会回滚该事务的写入。
+
+审计采用独立事务，使被拒绝操作在业务回滚后仍有记录。成功审计和业务最终提交之间不具备原子性。
+
+=== 规模与性能约束
+
+人员管理面向万级数据，列表在数据库中完成范围过滤和分页，单页最多 200 条。批量指派按 1000 个用户分段写入。授权缓存减少角色权限联表查询，但每次授权读取仍查询数据库版本。当前没有经压测确认的吞吐量或响应时间指标。
+
+== CSCI 体系结构设计
+
+=== 体系结构
+
+==== 模块划分
+
+[cols="2,3",options="header"]
+|===
+|实现文件或目录 |职责
+|link:{src}/service/AuthenticationService.java[AuthenticationService.java]、link:{src}/service/TokenService.java[TokenService.java] |账号认证、登录保护、令牌签发和注销。
+|link:{src}/service/AuthorizationService.java[AuthorizationService.java]、link:{src}/service/AuthzQueryService.java[AuthzQueryService.java] |授权读取、权限判定、范围计算及权限解释。
+|link:{src}/service/AssignmentService.java[AssignmentService.java] |单个和批量指派、回收及授予上界校验。
+|link:{src}/service/UserManagementService.java[UserManagementService.java] |用户查询、创建、修改和状态管理。
+|link:{src}/service/RoleManagementService.java[RoleManagementService.java] |角色管理及角色权限授予、回收。
+|link:{src}/service/CatalogService.java[CatalogService.java]、link:{src}/service/OrgService.java[OrgService.java] |资源权限目录、公司和部门查询。
+|link:{src}/service/ImportService.java[ImportService.java] |组织人员导入和权限清单同步。
+|link:{src}/service/MenuService.java[MenuService.java] |菜单维护与当前用户菜单生成。
+|link:{src}/service/AuditService.java[AuditService.java]、link:{src}/service/DashboardService.java[DashboardService.java] |审计记录、查询、指标及热力图。
+|link:{project-root}/rbac-web/[rbac-web 目录]、link:{project-root}/rbac-mock-biz/[rbac-mock-biz 目录] |管理交互和外部业务接入示例。
+|===
+
+认证、鉴权、指派、用户、角色、目录、导入、菜单和审计服务位于 link:{src}/service[service 目录]。Controller、Mapper、entity、dto 分别位于同名包；接口契约和数据库迁移由 `rbac-contract` 提供。以上为本项目实现，框架与数据库通过 Maven 和部署配置引入。
+
+==== 层次与调用关系
+
+[source,text]
+----
+管理前端 / 外部业务系统
+          │ HTTP
+          ▼
+PermissionInterceptor ──→ AuthenticationService / AuthorizationService
+          │ 检查通过
+          ▼
+Controller ──→ Service ──→ Mapper ──→ MySQL / Redis
+                  │
+                  └──→ AuthorizationService / AuditService
+----
+
+Controller 负责接收请求和组织响应，Service 负责业务规则及事务，Mapper 负责数据访问。实体保存记录字段，DTO 传递数据，config 完成框架装配。Controller 不直接调用 Mapper；Mapper 不反向调用 Service。Service 之间通过方法协作。
+
+[[cohesion-coupling]]
+==== 模块划分的内聚与耦合
+
+指派模块按完整业务操作划分，`assign` 与 `batchAssign` 共用 `checkOne`、`escalation`，使单个和批量入口执行相同的授出规则；回收另用 `checkRevoke`，保留跨公司回收所需的不同范围检查。认证和 JWT 处理分开，使登录计数规则与令牌协议分别维护。
+
+主要共同依赖是授权记录 `GrantRow`、部门路径、授权版本和审计事件约定。新增授权维度会影响查询投影、缓存和判定；新增授权写入口必须推进版本；改变事件分类须同步统计查询。ImportService 同时处理组织和权限两类导入，类级职责较宽。具体取舍见 xref:ooad-explanation.adoc#cohesion-coupling[课程报告的内聚与耦合分析]。
+
+=== 全局数据结构
+
+[cols="2,3,2",options="header"]
+|===
+|结构或常量 |内容 |使用者
+|Operator |可信的 userId、username、clientIp，由认证入口形成 |Controller、管理服务、审计服务。
+|AssignmentRow / GrantRow |指派记录；携带权限码、指派 ID、角色、适用路径和 selfOnly 的授权行 |鉴权、管理范围、授予上界校验。
+|GrantSet |启用角色的 assignments 与 grants 两组记录 |AuthorizationService、Redis 授权缓存。
+|Scope |all 标志和部门路径列表 |用户过滤、组织树、管理范围检查。
+|Decision |allowed、reason、主体、权限、目标部门、matched、selfOnly、cacheHit、latencyUs、trace |鉴权接口、解释页面、审计和业务系统。
+|BatchResult |mode、committed、requested、succeeded、duplicated、failed、failures |批量接口与结果面板。
+|授权版本 |MySQL `sys_grant_version` 的 id=1 行 |授权写入与缓存读取。
+|缓存键 |`rbac:grants:v<version>:u<userId>`；默认 TTL 10 分钟 |GrantCacheMapper。
+|注销键 |`rbac:revoked:<jti>`；TTL 为令牌剩余有效期 |TokenRevocationMapper。
+|部门路径 |`/祖先id/.../本id/` |组织导入、子树查询、授权范围比较。
+|权限码 |`resource_code:action_code` |接口声明、授权判定、审计统计。
+|===
+
+Service 不保存请求状态。批量处理的部门缓存和上界计算结果放在本次调用的 Context 中。数据库、Redis 是共享状态；前端 AuthHooks 在应用启动时装配。
+
+=== 执行概念
+
+角色指派请求的处理顺序如下：
+
+[source,text]
+----
+POST /users/{id}/roles
+  → 认证调用者
+  → 根据契约检查 rbac:assignment:assign
+  → 读取被授权人、角色和适用部门
+  → 检查公司限制、管理范围和权限上界
+  → 写入指派、递增版本（同一事务）
+  → 写审计（独立事务）
+  → 提交主事务，返回指派记录
+----
+
+拦截器只检查是否拥有该类操作能力。具体用户是否可管理、角色是否可授出，由 AssignmentService 检查。并发重复指派最终由三元唯一键约束；登录失败计数使用原子 SQL 更新。
+
+账号状态为 ACTIVE、DISABLED、DELETED。ACTIVE 与 DISABLED 可切换；删除后保留记录并填写 deleted_at。登录锁定是独立的限时限制，不改变账号状态。角色状态为 ENABLED 或 DISABLED；停用角色仍保留指派，但不参与有效权限计算。
+
+=== 接口设计
+
+HTTP 请求和响应使用 JSON，导入接口使用 multipart 文件上传。路径、请求字段类型、必填项、枚举和权限声明见 link:{project-root}/rbac-contract/src/main/resources/openapi/rbac-api.yaml[rbac-api.yaml（接口契约）]，第 5 章按模块列出入口。普通响应使用 `ApiResponse`，分页结果使用 `PageResult`。
+
+[cols="3,3",options="header"]
+|===
+|调用关系 |约定
+|前端、外部系统 → Controller |受保护请求提供令牌；调用方不能通过请求体指定可信 Operator。
+|Controller → Service |传入 Operator、标识符及请求 DTO；业务失败抛 BizException。
+|Service → Mapper |JPA 查询与写入；管理写操作在 Service 事务内执行。
+|AuthorizationService → GrantCacheMapper |缓存故障按未命中处理，从 MySQL 读取授权。
+|AuthenticationService → TokenRevocationMapper |注销查询失败重试一次，仍失败按已注销处理；注销写入失败向调用方报错。
+|Service → AuditService |传入事件、对象、结果和原因；不记录口令、令牌或请求认证头。
+|===
+
+认证失败返回 HTTP 401；调用权限不足返回 403；对象不存在和冲突分别使用 404、409。鉴权调用成功但目标用户没有业务权限时，返回 HTTP 200、`allowed=false`。
+
+前端 `http.ts.classifyError` 对 401 清理身份并跳转登录，对 40304 转入改口令流程，对 40301 标记本地权限需要重新加载，下一次路由切换时刷新；其余业务错误显示具体原因。相关副作用由 `main.ts` 通过 AuthHooks 注入。
+
+== CSCI 详细设计
+
+=== 认证与令牌
+
+*功能与接口。* `POST /auth/login`、`POST /auth/logout`、`GET /auth/me`、`POST /auth/password`；受保护请求调用 `authenticate`。实现见 link:{src}/service/AuthenticationService.java[AuthenticationService.java（AuthenticationService）] 和 link:{src}/service/TokenService.java[TokenService.java（TokenService）]。
+
+*输入输出。* 登录输入账号和口令，输出令牌及登录结果；请求认证输入令牌，输出已认证身份；改口令输入原口令和新口令。具体报文见 OpenAPI 的 auth 分组。
+
+*数据。* 读取 User、口令哈希、登录计数、锁定时间及 token_version；注销状态保存在 Redis。TokenService 只处理令牌协议，不访问用户和组织表。
+
+*处理过程。*
+
+. 登录查询账号，检查状态和锁定时间，再核验口令。
+. 口令错误时原子更新失败计数；第 5 次失败将计数清零并设置 15 分钟锁定，记录失败事件。
+. 登录成功时清理失败计数，签发令牌，返回结果。
+. 请求认证依次检查签名、有效期、注销标记、数据库账号状态和 token_version。
+. 必须改口令的账号只允许访问限定的本人信息、登出、改口令入口。
+. 改口令成功后递增 token_version，使旧令牌失效；登出写入当前令牌的注销标记。
+
+*异常与事务。* `login` 对 BizException 不回滚，以保存失败计数。失效身份不能进入业务处理。账号重新启用后，尚未过期、未注销且版本未变的旧令牌可能恢复有效。
+
+=== 鉴权与权限解释
+
+*功能与接口。* `POST /authz/check`、`POST /authz/explain`；内部入口 `decide(userId, permissionCode, targetDeptId, explain)`。实现见 link:{src}/service/AuthorizationService.java[AuthorizationService.java（AuthorizationService）]、link:{src}/service/AuthzQueryService.java[AuthzQueryService.java（AuthzQueryService）]。
+
+*输入输出。* 主体按 userId、username、调用者本人依次解析。非空完整 permission 优先于 resource/action 组合。目标部门可空；输出 Decision，解释请求额外返回 trace。
+
+*数据。* GrantSet 同时保存指派和授权行。超级管理员通过指派识别，不要求存在 RolePermission；普通权限通过 GrantRow 保留指派来源、路径和本人限制。
+
+*处理过程。* 代查入口先验证调用资格。调用者须在被查用户的所属部门持有 invoke 或 explain 能力，之后执行下表。
+
+[cols="1,3,2",options="header"]
+|===
+|顺序 |处理 |结果或拒绝原因
+|1 |读取主体，检查账号状态 |SUBJECT_NOT_FOUND、SUBJECT_DISABLED、SUBJECT_DELETED。
+|2 |读取当前数据库版本，再取缓存；未命中时读取启用角色的指派和授权 |形成 GrantSet。
+|3 |检查有效超级管理员角色 |SUPER_ADMIN_BYPASS。
+|4 |按 permissionCode 筛选授权行 |空集返回 MISSING_PERMISSION。
+|5 |有目标部门时读取目标路径 |不存在返回 TARGET_DEPT_NOT_FOUND。
+|6 |从第 4 步的候选行继续筛选覆盖目标的路径 |空集返回 OUT_OF_DATA_SCOPE。
+|7 |选择命中依据，合并本人限制 |ROLE_GRANTED；有效候选全部限本人时 selfOnly=true。
+|===
+
+目标部门为空时跳过部门覆盖筛选，只判断操作能力。假设某人在道路部门有审批权，在桥梁部门有查看权；查询桥梁审批时，第 4 步只保留道路审批授权，第 6 步范围不符，返回拒绝。
+
+*缓存与异常。* 缓存回填使用先读到的版本。读写事务内不回填，版本行缺失时回源但不回填。授权写入须调用 `bumpGrantVersion`，更新行数不为 1 则失败回滚。代查资格不足返回 403；目标权限不足通过 Decision 表达。selfOnly 由业务系统按记录所有者执行。
+
+=== 角色指派与回收
+
+*功能与接口。* `POST /users/{id}/roles`、`DELETE /users/{id}/roles/{assignmentId}`、`POST /assignments/batch`、`POST /assignments/batch-revoke`。实现见 link:{src}/service/AssignmentService.java[AssignmentService.java（AssignmentService）]。
+
+*输入输出。* 单个分配输入用户、角色、适用部门和理由，返回指派记录。批量输入目标类型 USER/DEPARTMENT/COMPANY、目标 ID、角色、适用部门、模式等，返回 BatchResult。空适用部门在分配时表示各用户所属部门，在回收时表示该角色的全部指派。
+
+*局部数据。* Context 保存操作者权限、角色权限、部门缓存和按适用部门计算的授予上界结果；仅在一次方法调用中使用。
+
+*分配过程。*
+
+. 读取用户、角色、适用部门；拒绝已删除用户、停用角色和不存在的部门。停用用户可持有指派，实际鉴权仍拒绝其身份。
+. 公司内角色的 company_id 必须与适用部门公司相同；此项也约束超级管理员。
+. 普通管理员须同时覆盖用户归属部门和适用部门，且不能授出超级管理员角色。
+. 逐项比较角色权限与操作者在适用范围内的能力；缺权限或把本人权限扩大为完整权限时拒绝。
+. 写入指派，推进授权版本，记录审计。
+
+*回收过程。* 回收他人指派按适用部门检查范围；回收自己的指派可跳过服务内范围检查，但请求仍须通过接口权限检查。删除并 flush 后检查有效超级管理员人数，若将移除最后一名则记录拒绝并回滚。回收不沿 granted_by 删除历史授出的其他指派。
+
+*批量过程。* 展开目标并去重 → 建立 Context → 逐人预检 → 排除重复 → 按模式决定写入 → 分段执行 SQL → 汇总结果。有实际写入时版本加一。
+
+[cols="1,2,3",options="header"]
+|===
+|情况 |结果 |写入行为
+|ATOMIC 有失败项 |committed=false，返回失败清单 |零写入。
+|PARTIAL 有合法项和失败项 |分别统计 succeeded、failed |只写通过预检的项目。
+|已存在相同指派 |计入 duplicated |跳过重复项。
+|回收时原本没有指派 |计入 duplicated |跳过；回收 succeeded 按用户计数。
+|数据库异常 |异常响应 |回滚本批事务。
+|===
+
+例如一批包含两名合法下属、一名范围外人员和一个不存在的 ID：ATOMIC 零写入；PARTIAL 成功 2、失败 2；重复提交后新增数为 0、重复数为 2。
+
+=== 用户管理
+
+*功能与接口。* `/users` 列表和新增，`/users/{id}` 详情、修改和删除，`PATCH /users/{id}/status`，`POST /users/batch-status`，用户角色及有效权限查询。实现见 link:{src}/service/UserManagementService.java[UserManagementService.java（UserManagementService）]。
+
+*输入输出。* 输入用户资料、查询条件或状态操作；输出用户视图、分页结果、详情或批次结果。口令哈希不返回前端。详情中的指派列表包含停用角色，有效权限只计算启用角色。
+
+*数据与处理。*
+
+. 列表先组合管理范围、部门及子树、状态、类型和关键词，再在数据库分页；默认排除 DELETED。
+. 创建用户时检查用户名、类型及资料要求，按所属部门确定公司。内部账号在 1–9999 分配 ID，普通用户从 10000 自增。
+. 临时用户不保存工号、电话和账号到期时间；使用结束后由管理员停用。
+. 调岗先检查原用户可管理，再检查调入部门同公司且在操作者 edit 范围内。只改变组织归属，已有指派范围保持原值。
+. 单个和批量状态操作共用 applyStatus；删除填写 deleted_at。批量状态固定采用 PARTIAL，并在一个事务中执行。
+
+*异常。* 已删除用户、自行停用或删除、范围外目标、普通管理员修改超级管理员等情况被拒绝；重复用户名或工号按冲突处理。具体错误码见契约与 applyStatus。
+
+=== 角色与角色权限
+
+*功能与接口。* `/roles`、`/roles/{id}` 的查询与维护，`GET /roles/{id}/users`，角色权限授予和回收。实现见 link:{src}/service/RoleManagementService.java[RoleManagementService.java（RoleManagementService）]。
+
+*输入输出。* 输入角色编码、名称、可选公司、状态或权限 ID；输出角色视图、详情及权限操作结果。数据涉及 Role、RolePermission、UserRole。
+
+*处理过程。* 全局角色由超级管理员管理；公司内角色要求操作者在公司根部门持有相应管理权限。增加角色权限时，操作者须在该根部门拥有不限本人的拟授权限；手工新增关联的 selfOnly 为 false，已有关联跳过。
+
+*异常与事务。* 内置角色不可删除，仍有指派的角色不可删除，超级管理员角色不可停用。角色状态、实际新增权限及权限回收推进全局授权版本，并与数据变更同事务提交。删除无指派角色时，由外键级联清理其 RolePermission。
+
+=== 权限目录与组织查询
+
+*功能与接口。* `GET /systems`、`/actions`，资源和权限的查询、新增，以及 `GET /companies`、`GET /departments/tree`。实现见 link:{src}/service/CatalogService.java[CatalogService.java（CatalogService）]、link:{src}/service/OrgService.java[OrgService.java（OrgService）]。
+
+*输入输出。* 目录接口输入筛选条件或资源/权限定义，输出系统模块、资源、操作和权限视图；组织查询输入公司 ID，输出可见公司及部门树。
+
+*处理过程。* 新建资源检查模块存在、资源类型和资源编码的系统前缀；新建权限检查操作存在、资源操作组合唯一，再拼接权限码。创建权限定义不建立角色授权。
+
+组织查询读取操作者 `rbac:org:view` 范围，返回范围内节点及定位所需的祖先节点。祖先节点用于展示树路径，其出现不扩大管理权限。部门按层级、排序号和 ID 组织。
+
+*异常。* 引用对象不存在、编码不合法或资源操作重复时返回相应业务错误；公司不存在时部门树查询返回 404。组织查询不修改部门和用户数据。
+
+=== 数据导入
+
+*功能与接口。* `POST /imports/organization`、`POST /imports/permissions`。实现见 link:{src}/service/ImportService.java[ImportService.java（ImportService）]。
+
+*输入输出。* 组织入口接收部门表和员工表；权限入口接收功能权限清单。输出新增、更新或回收统计，以及带行号和原因的异常清单。
+
+==== 组织人员导入
+
+*数据与步骤。* 使用公司、部门、用户记录，按下列顺序执行一个导入事务。
+
+. 读取表格，建立待处理部门列表。
+. 上级已存在时写入子部门；取得 ID 后写入完整路径。一轮没有进展时，将剩余项记为上级缺失或成环。
+. 按“分公司＋部门”定位员工归属，区分不同分公司的同名部门；定位失败的员工进入异常清单。
+. 创建员工后匹配负责人，候选来自本次创建的员工，优先匹配部门子树内同名人员；无法唯一匹配时报告异常。
+
+*限制与异常。* 组织导入不按岗位或负责人自动分配角色。员工创建单独构造 User，初始口令哈希取自 UserManagementService；人工新增与导入新增的必填校验需分别维护。可识别的数据问题记录为异常项，意外数据库异常回滚事务。
+
+==== 权限清单同步
+
+*局部数据。* wanted 保存本次应有授权；untouched 保存无法判断、应保留原有授权的资源；unresolvedRows 表示无法定位所属系统或模块的行。
+
+. 按系统、模块和功能点定位资源；资源身份采用“模块＋名称＋同名出现次序”，新增编码取已用最大序号加一。
+. 建立 view/create/edit/approve/export 权限定义，再读取各角色单元格。
+. “全部”展开为五类操作；“无”表示空授权；“查看本人”写入 view 和 selfOnly。
+. 空白或未知词记录异常并保留对应资源的原有授权。若有行无法定位系统或模块，本次跳过原有授权回收。
+. 对已明确的授权更新关联及 selfOnly，回收不再需要的业务系统授权，推进版本并写审计。
+
+*范围与异常。* 回收查询以 `system_code != 'rbac'` 为边界，平台权限保留。重复导入可更新本人限制、回收权限并产生审计，资源编码保持稳定。各步骤在一个导入事务内执行。
+
+=== 菜单
+
+*功能与接口。* `GET /menus/me`，`/menus` 及 `/menus/{id}` 的管理操作。实现见 link:{src}/service/MenuService.java[MenuService.java（MenuService）]。
+
+*输入输出。* 管理输入上级菜单、名称、资源、路由、组件键和排序号；查询输出菜单树。资源为空表示目录，关联资源时要求类型为 MENU。
+
+*处理过程。* 当前用户菜单按资源调用 `decide(resourceCode + ':view', targetDeptId=null)`；本次构树复用相同资源的结论，按 sort_order、ID 排序，移除无可见子项的空目录。
+
+*异常与约束。* 修改上级时防止形成环；有子菜单时拒绝删除。前端只注册 COMPONENTS 能识别的 componentKey；新增页面需要同时提供前端组件和菜单数据。菜单可见后，页面中的各项 API 仍分别鉴权。
+
+=== 审计与统计
+
+*功能与接口。* 内部 `record`、`recordDecision`；`GET /audit-logs`、`GET /dashboard`、`GET /permissions/heatmap`。实现见 link:{src}/service/AuditService.java[AuditService.java（AuditService）]、link:{src}/service/DashboardService.java[DashboardService.java（DashboardService）]。
+
+*输入输出。* 写入事件的主体、对象、时间、IP、动作、结果和原因；查询输出分页日志、指标和热力图。鉴权审计以被查用户为主体，代查调用者另记入详情。
+
+*处理与事务。* 审计记录在 REQUIRES_NEW 事务中提交。撤销最后一个超级管理员被拒绝时，主事务回滚删除，拒绝记录仍保留。审计采用新增记录的访问方式，持久化接口本身仍有更新和删除能力。
+
+Dashboard 直接查询审计和目录数据，计算口径如下：
+
+[cols="1,4",options="header"]
+|===
+|指标 |计算规则
+|总量 |用户排除 DELETED；角色和权限直接计数，角色包含停用项。
+|今日鉴权数与成功率 |当天零点以来的 AUTH_SUCCESS、AUTH_FAILED；成功数除以总数，空集返回 0。
+|QPS |近 60 秒鉴权事件数除以 60。
+|P95、P99 |有 latency_us 的鉴权记录升序排列，取零基下标 ceil(p×n)-1，微秒转毫秒；空集返回 0。
+|缓存命中率 |cache_hit=true 的鉴权事件数除以 cache_hit 非空的鉴权事件数。
+|异常访问 |LOGIN/FAILED，或 AUTH_FAILED 且原因为主体不存在、停用、删除；普通缺权限不计入。
+|热力图 |默认近 7 天的左闭右开区间，只统计 AUTH_SUCCESS；权限码首段对应系统、末段对应操作。
+|===
+
+*约束。* 指标统计的是判定事件，一次 HTTP 操作可能产生多个事件。审计异常筛选与 Dashboard 异常计数分别维护查询条件，修改口径时须同步。成功审计可能先于主事务提交，排查业务最终状态时需结合业务记录。
+
+=== 前端与业务接入
+
+*功能与接口。* `rbac-web` 调用管理 API；`rbac-mock-biz` 演示公文、考勤接口调用权限中心。入口见 link:{project-root}/rbac-web/src/main.ts[main.ts] 和 link:{project-root}/rbac-mock-biz/src/main/java/com/xmu/rbac/mockbiz/MockBizController.java[MockBizController.java（MockBizController）]。
+
+*输入输出。* 前端输入用户操作和表单，展示列表、菜单、权限解释及批量结果；模拟业务系统接收用户令牌、业务对象和目标部门，返回受授权控制的业务数据。
+
+*处理过程。* 前端从权限数据提取权限码用于按钮显示，从菜单数据建立路由。批次响应读取 committed、failed 等字段后展示结果。模拟业务系统携带用户令牌调用 `/authz/check` 查询本人，在 allowed=true 后执行业务；selfOnly=true 时按记录所有者过滤。
+
+*异常与约束。* 前端通过 `v-perm` 检查操作权限：默认禁用无权限按钮，带 `.hide` 时隐藏。具体对象的部门范围由后端服务校验。业务接入应区分调用失败与 allowed=false，两者均不能进入受保护的处理。模拟系统仅用于接入演示。
+
+[[requirements-and-tests]]
+== 功能需求、实现文件与测试
+
+功能需求见 link:{project-root}/docs/01-srs.md[01-srs.md（需求规格说明书）]。下表用业务功能列出实现入口和测试文件；当前处理规则见本文各模块说明，接口字段见 link:{project-root}/rbac-contract/src/main/resources/openapi/rbac-api.yaml[rbac-api.yaml（接口契约）]。
+
+[cols="2,3,4",options="header"]
+|===
+|业务功能 |实现文件 |测试文件与检查内容
+|登录、登出、改口令与失败锁定 |link:{src}/service/AuthenticationService.java[AuthenticationService.java]、link:{src}/service/TokenService.java[TokenService.java] |link:{tests}/integration/ManagementApiTest.java[ManagementApiTest.java] 检查并发失败锁定；link:{tests}/integration/AcceptanceTest.java[AcceptanceTest.java] 检查账号停用、登出和改口令。
+|鉴权、部门范围与权限解释 |link:{src}/service/AuthorizationService.java[AuthorizationService.java]、link:{src}/service/AuthzQueryService.java[AuthzQueryService.java] |link:{tests}/integration/AcceptanceTest.java[AcceptanceTest.java] 检查权限与范围绑定、回收生效、解释一致、代查范围和多副本授权；link:{tests}/controller/ContractRoutesTest.java[ContractRoutesTest.java] 检查路由契约。
+|角色指派与回收 |link:{src}/service/AssignmentService.java[AssignmentService.java] |link:{tests}/integration/AcceptanceTest.java[AcceptanceTest.java] 检查本人权限授予限制和两种批量模式；link:{tests}/integration/ManagementApiTest.java[ManagementApiTest.java] 检查跨公司分配与回收。
+|用户资料与账号状态管理 |link:{src}/service/UserManagementService.java[UserManagementService.java] |link:{tests}/integration/ManagementApiTest.java[ManagementApiTest.java] 检查用户管理；link:{tests}/integration/AcceptanceTest.java[AcceptanceTest.java] 检查临时用户资料和人工停用。
+|角色管理与角色权限授予 |link:{src}/service/RoleManagementService.java[RoleManagementService.java] |link:{tests}/integration/ManagementApiTest.java[ManagementApiTest.java] 检查角色管理；link:{tests}/integration/AcceptanceTest.java[AcceptanceTest.java] 检查权限授予上界。
+|权限目录与组织查询 |link:{src}/service/CatalogService.java[CatalogService.java]、link:{src}/service/OrgService.java[OrgService.java] |link:{tests}/integration/ManagementApiTest.java[ManagementApiTest.java] 检查目录维护和组织查询。
+|组织导入与权限清单同步 |link:{src}/service/ImportService.java[ImportService.java] |link:{tests}/integration/ExcelImportIntegrationTest.java[ExcelImportIntegrationTest.java] 检查重复导入、权限回收、本人限制更新、异常项授权保留和资源编码稳定。
+|菜单维护与动态菜单 |link:{src}/service/MenuService.java[MenuService.java] |link:{tests}/integration/ManagementApiTest.java[ManagementApiTest.java] 检查菜单管理和当前用户菜单。
+|审计、指标与热力图 |link:{src}/service/AuditService.java[AuditService.java]、link:{src}/service/DashboardService.java[DashboardService.java] |link:{tests}/integration/ManagementApiTest.java[ManagementApiTest.java] 检查异常日志筛选、异常计数、仪表盘和热力图。
+|前端交互与业务接入 |link:{project-root}/rbac-web/src/main.ts[main.ts]、link:{project-root}/rbac-mock-biz/src/main/java/com/xmu/rbac/mockbiz/MockBizController.java[MockBizController.java] |link:{project-root}/rbac-web/tests/http.spec.ts[http.spec.ts]、link:{project-root}/rbac-web/tests/components.spec.ts[components.spec.ts] 检查错误处理和批次展示；模拟业务接口用于接入演示。
+|三层结构与服务声明 |link:{src}/controller/[controller 目录]、link:{src}/service/[service 目录]、link:{src}/mapper/[mapper 目录] |link:{tests}/ArchitectureTest.java[ArchitectureTest.java] 检查跨层依赖、数据实体及 Service 声明。
+|===
+
+link:{tests}/mapper/RedisFailureTest.java[RedisFailureTest.java] 检查授权缓存回源和注销查询失败拒绝。测试运行与报告查看步骤见 xref:jacoco-guide.adoc[jacoco-guide.adoc（JaCoCo 测试操作说明）]。
+
+== 注解
+
+[cols="1,4",options="header"]
+|===
+|术语 |本文含义
+|CSCI |计算机软件配置项。本文按后端、契约、前端和接入示例划分交付模块。
+|SDD |软件（结构）设计说明，包含设计决策、体系结构及模块详细设计。
+|RBAC0 |用户通过角色获得权限的基本模型，不包含角色继承。
+|指派 |用户、角色、适用部门组成的授权记录，对应 UserRole。
+|适用部门 |一条指派覆盖的部门及其下级；与用户所属部门分别保存。
+|目标部门 |本次被操作数据所在部门，由调用方传入。
+|selfOnly |仅限本人业务记录的限制，由业务系统执行记录过滤。
+|GrantSet |授权缓存中的指派和授权行集合。
+|===

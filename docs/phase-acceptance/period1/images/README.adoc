@@ -1,0 +1,9 @@
+= ER 图说明
+:lang: zh-CN
+
+本目录保存当前数据库的 ER 图，共 14 张项目表、104 个字段、17 个外键。
+
+* link:er-v4.png[er-v4.png]：PNG 图，供 AsciiDoc 正文嵌入。
+* link:er-v4.svg[er-v4.svg]：SVG 矢量图，供放大查看字段和关系。
+
+图中列出主键、外键、字段类型和可空标记，下方集中列出关键联合唯一约束。字段含义、约束及事务说明见 xref:../database-design.adoc[database-design.adoc（数据库设计说明书）]。

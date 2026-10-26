@@ -1,0 +1,34 @@
+= RBAC0 项目设计与测试文档
+:lang: zh-CN
+:toc:
+:toc-title: 目录
+
+适用项目：当前结构化实现；文档修订日期：2026-10-26。
+
+[cols="2,3",options="header"]
+|===
+|文档 |内容
+|xref:database-design.adoc[database-design.adoc（数据库设计说明书）] |当前 ER 图、表关系、104 个字段、账号状态、约束、索引和事务。
+|xref:detailed-design.adoc[detailed-design.adoc（详细设计说明书）] |设计决策、体系结构、模块处理过程，以及业务功能对应的实现文件和测试文件。
+|xref:ooad-explanation.adoc[ooad-explanation.adoc（面向对象分析与设计课程报告）] |项目需求、主要设计问题、方法选择，以及内聚、耦合和模块粒度的取舍。
+|===
+
+== 项目与文件位置
+
+后端采用 Controller → Service → Mapper 三层结构，包含 `rbac-contract`、`rbac-structured`、`rbac-mock-biz` 三个 Maven 模块，前端为 `rbac-web`。项目源码位于 link:../../OOAD。
+
+本目录通过 `../../OOAD` 引用项目中的源码、接口契约、需求文档和测试文件。当前 ER 图位于 `images` 目录，格式说明见 link:images/README.adoc[images/README.adoc（ER 图说明）]。
+
+== 查看与导出
+
+使用支持 AsciiDoc 的编辑器打开文档即可预览。已安装 Asciidoctor CLI 时，在本目录执行：
+
+[source,powershell]
+----
+Set-Location 'D:\study\JavaEE\adoc\adoc'
+asciidoctor -a data-uri README.adoc database-design.adoc detailed-design.adoc jacoco-guide.adoc ooad-explanation.adoc
+----
+
+HTML 生成在源文件旁。`data-uri` 将正文 PNG 图片嵌入 HTML，SVG 通过图件链接打开。
+
+交付时包含本目录全部 AsciiDoc 文件及 `images` 目录。源码链接按上述目录关系解析；移动文档后，相应调整 `project-root` 属性和项目目录链接。
