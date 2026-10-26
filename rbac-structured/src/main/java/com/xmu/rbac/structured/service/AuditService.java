@@ -16,6 +16,7 @@ import java.time.LocalDateTime;
 /**
  * 6.0 审计：记录「谁、什么时候、在哪里、对谁、做了什么、结果如何、为什么」。
  * 写入用独立事务：业务操作因拒绝或失败回滚时，审计记录照样留下。
+ * 注意：REQUIRES_NEW 会先于调用方外层事务提交，因此“审计已写入”不等于外层业务已经最终提交。
  */
 @Service
 public class AuditService {
@@ -55,7 +56,7 @@ public class AuditService {
 
     /**
      * 6.2 记录一次鉴权判定（AUTH_SUCCESS / AUTH_FAILED）。
-     * 「谁」是被判定的主体；调用方不是本人时（业务系统代用户鉴权），调用方写进 detail。
+     * 「谁」是被判定的主体；调用方不是本人时（例如管理员解释他人权限），调用方写进 detail。
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void recordDecision(Decision d, Operator caller, String via) {

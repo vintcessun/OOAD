@@ -11,6 +11,7 @@ import java.util.Optional;
 /** 授权数据版本号（sys_grant_version 唯一的一行）。 */
 public interface GrantVersionMapper extends JpaRepository<GrantVersion, Integer> {
 
+    /** 当前全局授权版本；缺少唯一版本行时返回 empty，由读取方降级查库、写入方拒绝提交修改。 */
     @Query("select g.version from GrantVersion g where g.id = 1")
     Optional<Long> current();
 

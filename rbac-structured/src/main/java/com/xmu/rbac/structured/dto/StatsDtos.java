@@ -10,9 +10,9 @@ public final class StatsDtos {
     }
 
     /**
-     * 鉴权请求。主体用 userId 或 username 指定，都为空表示调用者本人；
-     * 权限用 permission（如 oa:m01:f02:approve）或 resource + action 指定。
-     * targetDeptId 是被操作数据所属的部门，为空表示不涉及具体部门。
+     * 鉴权/解释共用请求：主体优先 userId、其次 username、都为空表示调用者本人；
+     * 权限优先使用 permission（如 oa:m01:f02:approve），否则必须同时提供 resource 与 action；
+     * targetDeptId 是被操作数据所属部门，为空表示本次操作不涉及具体部门对象。
      */
     public record AuthzRequest(Long userId, String username, String permission, String resource, String action,
                                Long targetDeptId) {

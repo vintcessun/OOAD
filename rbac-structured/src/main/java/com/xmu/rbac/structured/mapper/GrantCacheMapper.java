@@ -38,6 +38,10 @@ public class GrantCacheMapper {
         this.ttl = ttl;
     }
 
+    /**
+     * 读取指定授权版本下的用户授权快照。键不存在、Redis 故障或 JSON 损坏都按缓存未命中处理，
+     * 调用方随后查询 MySQL，不能因为缓存异常改变 ALLOW/DENY 结论。
+     */
     public Optional<GrantSet> find(long version, Long userId) {
         try {
             String v = redis.opsForValue().get(key(version, userId));
@@ -48,6 +52,7 @@ public class GrantCacheMapper {
         }
     }
 
+    /** 最佳努力写入缓存；写失败只损失性能，下一次请求仍可从 MySQL 重建。 */
     public void save(long version, Long userId, GrantSet grants) {
         try {
             redis.opsForValue().set(key(version, userId), json.writeValueAsString(grants), ttl);
@@ -56,6 +61,7 @@ public class GrantCacheMapper {
         }
     }
 
+    /** 版本号进入键名后，授权变更只需 bump 版本，不需要逐个删除用户旧键。 */
     static String key(long version, Long userId) {
         return "rbac:grants:v" + version + ":u" + userId;
     }
