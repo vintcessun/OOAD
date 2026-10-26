@@ -64,7 +64,7 @@ def code_excerpt(path: str, first: int, last: int) -> str:
     lines = (ROOT / path).read_text(encoding="utf-8").splitlines()
     if not (1 <= first <= last <= len(lines)):
         raise ValueError(f"源码范围过期：{path}:{first}-{last}（总行数 {len(lines)}）")
-    return "\n".join(f"{n:4} │ {lines[n - 1]}" for n in range(first, last + 1))
+    return "\n".join(f"{n:4} │ {lines[n - 1]}".rstrip() for n in range(first, last + 1))
 
 
 def e(value: str) -> str:

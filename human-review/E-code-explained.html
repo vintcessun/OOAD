@@ -67,50 +67,50 @@ pre{background:#152234;color:#dfecf9;overflow:auto;margin:0;padding:17px;font-fa
         <a class="github" href="https://github.com/vintcessun/OOAD/blob/827ca45/README.md#L8-L54" target="_blank" rel="noopener">GitHub 定位 ↗</a>
       </div>
       <details><summary>查看这一段原代码 <span>8–54 行</span></summary><pre><code>   8 │ ---
-   9 │ 
+   9 │
   10 │ &gt; 当前四节点部署、重新发布及服务器文件交接以 [部署交接文档](docs/17-deployment-handoff.md) 为准。日常更新不重新导入数据或清库。
-  11 │ 
+  11 │
   12 │ ## 一、这个项目在做什么
-  13 │ 
+  13 │
   14 │ 为一家**市政公司**实现**统一授权中心**：公司的 18 个业务系统不自己管权限，而是把「某用户能否对某部门的数据做某操作」交给本系统判定。
-  15 │ 
+  15 │
   16 │ **当前阶段（第一次检查）**按课程的 RBAC0 需求清单实现：
-  17 │ 
+  17 │
   18 │ - 权限模型只做 **RBAC0**：User — Role — Permission（= Resource × Action），不做角色继承与约束；
   19 │ - 用**面向功能的结构化设计**，技术栈 Spring MVC + JPA + MySQL + Redis，分层只用 Controller + Service + Mapper；
   20 │ - 登录、鉴权两个场景；一个用户属于一个部门，但可以在多个部门有权限；临时用户；按分公司 / 部门 / 员工批量授权；多公司；超级管理员越过权限引擎；管理员只能管理自身及以下层级；权限修改后下一次访问即生效。
-  21 │ 
+  21 │
   22 │ 系统建立在课程提供的三份**真实数据**之上，已全量导入核对：
-  23 │ 
+  23 │
   24 │ | 数据 | 导入结果 |
   25 │ |---|---|
   26 │ | 部门信息表 | 111 个部门（总公司 → 9 个分公司 + 职能部门 → 下级部门），全部建成 |
   27 │ | 员工信息表 | 10,000 名员工，全部按「分公司 + 部门」唯一定位到部门 |
   28 │ | 应用软件功能权限清单 | 18 个业务系统 / 115 个功能模块 / 359 个资源；1,795 个权限（资源 × 五类操作）；五类角色共 3,190 条角色权限 |
-  29 │ 
+  29 │
   30 │ 外部模拟业务系统 `rbac-mock-biz` 取清单中的两个功能点（发文拟稿与审核、考勤管理），每次操作带着用户令牌调用权限中心，验证权限在业务系统里真实生效。
-  31 │ 
+  31 │
   32 │ 需求与实现的逐条对照、尚未完成的事项见 [`docs/14-rbac0-gap.md`](docs/14-rbac0-gap.md)。
-  33 │ 
+  33 │
   34 │ ---
-  35 │ 
+  35 │
   36 │ ## 二、课程检查节点与对应交付物
-  37 │ 
+  37 │
   38 │ &gt; 依据：《课程设计成绩计算办法(V1)-OOAD_Grading_2026》与《课程介绍》
-  39 │ 
+  39 │
   40 │ | 时间 | 分数 | 内容要求 | 本仓库对应交付物 |
   41 │ |---|---|---|---|
   42 │ | **10/27 – 10/29** | 20 | 前端界面设计、API 设计、数据库设计；用**结构化**方式实现 **RBAC0** 后端 | [`01`](docs/01-srs.md) 需求、[`02`](docs/02-architecture.md) 概要设计、[`03`](docs/03-database.md) 数据库、[`04`](docs/04-api.md) API、[`05`](docs/05-ui.md) 界面、[`06`](docs/06-detail-structured.md) **详细设计**、[`09`](docs/09-test-plan.md) 测试与 Jacoco |
   43 │ | 11/24 – 11/26 | 30 | 课程介绍中为 RBAC1、结构化与面向对象两种实现 + 部分前端 | 届时以老师当期需求清单为准 |
   44 │ | 12/22 – 12/24 | 20 | 课程介绍中为 RBAC2/3 + 前端，部分功能函数式 | 同上 |
   45 │ | 考勤 | −10 | 缺勤超 1/3 −10；超 1/4 −5；超 1/5 −2 | — |
-  46 │ 
+  46 │
   47 │ **每次检查前必须提交：详细设计文档 + Jacoco 测试报告**（无法提供报告则提供代码）。
-  48 │ 
+  48 │
   49 │ ### 检查方式：无领导小组面试
-  50 │ 
+  50 │
   51 │ 分**个人陈述**与**自由讨论**两阶段。个人陈述阶段，每位同学依次陈述文档中的**一个设计**，讲清：
-  52 │ 
+  52 │
   53 │ 1. 这个设计的**需求是什么，存在什么问题**
   54 │ 2. 采用**何种设计方法，采用的理由**是什么</code></pre></details>
     </article>
@@ -135,16 +135,16 @@ pre{background:#152234;color:#dfecf9;overflow:auto;margin:0;padding:17px;font-fa
   87 │     S -.-&gt; E
   88 │     M -.-&gt; E
   89 │ ```
-  90 │ 
+  90 │
   91 │ **规则**
-  92 │ 
+  92 │
   93 │ - 依赖只能向下：Controller 不能直接用 Mapper；Mapper 不能反过来调 Service。
   94 │ - entity 是与表一一对应的数据结构，只有公有字段，没有方法，实体之间不建对象关联（只存外键 id）。
   95 │ - dto 是 Java record，用作 Service 的输入输出。
   96 │ - config 只做装配：时钟、口令编码器、JWT 密钥、契约路由表、拦截器。
-  97 │ 
+  97 │
   98 │ ### 2.3 技术架构：三层 × 功能模块
-  99 │ 
+  99 │
  100 │ | 层 | 职责 | 技术 |
  101 │ |---|---|---|
  102 │ | Controller | 输入、输出：参数绑定、统一响应、异常转换、契约拦截器 | Spring MVC（`@RestController`、`HandlerInterceptor`、`@RestControllerAdvice`） |
@@ -152,7 +152,7 @@ pre{background:#152234;color:#dfecf9;overflow:auto;margin:0;padding:17px;font-fa
  104 │ | Mapper | 数据访问 | Spring Data JPA（`JpaRepository` + JPQL / 原生 SQL），连 MySQL 8；两个 Redis 访问类用 `StringRedisTemplate` |
  105 │ | — | 表结构 | Flyway（`rbac-contract` 里的 `V1__rbac0_baseline.sql`） |
  106 │ | — | 部署 | Docker 镜像 + Docker Swarm（§6） |
- 107 │ 
+ 107 │
  108 │ **为什么 Mapper 是 JPA 接口**：审查报告指出旧实现用 MyBatis 违反技术栈。「Mapper」是课程规定的逻辑分层名称，不是 MyBatis 的 Mapper。这里的 Mapper 就是继承 `JpaRepository` 的接口，复杂查询写成 JPQL 或原生 SQL；它只取数据，不做任何权限判断。Redis 也是一种数据存储，访问它的两个类同样放在 Mapper 层。</code></pre></details>
     </article>
 
@@ -166,23 +166,23 @@ pre{background:#152234;color:#dfecf9;overflow:auto;margin:0;padding:17px;font-fa
         <a class="github" href="https://github.com/vintcessun/OOAD/blob/827ca45/README.md#L22-L40" target="_blank" rel="noopener">GitHub 定位 ↗</a>
       </div>
       <details><summary>查看这一段原代码 <span>22–40 行</span></summary><pre><code>  22 │ 系统建立在课程提供的三份**真实数据**之上，已全量导入核对：
-  23 │ 
+  23 │
   24 │ | 数据 | 导入结果 |
   25 │ |---|---|
   26 │ | 部门信息表 | 111 个部门（总公司 → 9 个分公司 + 职能部门 → 下级部门），全部建成 |
   27 │ | 员工信息表 | 10,000 名员工，全部按「分公司 + 部门」唯一定位到部门 |
   28 │ | 应用软件功能权限清单 | 18 个业务系统 / 115 个功能模块 / 359 个资源；1,795 个权限（资源 × 五类操作）；五类角色共 3,190 条角色权限 |
-  29 │ 
+  29 │
   30 │ 外部模拟业务系统 `rbac-mock-biz` 取清单中的两个功能点（发文拟稿与审核、考勤管理），每次操作带着用户令牌调用权限中心，验证权限在业务系统里真实生效。
-  31 │ 
+  31 │
   32 │ 需求与实现的逐条对照、尚未完成的事项见 [`docs/14-rbac0-gap.md`](docs/14-rbac0-gap.md)。
-  33 │ 
+  33 │
   34 │ ---
-  35 │ 
+  35 │
   36 │ ## 二、课程检查节点与对应交付物
-  37 │ 
+  37 │
   38 │ &gt; 依据：《课程设计成绩计算办法(V1)-OOAD_Grading_2026》与《课程介绍》
-  39 │ 
+  39 │
   40 │ | 时间 | 分数 | 内容要求 | 本仓库对应交付物 |</code></pre></details>
     </article>
 
@@ -209,7 +209,7 @@ pre{background:#152234;color:#dfecf9;overflow:auto;margin:0;padding:17px;font-fa
  173 │     UNIQUE KEY uk_role_code (role_code),
  174 │     CONSTRAINT fk_role_company FOREIGN KEY (company_id) REFERENCES sys_company (id)
  175 │ ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT=&#x27;角色&#x27;;
- 176 │ 
+ 176 │
  177 │ -- self_only：权限清单中「查看本人」「编辑本人」这类取值。RBAC0 只判断能否执行该操作，
  178 │ -- 「只限本人记录」随鉴权结果返回给业务系统，由业务系统按记录归属过滤（docs/03-database.md §4.3）。
  179 │ CREATE TABLE sys_role_permission (
@@ -225,7 +225,7 @@ pre{background:#152234;color:#dfecf9;overflow:auto;margin:0;padding:17px;font-fa
  189 │     CONSTRAINT fk_rp_role FOREIGN KEY (role_id)       REFERENCES sys_role (id) ON DELETE CASCADE,
  190 │     CONSTRAINT fk_rp_perm FOREIGN KEY (permission_id) REFERENCES sys_permission (id)
  191 │ ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT=&#x27;角色-权限&#x27;;
- 192 │ 
+ 192 │
  193 │ -- 一次指派 = 用户 + 角色 + 适用部门。scope_dept_id 覆盖该部门及其全部下级部门。
  194 │ -- 同一用户可以在不同部门持有不同角色，或在多个部门持有同一角色（需求「可以有属于多个部门的权限」）。
  195 │ -- granted_by 只是审计属性：撤销授权人自己的角色，不影响他过去授出的指派（需求「不会导致级联删除」）。
@@ -259,13 +259,13 @@ pre{background:#152234;color:#dfecf9;overflow:auto;margin:0;padding:17px;font-fa
  129 │     public ApiResponse&lt;List&lt;CompanyView&gt;&gt; companies(@RequestAttribute(OP) Operator op) {
  130 │         return ApiResponse.ok(org.companies(op));
  131 │     }
- 132 │ 
+ 132 │
  133 │     @GetMapping(&quot;/departments/tree&quot;)
  134 │     public ApiResponse&lt;List&lt;DeptNode&gt;&gt; departmentTree(@RequestAttribute(OP) Operator op,
  135 │                                                       @RequestParam Long companyId) {
  136 │         return ApiResponse.ok(org.tree(op, companyId));
  137 │     }
- 138 │ 
+ 138 │
  139 │     @PostMapping(&quot;/imports/organization&quot;)
  140 │     public ApiResponse&lt;ImportReport&gt; importOrganization(@RequestAttribute(OP) Operator op,
  141 │                                                         @RequestParam String companyCode,
@@ -278,7 +278,7 @@ pre{background:#152234;color:#dfecf9;overflow:auto;margin:0;padding:17px;font-fa
  148 │             throw BizException.badRequest(&quot;读取上传文件失败&quot;);
  149 │         }
  150 │     }
- 151 │ 
+ 151 │
  152 │     @PostMapping(&quot;/imports/permissions&quot;)
  153 │     public ApiResponse&lt;ImportReport&gt; importPermissions(@RequestAttribute(OP) Operator op,
  154 │                                                        @RequestPart(&quot;file&quot;) MultipartFile file) {
@@ -302,17 +302,17 @@ pre{background:#152234;color:#dfecf9;overflow:auto;margin:0;padding:17px;font-fa
   57 │         Object pattern = req.getAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE);
   58 │         String key = pattern == null ? null : ContractRoutes.key(req.getMethod(), pattern.toString());
   59 │         ContractRoutes.Route route = key == null ? null : routes.find(req.getMethod(), pattern.toString());
-  60 │ 
+  60 │
   61 │         // 2. 契约校验：路由不存在，或非匿名却没声明权限
   62 │         if (route == null || (!route.anonymous() &amp;&amp; route.permission() == null)) {
   63 │             return reject(resp, 403, BizException.FORBIDDEN, &quot;接口未在契约中声明权限，默认拒绝&quot;, null);
   64 │         }
-  65 │ 
+  65 │
   66 │         // 3. 匿名接口直接放行，不做认证，比如login
   67 │         if (route.anonymous()) {
   68 │             return true;
   69 │         }
-  70 │ 
+  70 │
   71 │         // 4. 认证：解析 Bearer token
   72 │         Authenticated auth;
   73 │         try {
@@ -320,22 +320,22 @@ pre{background:#152234;color:#dfecf9;overflow:auto;margin:0;padding:17px;font-fa
   75 │         } catch (BizException e) {
   76 │             return reject(resp, e.httpStatus(), e.code(), e.getMessage(), null);
   77 │         }
-  78 │ 
+  78 │
   79 │         // 5. 认证通过，把操作信息放进 req 属性
   80 │         Operator op = new Operator(auth.userId(), auth.username(), clientIp(req));
   81 │         req.setAttribute(ATTR_OPERATOR, op);
   82 │         req.setAttribute(ATTR_AUTH, auth);
-  83 │ 
+  83 │
   84 │         // 6. 强制改密拦截：需改密且当前接口不在非改密放行名单里
   85 │         if (auth.mustChangePwd() &amp;&amp; !BEFORE_PASSWORD_CHANGE.contains(key)) {
   86 │             return reject(resp, 403, BizException.PASSWORD_CHANGE_REQUIRED, &quot;首次登录请先修改口令&quot;, null);
   87 │         }
-  88 │ 
+  88 │
   89 │         // 7. &quot;本人&quot;级权限，认证已过即可放行
   90 │         if (ContractRoutes.SELF.equals(route.permission())) {
   91 │             return true;
   92 │         }
-  93 │ 
+  93 │
   94 │         // 8. 一般权限校验：走授权决策并留审计，拒绝时返回原因
   95 │         Decision d = authorization.decide(auth.userId(), route.permission(), null, false);
   96 │         audit.recordDecision(d, op, &quot;api &quot; + key);
@@ -344,7 +344,7 @@ pre{background:#152234;color:#dfecf9;overflow:auto;margin:0;padding:17px;font-fa
   99 │         }
  100 │         return true;
  101 │     }
- 102 │ 
+ 102 │
  103 │     static String bearerToken(HttpServletRequest req) {</code></pre></details>
     </article>
 <h2 class="section" data-cat="接口与范围">接口与范围</h2>
@@ -370,7 +370,7 @@ pre{background:#152234;color:#dfecf9;overflow:auto;margin:0;padding:17px;font-fa
  930 │       x-required-permission: rbac:org:view
  931 │       responses:
  932 │         &#x27;200&#x27;: { $ref: &#x27;#/components/responses/Ok&#x27; }
- 933 │ 
+ 933 │
  934 │   /departments/tree:
  935 │     get:
  936 │       tags: [org]
@@ -385,7 +385,7 @@ pre{background:#152234;color:#dfecf9;overflow:auto;margin:0;padding:17px;font-fa
  945 │         - { name: companyId, in: query, required: true, schema: { type: integer, format: int64 }, description: 待查询部门树的公司 ID，可通过 /companies 获取 }
  946 │       responses:
  947 │         &#x27;200&#x27;: { $ref: &#x27;#/components/responses/Ok&#x27; }
- 948 │ 
+ 948 │
  949 │   /imports/organization:
  950 │     post:
  951 │       tags: [org]
@@ -412,7 +412,7 @@ pre{background:#152234;color:#dfecf9;overflow:auto;margin:0;padding:17px;font-fa
  972 │                 employees: { type: string, format: binary, description: 项目格式的员工信息表 xlsx 文件，读取首个工作表 }
  973 │       responses:
  974 │         &#x27;200&#x27;: { $ref: &#x27;#/components/responses/ImportOk&#x27; }
- 975 │ 
+ 975 │
  976 │   /imports/permissions:
  977 │     post:
  978 │       tags: [org]
@@ -497,7 +497,7 @@ pre{background:#152234;color:#dfecf9;overflow:auto;margin:0;padding:17px;font-fa
   75 │         }
   76 │         return build(roots, children);
   77 │     }
-  78 │ 
+  78 │
   79 │     private static List&lt;DeptNode&gt; build(List&lt;Department&gt; level, Map&lt;Long, List&lt;Department&gt;&gt; children) {
   80 │         return level.stream()
   81 │                 .map(d -&gt; new DeptNode(d.id, d.parentId, d.deptName, d.level, d.managerName, d.managerUserId,
@@ -516,11 +516,11 @@ pre{background:#152234;color:#dfecf9;overflow:auto;margin:0;padding:17px;font-fa
         <button class="copy" data-copy="rbac-structured/src/main/java/com/xmu/rbac/structured/service/AuthorizationService.java:221">复制位置</button>
         <a class="github" href="https://github.com/vintcessun/OOAD/blob/827ca45/rbac-structured/src/main/java/com/xmu/rbac/structured/service/AuthorizationService.java#L221-L244" target="_blank" rel="noopener">GitHub 定位 ↗</a>
       </div>
-      <details><summary>查看这一段原代码 <span>221–244 行</span></summary><pre><code> 221 │ 
+      <details><summary>查看这一段原代码 <span>221–244 行</span></summary><pre><code> 221 │
  222 │     public boolean isSuperAdmin(Long userId) {
  223 │         return holdsSuperAdmin(loadGrants(userId).grants());
  224 │     }
- 225 │ 
+ 225 │
  226 │     /** 用户持有某权限的部门范围（超级管理员为全部）。 */
  227 │     public Scope scopeOf(Long userId, String permissionCode) {
  228 │         GrantSet grants = loadGrants(userId).grants();
@@ -534,11 +534,11 @@ pre{background:#152234;color:#dfecf9;overflow:auto;margin:0;padding:17px;font-fa
  236 │                 .toList();
  237 │         return new Scope(false, paths);
  238 │     }
- 239 │ 
+ 239 │
  240 │     public static boolean inScope(Scope scope, String targetPath) {
  241 │         return scope.all() || scope.paths().stream().anyMatch(p -&gt; covers(p, targetPath));
  242 │     }
- 243 │ 
+ 243 │
  244 │     /**</code></pre></details>
     </article>
 <h2 class="section" data-cat="组织导入">组织导入</h2>
@@ -584,23 +584,23 @@ pre{background:#152234;color:#dfecf9;overflow:auto;margin:0;padding:17px;font-fa
  145 │         Map&lt;String, Integer&gt; counts = new LinkedHashMap&lt;&gt;();
  146 │         List&lt;String&gt; notes = new ArrayList&lt;&gt;();
  147 │         List&lt;Anomaly&gt; anomalies = new ArrayList&lt;&gt;();
- 148 │ 
+ 148 │
  149 │         Company company = companyMapper.findByCompanyCode(companyCode.trim()).orElseGet(() -&gt; {
  150 │             Company c = new Company();
  151 │             c.companyCode = companyCode.trim();
  152 │             c.companyName = companyName.trim();
  153 │             return companyMapper.save(c);
  154 │         });
- 155 │ 
+ 155 │
  156 │         List&lt;List&lt;String&gt;&gt; deptRows = readSheet(deptXlsx, &quot;部门名称&quot;);
  157 │         List&lt;List&lt;String&gt;&gt; empRows = readSheet(employeeXlsx, &quot;用户名&quot;);
- 158 │ 
+ 158 │
  159 │         Map&lt;String, Department&gt; byName = importDepartments(company, deptRows, counts, anomalies);
  160 │         Map&lt;Long, Department&gt; byId = new HashMap&lt;&gt;();
  161 │         byName.values().forEach(d -&gt; byId.put(d.id, d));
  162 │         List&lt;User&gt; created = importEmployees(company, byName, empRows, counts, anomalies);
  163 │         linkManagers(company, deptRows, byName, byId, created, counts, notes, anomalies);
- 164 │ 
+ 164 │
  165 │         notes.add(&quot;导入不分配任何角色：请审核后用批量授权（POST /assignments/batch）人工分配&quot;);
  166 │         audit.record(op, &quot;IMPORT_ORG&quot;, &quot;COMPANY&quot;, company.id, company.companyName, counts.toString(),
  167 │                 anomalies.isEmpty() ? AuditService.SUCCESS : AuditService.FAILED,
@@ -710,7 +710,7 @@ pre{background:#152234;color:#dfecf9;overflow:auto;margin:0;padding:17px;font-fa
  253 │         }
  254 │         Map&lt;String, Department&gt; child = new HashMap&lt;&gt;();   // parentId|name → dept
  255 │         byName.values().forEach(d -&gt; child.put(d.parentId + &quot;|&quot; + d.deptName, d));
- 256 │ 
+ 256 │
  257 │         Set&lt;String&gt; existing = new HashSet&lt;&gt;(userMapper.findAllUsernames());
  258 │         Set&lt;String&gt; seen = new HashSet&lt;&gt;();
  259 │         String hash = users.initialPasswordHash();
@@ -759,7 +759,7 @@ pre{background:#152234;color:#dfecf9;overflow:auto;margin:0;padding:17px;font-fa
  302 │         counts.put(&quot;usersAlreadyPresent&quot;, skipped);
  303 │         return created;
  304 │     }
- 305 │ 
+ 305 │
  306 │     static Department locate(Department root, Map&lt;String, Department&gt; child, String branch, String deptName) {
  307 │         if (branch.equals(root.deptName)) {
  308 │             return deptName.equals(root.deptName) ? root : child.get(root.id + &quot;|&quot; + deptName);
@@ -844,7 +844,7 @@ pre{background:#152234;color:#dfecf9;overflow:auto;margin:0;padding:17px;font-fa
         <a class="github" href="https://github.com/vintcessun/OOAD/blob/827ca45/rbac-structured/src/main/java/com/xmu/rbac/structured/service/UserManagementService.java#L62-L81" target="_blank" rel="noopener">GitHub 定位 ↗</a>
       </div>
       <details><summary>查看这一段原代码 <span>62–81 行</span></summary><pre><code>  62 │     private final String initialPasswordHash;
-  63 │ 
+  63 │
   64 │     public UserManagementService(UserMapper userMapper, DepartmentMapper departmentMapper,
   65 │                                  UserRoleMapper userRoleMapper, AuthorizationService authz, AuditService audit,
   66 │                                  PasswordEncoder passwordEncoder, Clock clock,
@@ -859,7 +859,7 @@ pre{background:#152234;color:#dfecf9;overflow:auto;margin:0;padding:17px;font-fa
   75 │         // 初始口令只算一次哈希：导入一万名员工时逐个计算 BCrypt 要好几分钟
   76 │         this.initialPasswordHash = passwordEncoder.encode(initialPassword);
   77 │     }
-  78 │ 
+  78 │
   79 │     public String initialPasswordHash() {
   80 │         return initialPasswordHash;
   81 │     }</code></pre></details>
@@ -956,7 +956,7 @@ pre{background:#152234;color:#dfecf9;overflow:auto;margin:0;padding:17px;font-fa
  713 │             throw BizException.badRequest(&quot;无法读取 xlsx：&quot; + e.getMessage());
  714 │         }
  715 │     }
- 716 │ 
+ 716 │
  717 │     static int findHeaderRow(Sheet sheet, DataFormatter fmt, String marker) {
  718 │         for (int r = sheet.getFirstRowNum(); r &lt;= Math.min(sheet.getLastRowNum(), 10); r++) {
  719 │             Row row = sheet.getRow(r);
@@ -1005,7 +1005,7 @@ pre{background:#152234;color:#dfecf9;overflow:auto;margin:0;padding:17px;font-fa
  388 │                 roleColumns.add(v);
  389 │             }
  390 │         }
- 391 │ 
+ 391 │
  392 │         Map&lt;String, Action&gt; actions = new HashMap&lt;&gt;();
  393 │         for (String a : BUSINESS_ACTIONS) {
  394 │             actions.put(a, actionMapper.findByActionCode(a).orElseThrow());
@@ -1014,7 +1014,7 @@ pre{background:#152234;color:#dfecf9;overflow:auto;margin:0;padding:17px;font-fa
  397 │         for (String col : roleColumns) {
  398 │             roles.add(roleTemplate(col, roles.size()));
  399 │         }
- 400 │ 
+ 400 │
  401 │         Set&lt;String&gt; normalized = new LinkedHashSet&lt;&gt;();
  402 │         int systems = 0;
  403 │         int modules = 0;
@@ -1093,7 +1093,7 @@ pre{background:#152234;color:#dfecf9;overflow:auto;margin:0;padding:17px;font-fa
       </div>
       <details><summary>查看这一段原代码 <span>563–603 行</span></summary><pre><code> 563 │     record ParsedCell(Set&lt;String&gt; actions, Set&lt;String&gt; selfOnly, String note, String error) {
  564 │     }
- 565 │ 
+ 565 │
  566 │     /**
  567 │      * 解析单元格：「全部」→ 五类操作；「无」→ 不授权；「查看/编辑本人」→ 查看 + 编辑（只限本人）；
  568 │      * 「view/新增」中的英文取值归一为中文同义词；空白单元格不能默认当作「无」，列为异常。
@@ -1242,7 +1242,7 @@ pre{background:#152234;color:#dfecf9;overflow:auto;margin:0;padding:17px;font-fa
       <details><summary>查看这一段原代码 <span>199–214 行</span></summary><pre><code> 199 │         }
  200 │         return new LoadedGrants(grants, false);
  201 │     }
- 202 │ 
+ 202 │
  203 │     /**
  204 │      * 授权数据（指派、角色权限、角色状态）变更时调用：在当前事务里让版本号加一，随修改一起提交或回滚。
  205 │      * 提交前其他请求读不到新版本号，读的仍是旧键里与已提交数据一致的内容；提交后它们读新版本号，缓存未命中，查库得到新数据。
@@ -1254,7 +1254,7 @@ pre{background:#152234;color:#dfecf9;overflow:auto;margin:0;padding:17px;font-fa
  211 │             throw new IllegalStateException(&quot;sys_grant_version 缺少 id = 1 的行，授权修改已回滚&quot;);
  212 │         }
  213 │     }
- 214 │ </code></pre></details>
+ 214 │</code></pre></details>
     </article>
 
     <article class="card" id="q24" data-cat="权限导入" data-search="权限导入 资源编码怎样保持稳定？ resource occurrence 同名 换序 hr-004 已有资源按模块、名称和同名第几次出现来认领；新资源用该模块已用的最大序号加一。不同名功能点插删行通常不会使后面资源错认，但同名不同义的行换序有风险。 hr-004 是待组内确认源清单允许同名的规则与待复现问题。 rbac-structured/src/main/java/com/xmu/rbac/structured/service/importservice.java">
@@ -1333,7 +1333,7 @@ pre{background:#152234;color:#dfecf9;overflow:auto;margin:0;padding:17px;font-fa
   28 │     PRIMARY KEY (id),
   29 │     UNIQUE KEY uk_company_code (company_code)
   30 │ ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT=&#x27;公司&#x27;;
-  31 │ 
+  31 │
   32 │ -- 部门树。每家公司一个根节点（parent_id 为空）。
   33 │ -- path 是物化路径（如 /3/15/27/）：判断「目标部门是否在某部门之下」只需一次前缀比较，不用递归。
   34 │ CREATE TABLE sys_department (
@@ -1354,11 +1354,11 @@ pre{background:#152234;color:#dfecf9;overflow:auto;margin:0;padding:17px;font-fa
   49 │     CONSTRAINT fk_dept_company FOREIGN KEY (company_id) REFERENCES sys_company (id),
   50 │     CONSTRAINT fk_dept_parent  FOREIGN KEY (parent_id)  REFERENCES sys_department (id)
   51 │ ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT=&#x27;部门（每家公司一棵树）&#x27;;
-  52 │ 
+  52 │
   53 │ -- -----------------------------------------------------------------------------
   54 │ -- 2. 用户
   55 │ -- -----------------------------------------------------------------------------
-  56 │ 
+  56 │
   57 │ -- 一个用户只属于一个部门（department_id）；他能在哪些部门行使权限，由 sys_user_role.scope_dept_id 决定。
   58 │ CREATE TABLE sys_user (
   59 │     id                     BIGINT       NOT NULL AUTO_INCREMENT,
@@ -1389,7 +1389,7 @@ pre{background:#152234;color:#dfecf9;overflow:auto;margin:0;padding:17px;font-fa
   84 │     CONSTRAINT fk_user_company FOREIGN KEY (company_id)    REFERENCES sys_company (id),
   85 │     CONSTRAINT fk_user_dept    FOREIGN KEY (department_id) REFERENCES sys_department (id)
   86 │ ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT=&#x27;用户&#x27;;
-  87 │ 
+  87 │
   88 │ ALTER TABLE sys_department
   89 │     ADD CONSTRAINT fk_dept_manager FOREIGN KEY (manager_user_id) REFERENCES sys_user (id);</code></pre></details>
     </article>
@@ -1411,7 +1411,7 @@ pre{background:#152234;color:#dfecf9;overflow:auto;margin:0;padding:17px;font-fa
  101 │     PRIMARY KEY (id),
  102 │     UNIQUE KEY uk_system_code (system_code)
  103 │ ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT=&#x27;业务系统&#x27;;
- 104 │ 
+ 104 │
  105 │ CREATE TABLE sys_function_module (
  106 │     id          BIGINT      NOT NULL AUTO_INCREMENT,
  107 │     system_id   BIGINT      NOT NULL,
@@ -1422,7 +1422,7 @@ pre{background:#152234;color:#dfecf9;overflow:auto;margin:0;padding:17px;font-fa
  112 │     UNIQUE KEY uk_module (system_id, module_code),
  113 │     CONSTRAINT fk_module_system FOREIGN KEY (system_id) REFERENCES sys_software_system (id)
  114 │ ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT=&#x27;功能模块&#x27;;
- 115 │ 
+ 115 │
  116 │ -- 资源。resource_type：
  117 │ --   BUSINESS 业务功能点（权限清单导入）；
  118 │ --   MENU     权限中心自身的管理页面，菜单挂在它上面（「前端菜单也是一种 Resource」）；
@@ -1440,7 +1440,7 @@ pre{background:#152234;color:#dfecf9;overflow:auto;margin:0;padding:17px;font-fa
  130 │     KEY idx_module (module_id),
  131 │     CONSTRAINT fk_resource_module FOREIGN KEY (module_id) REFERENCES sys_function_module (id)
  132 │ ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT=&#x27;资源&#x27;;
- 133 │ 
+ 133 │
  134 │ CREATE TABLE sys_action (
  135 │     id          BIGINT      NOT NULL AUTO_INCREMENT,
  136 │     action_code VARCHAR(32) NOT NULL,
@@ -1449,7 +1449,7 @@ pre{background:#152234;color:#dfecf9;overflow:auto;margin:0;padding:17px;font-fa
  139 │     PRIMARY KEY (id),
  140 │     UNIQUE KEY uk_action_code (action_code)
  141 │ ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT=&#x27;操作&#x27;;
- 142 │ 
+ 142 │
  143 │ -- 权限 = 资源 × 操作。permission_code = resource_code:action_code，是鉴权时比对的字符串。
  144 │ CREATE TABLE sys_permission (
  145 │     id              BIGINT       NOT NULL AUTO_INCREMENT,
@@ -1485,7 +1485,7 @@ pre{background:#152234;color:#dfecf9;overflow:auto;margin:0;padding:17px;font-fa
  189 │     CONSTRAINT fk_rp_role FOREIGN KEY (role_id)       REFERENCES sys_role (id) ON DELETE CASCADE,
  190 │     CONSTRAINT fk_rp_perm FOREIGN KEY (permission_id) REFERENCES sys_permission (id)
  191 │ ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT=&#x27;角色-权限&#x27;;
- 192 │ 
+ 192 │
  193 │ -- 一次指派 = 用户 + 角色 + 适用部门。scope_dept_id 覆盖该部门及其全部下级部门。
  194 │ -- 同一用户可以在不同部门持有不同角色，或在多个部门持有同一角色（需求「可以有属于多个部门的权限」）。
  195 │ -- granted_by 只是审计属性：撤销授权人自己的角色，不影响他过去授出的指派（需求「不会导致级联删除」）。
@@ -1521,14 +1521,14 @@ pre{background:#152234;color:#dfecf9;overflow:auto;margin:0;padding:17px;font-fa
    4 │ -- 课程要求账号只有启用、停用、删除三种状态，老师明确不要「到期」：临时用户用完由管理员手工停用。
    5 │ -- 删列前先把已经到期、仍为启用的账号改为停用并写明原因，避免删列后它们重新可以登录。
    6 │ -- =============================================================================
-   7 │ 
+   7 │
    8 │ UPDATE sys_user
    9 │    SET status = &#x27;DISABLED&#x27;,
   10 │        status_reason = &#x27;账号到期（V4 取消到期时间时自动停用）&#x27;
   11 │  WHERE status = &#x27;ACTIVE&#x27;
   12 │    AND expires_at IS NOT NULL
   13 │    AND expires_at &lt;= NOW();
-  14 │ 
+  14 │
   15 │ ALTER TABLE sys_user DROP COLUMN expires_at;</code></pre></details>
     </article>
 
@@ -1542,11 +1542,11 @@ pre{background:#152234;color:#dfecf9;overflow:auto;margin:0;padding:17px;font-fa
         <a class="github" href="https://github.com/vintcessun/OOAD/blob/827ca45/diagrams/README.md#L1-L80" target="_blank" rel="noopener">GitHub 定位 ↗</a>
       </div>
       <details><summary>查看这一段原代码 <span>1–80 行</span></summary><pre><code>   1 │ # UML 模型与图
-   2 │ 
+   2 │
    3 │ 课程**明确建议采用 StarUML**（https://staruml.io/）。本目录存放模型源文件与导出图。
-   4 │ 
+   4 │
    5 │ ## 目录
-   6 │ 
+   6 │
    7 │ ```
    8 │ diagrams/
    9 │ ├── rbac.mdj                 手工维护：StarUML 原生 ER 图 + 用例总图 + 领域模型
@@ -1564,20 +1564,20 @@ pre{background:#152234;color:#dfecf9;overflow:auto;margin:0;padding:17px;font-fa
   21 │     ├── mermaid-config.json  中文字体等渲染配置
   22 │     └── puppeteer-config.json 指定本机 Chrome（Chromium 下载失败时用）
   23 │ ```
-  24 │ 
+  24 │
   25 │ ## 校验与导出
-  26 │ 
+  26 │
   27 │ 日常编辑使用 StarUML，保存后从仓库根目录运行：
-  28 │ 
+  28 │
   29 │ ```powershell
   30 │ node diagrams/tools/gen-mdj.mjs --check-only
   31 │ node --test diagrams/tools/gen-mdj.test.mjs
   32 │ ```
-  33 │ 
+  33 │
   34 │ 校验覆盖 JSON、唯一 `_id`、可解析的 `$ref`、父子关系、视图引用和实体等节点的重叠。StarUML 原生的 `UMLTextView` 是独立文字标注，不要求 `model`，也不把其空白边界当成实体节点；其中已有的引用仍会检查。脚本校验不能代替 StarUML 打开模型后的显示检查。
-  35 │ 
+  35 │
   36 │ **用例总图、领域模型的 Mermaid 导出图**（在仓库外的临时目录装一次 mermaid-cli，不要把 node_modules 放进仓库）：
-  37 │ 
+  37 │
   38 │ ```powershell
   39 │ # 临时目录里：npm i @mermaid-js/mermaid-cli@11.4.2 puppeteer@23.11.1（设 $env:PUPPETEER_SKIP_DOWNLOAD=&#x27;true&#x27; 可跳过下载 Chromium）
   40 │ $d = &quot;D:\__大三上\ooad\OOAD\diagrams&quot; # 替换为自己的仓库路径
@@ -1586,40 +1586,40 @@ pre{background:#152234;color:#dfecf9;overflow:auto;margin:0;padding:17px;font-fa
   43 │     -c &quot;$d\tools\mermaid-config.json&quot; -p &quot;$d\tools\puppeteer-config.json&quot; -w 2000 -s 2 -b white
   44 │ } }
   45 │ ```
-  46 │ 
+  46 │
   47 │ `puppeteer-config.json` 写的是 Chrome 的默认安装路径，机器不同时自行修改；能正常下载 Chromium 时可去掉 `-p`。
-  48 │ 
+  48 │
   49 │ **重新初始化 StarUML 模型**（仅用于独立参考文件）：
-  50 │ 
+  50 │
   51 │ ```powershell
   52 │ node diagrams/tools/gen-mdj.mjs --out &lt;临时目录&gt;/rbac-reference.mdj
   53 │ ```
-  54 │ 
+  54 │
   55 │ 生成器按 [staruml-samples](https://github.com/staruml/staruml-samples) 的 `ERDExample.mdj`、`UMLExample.mdj` 编写，`--samples &lt;样例目录&gt;` 可对生成的参考文件比对结构；原生保存的模型可能包含样例未覆盖的视图类型。
-  56 │ 
+  56 │
   57 │ &gt; ⚠️ **不带 `--check-only` 或 `--out` 运行生成器会覆盖 `rbac.mdj`，丢失已选用的原生 ER 图与手工布局。** 当前模型已转为手工维护。ER 图应从 StarUML 导出，不要用 Mermaid 输出覆盖。
-  58 │ 
+  58 │
   59 │ ## 工作方式
-  60 │ 
+  60 │
   61 │ 文档撰写阶段用 **Mermaid** 内嵌在 Markdown 里，方便 GitHub 渲染与文本 diff。数据库结构以迁移脚本为准，StarUML 图以 `rbac.mdj` 为编辑来源；导出图的来源见上方目录。
-  62 │ 
+  62 │
   63 │ **提交给老师之前，图必须在 StarUML 中核对并导出**：
   64 │ 1. 课程明确建议使用 StarUML，交付物应符合课程要求；
   65 │ 2. StarUML 能表达 Mermaid 表达不了的东西——用例图的 `&lt;&lt;include&gt;&gt;` / `&lt;&lt;extend&gt;&gt;`、构造型、多重性标注、约束等。
-  66 │ 
+  66 │
   67 │ 2026-10-18 合并时，保留本地已由 StarUML 7.1.1 原生保存的 ER 模型与 PNG/SVG，并加入 `afa01a6` 的用例总图、领域模型。ER 图含 **14 张表、105 个字段、17 个外键**，与迁移脚本及远端 ER 模型结构一致；中文标题、布局、联合唯一约束说明和试用水印均保留。**组合后的模型尚未在 StarUML 中重新打开，用例和领域模型仍待原生验证。** 提交前须有人：
   68 │ - [ ] 用 StarUML 打开组合后的 `rbac.mdj`，确认三张图都能正常显示；
   69 │ - [ ] 调整布局（生成的连线是直线，部分会穿过其他元素）；
   70 │ - [ ] 从 StarUML 导出用例总图、领域模型的 PNG/SVG，替换对应 Mermaid 导出图；ER 图如有修改也同步导出。
   71 │ - [ ] 10/21 V4 删除了 `sys_user.expires_at`（docs/12 R-21）：在 StarUML 的 ER 图里删掉 `sys_user` 的 `expires_at` 列（字段数 105 → 104），重新导出 `er-diagram.png/svg`。Mermaid 源 `src/er-diagram.mmd`、`src/domain-model.mmd` 与生成器已同步；`domain-model` 导出图已重新生成。
-  72 │ 
+  72 │
   73 │ `.mdj` 是文本 JSON，但嵌套深、`_id` 互相引用，**冲突难以手工合并**。因此：
-  74 │ 
+  74 │
   75 │ &gt; ⚠️ **同一时间只能有一人编辑 `.mdj`。** 编辑前在群里知会一声，改完立即提交。
   76 │ &gt; 若确实需要并行，按包拆成多个 `.mdj` 文件（`rbac-usecase.mdj`、`rbac-domain.mdj`、`rbac-class.mdj`…）。
-  77 │ 
+  77 │
   78 │ ## 需要绘制的图清单
-  79 │ 
+  79 │
   80 │ ### 迭代一（10/27 检查）</code></pre></details>
     </article>
 <h2 class="section" data-cat="前端">前端</h2>
@@ -1665,10 +1665,10 @@ pre{background:#152234;color:#dfecf9;overflow:auto;margin:0;padding:17px;font-fa
   47 │         &lt;/el-card&gt;
   48 │       &lt;/el-col&gt;
   49 │     &lt;/el-row&gt;
-  50 │ 
+  50 │
   51 │     &lt;BatchAssignDialog v-if=&quot;batchVisible&quot; v-model=&quot;batchVisible&quot; :revoke=&quot;batchRevoke&quot; initial-target-type=&quot;DEPARTMENT&quot;
   52 │                        :initial-dept-id=&quot;selected?.id&quot; :initial-company-id=&quot;companyId&quot; /&gt;
-  53 │ 
+  53 │
   54 │     &lt;el-dialog v-model=&quot;orgImportVisible&quot; title=&quot;导入部门信息表与员工信息表&quot; width=&quot;640px&quot; data-test=&quot;import-org-dialog&quot;&gt;
   55 │       &lt;el-form label-width=&quot;110px&quot;&gt;
   56 │         &lt;el-form-item label=&quot;公司编码&quot;&gt;&lt;el-input v-model=&quot;orgForm.companyCode&quot; placeholder=&quot;如 SZ&quot; data-test=&quot;import-code&quot; /&gt;&lt;/el-form-item&gt;
@@ -1687,7 +1687,7 @@ pre{background:#152234;color:#dfecf9;overflow:auto;margin:0;padding:17px;font-fa
   69 │                    @click=&quot;importOrg&quot; data-test=&quot;import-org-submit&quot;&gt;导入&lt;/el-button&gt;
   70 │       &lt;/template&gt;
   71 │     &lt;/el-dialog&gt;
-  72 │ 
+  72 │
   73 │     &lt;el-dialog v-model=&quot;permImportVisible&quot; title=&quot;导入应用软件功能权限清单&quot; width=&quot;640px&quot; data-test=&quot;import-perm-dialog&quot;&gt;
   74 │       &lt;input type=&quot;file&quot; accept=&quot;.xlsx&quot; data-test=&quot;import-perm-file&quot; @change=&quot;pick($event, &#x27;perm&#x27;)&quot; /&gt;
   75 │       &lt;ImportReportView v-if=&quot;permReport&quot; :report=&quot;permReport&quot; /&gt;
@@ -1699,7 +1699,7 @@ pre{background:#152234;color:#dfecf9;overflow:auto;margin:0;padding:17px;font-fa
   81 │     &lt;/el-dialog&gt;
   82 │   &lt;/div&gt;
   83 │ &lt;/template&gt;
-  84 │ 
+  84 │
   85 │ &lt;script setup lang=&quot;ts&quot;&gt;
   86 │ import { onMounted, reactive, ref, watch } from &#x27;vue&#x27;
   87 │ import { useRouter } from &#x27;vue-router&#x27;
@@ -1710,7 +1710,7 @@ pre{background:#152234;color:#dfecf9;overflow:auto;margin:0;padding:17px;font-fa
   92 │ import { useAuthStore } from &#x27;@/stores/auth&#x27;
   93 │ import BatchAssignDialog from &#x27;@/components/BatchAssignDialog.vue&#x27;
   94 │ import ImportReportView from &#x27;@/components/ImportReportView.vue&#x27;
-  95 │ 
+  95 │
   96 │ /** 组织管理（docs/05-ui.md §3.9）：部门树、按部门批量授权、导入三份 Excel。 */
   97 │ const auth = useAuthStore()
   98 │ const router = useRouter()
@@ -1731,10 +1731,10 @@ pre{background:#152234;color:#dfecf9;overflow:auto;margin:0;padding:17px;font-fa
         <a class="github" href="https://github.com/vintcessun/OOAD/blob/827ca45/rbac-web/src/views/OrgView.vue#L113-L164" target="_blank" rel="noopener">GitHub 定位 ↗</a>
       </div>
       <details><summary>查看这一段原代码 <span>113–164 行</span></summary><pre><code> 113 │ const permReport = ref&lt;ImportReport | null&gt;(null)
- 114 │ 
+ 114 │
  115 │ watch(filter, (v) =&gt; treeRef.value?.filter(v))
  116 │ const filterNode = (value: string, data: Record&lt;string, unknown&gt;) =&gt; !value || String(data.deptName).includes(value)
- 117 │ 
+ 117 │
  118 │ async function loadCompanies() {
  119 │   companies.value = await orgApi.companies()
  120 │   if (!companies.value.some((c) =&gt; c.id === companyId.value)) {
@@ -1742,21 +1742,21 @@ pre{background:#152234;color:#dfecf9;overflow:auto;margin:0;padding:17px;font-fa
  122 │   }
  123 │   await loadTree()
  124 │ }
- 125 │ 
+ 125 │
  126 │ async function loadTree() {
  127 │   selected.value = null
  128 │   tree.value = companyId.value ? await orgApi.tree(companyId.value) : []
  129 │ }
- 130 │ 
+ 130 │
  131 │ function openBatch(revoke: boolean) {
  132 │   batchRevoke.value = revoke
  133 │   batchVisible.value = true
  134 │ }
- 135 │ 
+ 135 │
  136 │ function pick(e: Event, kind: &#x27;dept&#x27; | &#x27;emp&#x27; | &#x27;perm&#x27;) {
  137 │   files[kind] = (e.target as HTMLInputElement).files?.[0] ?? null
  138 │ }
- 139 │ 
+ 139 │
  140 │ async function importOrg() {
  141 │   importing.value = true
  142 │   try {
@@ -1770,7 +1770,7 @@ pre{background:#152234;color:#dfecf9;overflow:auto;margin:0;padding:17px;font-fa
  150 │     importing.value = false
  151 │   }
  152 │ }
- 153 │ 
+ 153 │
  154 │ async function importPerm() {
  155 │   importing.value = true
  156 │   try {
@@ -1780,7 +1780,7 @@ pre{background:#152234;color:#dfecf9;overflow:auto;margin:0;padding:17px;font-fa
  160 │     importing.value = false
  161 │   }
  162 │ }
- 163 │ 
+ 163 │
  164 │ onMounted(loadCompanies)</code></pre></details>
     </article>
 
@@ -1796,12 +1796,12 @@ pre{background:#152234;color:#dfecf9;overflow:auto;margin:0;padding:17px;font-fa
       <details><summary>查看这一段原代码 <span>32–58 行</span></summary><pre><code>  32 │   model.value = null
   33 │   await loadTree()
   34 │ }
-  35 │ 
+  35 │
   36 │ async function loadTree() {
   37 │   emit(&#x27;company&#x27;, companyId.value)
   38 │   tree.value = companyId.value ? await orgApi.tree(companyId.value) : []
   39 │ }
-  40 │ 
+  40 │
   41 │ onMounted(async () =&gt; {
   42 │   companies.value = await orgApi.companies()
   43 │   // 默认选业务公司（平台运维公司只有超级管理员一个人）
@@ -1810,10 +1810,10 @@ pre{background:#152234;color:#dfecf9;overflow:auto;margin:0;padding:17px;font-fa
   46 │   companyId.value = preferred?.id
   47 │   await loadTree()
   48 │ })
-  49 │ 
+  49 │
   50 │ defineExpose({ companyId })
   51 │ &lt;/script&gt;
-  52 │ 
+  52 │
   53 │ &lt;style scoped&gt;
   54 │ .dept-select {
   55 │   display: inline-flex;
@@ -1873,7 +1873,7 @@ pre{background:#152234;color:#dfecf9;overflow:auto;margin:0;padding:17px;font-fa
   71 │         assertTrue(reasons.contains(&quot;用户名在表内重复&quot;), reasons.toString());
   72 │         assertTrue(reasons.stream().filter(x -&gt; x.startsWith(&quot;无法在该分公司下唯一定位部门&quot;)).count() == 2,
   73 │                 reasons.toString());
-  74 │ 
+  74 │
   75 │         // 「财务部」按分公司归属，不会串到总公司或别的分公司
   76 │         assertEquals(&quot;财务部&quot;, deptOf(&quot;T0002&quot;).deptName);
   77 │         assertEquals(&quot;道路工程分公司-财务部&quot;, deptOf(&quot;T0004&quot;).deptName);
@@ -1885,10 +1885,10 @@ pre{background:#152234;color:#dfecf9;overflow:auto;margin:0;padding:17px;font-fa
   83 │         // 导入的员工全部编在 10000 段，内部账号段只有 root
   84 │         assertTrue(userMapper.findAll().stream()
   85 │                 .allMatch(u -&gt; u.id &gt;= User.INTERNAL_ID_LIMIT || &quot;root&quot;.equals(u.username)));
-  86 │ 
+  86 │
   87 │         // 导入不分配任何角色
   88 │         assertEquals(0, userRoleMapper.findAll().stream().filter(ur -&gt; !ur.userId.equals(1L)).count());
-  89 │ 
+  89 │
   90 │         // 负责人：唯一匹配的关联上；子树内重名则进异常清单，且关联不产生任何权限
   91 │         Department roadFinance = deptOf(&quot;T0004&quot;);
   92 │         assertEquals(userMapper.findByUsername(&quot;T0004&quot;).orElseThrow().id, roadFinance.managerUserId);
@@ -1898,7 +1898,7 @@ pre{background:#152234;color:#dfecf9;overflow:auto;margin:0;padding:17px;font-fa
   96 │         assertEquals(200, postJson(managerToken, &quot;/auth/password&quot;,
   97 │                 java.util.Map.of(&quot;oldPassword&quot;, &quot;Init@2026&quot;, &quot;newPassword&quot;, &quot;N3w-Passw0rd&quot;)).status());
   98 │         assertEquals(403, getJson(login(&quot;T0004&quot;, &quot;N3w-Passw0rd&quot;), &quot;/users&quot;).status());
-  99 │ 
+  99 │
  100 │         // 可重复执行：再导一次不新增
  101 │         Resp again = call(root, multipart(&quot;/imports/organization&quot;)
  102 │                 .file(new MockMultipartFile(&quot;departments&quot;, &quot;d.xlsx&quot;, null, depts))
@@ -1928,7 +1928,7 @@ pre{background:#152234;color:#dfecf9;overflow:auto;margin:0;padding:17px;font-fa
  632 │         assertEquals(1, tree.size());
  633 │         assertEquals(3, tree.get(0).path(&quot;children&quot;).size());
  634 │         assertEquals(404, getJson(root, &quot;/departments/tree?companyId=999999&quot;).status());
- 635 │ 
+ 635 │
  636 │         User admin = user(&quot;admin&quot;, org.road());
  637 │         grant(admin, org.rbacAdmin(), org.road());
  638 │         JsonNode mine = getJson(login(&quot;admin&quot;), &quot;/departments/tree?companyId=&quot; + org.a().id).data();
@@ -1937,9 +1937,9 @@ pre{background:#152234;color:#dfecf9;overflow:auto;margin:0;padding:17px;font-fa
  641 │         assertEquals(&quot;道路分公司&quot;, mine.get(0).path(&quot;children&quot;).get(0).path(&quot;deptName&quot;).asText());
  642 │         assertEquals(2, mine.get(0).path(&quot;children&quot;).get(0).path(&quot;children&quot;).size());
  643 │     }
- 644 │ 
+ 644 │
  645 │     // ------------------------------------------------------------------ 审计、Dashboard、热力图
- 646 │ 
+ 646 │
  647 │     @Test
  648 │     void auditDashboardAndHeatmapComeFromRealEvents() throws Exception {</code></pre></details>
     </article>
@@ -1953,7 +1953,7 @@ pre{background:#152234;color:#dfecf9;overflow:auto;margin:0;padding:17px;font-fa
         <button class="copy" data-copy="rbac-web/e2e/console.spec.ts:75">复制位置</button>
         <a class="github" href="https://github.com/vintcessun/OOAD/blob/827ca45/rbac-web/e2e/console.spec.ts#L75-L98" target="_blank" rel="noopener">GitHub 定位 ↗</a>
       </div>
-      <details><summary>查看这一段原代码 <span>75–98 行</span></summary><pre><code>  75 │ 
+      <details><summary>查看这一段原代码 <span>75–98 行</span></summary><pre><code>  75 │
   76 │ test(&#x27;导入功能权限清单与组织、员工（虚构数据），导入不分配角色&#x27;, async () =&gt; {
   77 │   await shot(&#x27;01-dashboard&#x27;)
   78 │   await menu(&#x27;组织管理&#x27;)
@@ -1965,7 +1965,7 @@ pre{background:#152234;color:#dfecf9;overflow:auto;margin:0;padding:17px;font-fa
   84 │   await expect(permDialog.getByTestId(&#x27;count-rolePermissions&#x27;)).toHaveText(&#x27;45&#x27;)
   85 │   await shot(&#x27;02-import-permissions&#x27;)
   86 │   await permDialog.locator(&#x27;.el-dialog__footer&#x27;).getByRole(&#x27;button&#x27;, { name: &#x27;关闭&#x27; }).click()
-  87 │ 
+  87 │
   88 │   await page.getByTestId(&#x27;open-import-org&#x27;).click()
   89 │   await page.getByTestId(&#x27;import-dept-file&#x27;).setInputFiles(path.join(FIXTURES, &#x27;departments.xlsx&#x27;))
   90 │   await page.getByTestId(&#x27;import-emp-file&#x27;).setInputFiles(path.join(FIXTURES, &#x27;employees.xlsx&#x27;))
