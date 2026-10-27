@@ -38,6 +38,7 @@ import java.util.List;
 @RestController
 public class CatalogController {
 
+    // 从拦截器写入的请求属性获取真实操作者，传给业务过程做范围检查或记录审计。
     private static final String OP = PermissionInterceptor.ATTR_OPERATOR;
 
     private final CatalogService catalog;
@@ -54,11 +55,16 @@ public class CatalogController {
 
     // ---------------------------------------------------------------- 资源、操作、权限
 
+    /** D09：资源页左侧系统/模块树、新建资源的级联选项，以及授予权限弹窗的系统筛选项。 */
     @GetMapping("/systems")
     public ApiResponse<List<SystemView>> systems() {
         return ApiResponse.ok(catalog.systems());
     }
 
+    /**
+     * D10：资源页查询；菜单表单也用 type=MENU 查询候选资源。
+     * 支持系统、类型、编码/名称关键字，不支持按 moduleId 筛选；page 默认 0，size 默认 50。
+     */
     @GetMapping("/resources")
     public ApiResponse<PageResult<ResourceView>> resources(@RequestParam(required = false) Long systemId,
                                                            @RequestParam(required = false) String type,
@@ -68,17 +74,23 @@ public class CatalogController {
         return ApiResponse.ok(catalog.resources(systemId, type, keyword, page, size));
     }
 
+    /** D11：新建资源，可同时为 actionCodes 中的已有操作创建权限；此动作不把权限授予角色。 */
     @PostMapping("/resources")
     public ApiResponse<ResourceView> createResource(@RequestAttribute(OP) Operator op,
                                                     @RequestBody CreateResource req) {
         return ApiResponse.ok(catalog.createResource(op, req));
     }
 
+    /** D12：查询操作词汇表，既显示在“操作”页签，也作为新建资源/权限表单的选项。 */
     @GetMapping("/actions")
     public ApiResponse<List<ActionView>> actions() {
         return ApiResponse.ok(catalog.actions());
     }
 
+    /**
+     * D13：权限目录与授予弹窗共用的分页查询，可按系统、资源 ID、权限码/资源名筛选。
+     * 返回权限定义，不表示当前用户已拥有这些权限；授予角色时 Service 仍要检查授权上界。
+     */
     @GetMapping("/permissions")
     public ApiResponse<PageResult<PermissionView>> permissions(@RequestParam(required = false) Long systemId,
                                                                @RequestParam(required = false) Long resourceId,
@@ -88,6 +100,7 @@ public class CatalogController {
         return ApiResponse.ok(catalog.permissions(systemId, resourceId, keyword, page, size));
     }
 
+    /** D14：“为资源新增操作”；前端先将资源编码查为 resourceId，再提交已有 actionCode。 */
     @PostMapping("/permissions")
     public ApiResponse<PermissionView> createPermission(@RequestAttribute(OP) Operator op,
                                                         @RequestBody CreatePermission req) {
@@ -96,27 +109,32 @@ public class CatalogController {
 
     // ---------------------------------------------------------------- 菜单
 
+    /** F：登录后取本人可见菜单；Service 按挂接资源的 :view 权限过滤，空目录随之裁剪。 */
     @GetMapping("/menus/me")
     public ApiResponse<List<MenuNode>> myMenus(@RequestAttribute(OP) Operator op) {
         return ApiResponse.ok(menus.myMenus(op));
     }
 
+    /** F：菜单管理页面需要完整配置树，与 myMenus 返回的本人可见菜单树用途不同。 */
     @GetMapping("/menus")
     public ApiResponse<List<MenuNode>> allMenus() {
         return ApiResponse.ok(menus.all());
     }
 
+    /** F/D 交叉：新增菜单，可挂接 D 中的 MENU 资源；保存菜单不等于授予接口权限。 */
     @PostMapping("/menus")
     public ApiResponse<MenuNode> createMenu(@RequestAttribute(OP) Operator op, @RequestBody SaveMenu req) {
         return ApiResponse.ok(menus.create(op, req));
     }
 
+    /** F：编辑菜单位置、资源、路由等信息；Service 检查父节点、防环及挂接资源类型。 */
     @PatchMapping("/menus/{id}")
     public ApiResponse<MenuNode> updateMenu(@RequestAttribute(OP) Operator op, @PathVariable Long id,
                                             @RequestBody SaveMenu req) {
         return ApiResponse.ok(menus.update(op, id, req));
     }
 
+    /** F：删除菜单配置；有子菜单时拒绝，不删除所引用的资源或角色权限。 */
     @DeleteMapping("/menus/{id}")
     public ApiResponse<Void> deleteMenu(@RequestAttribute(OP) Operator op, @PathVariable Long id) {
         menus.delete(op, id);
@@ -125,17 +143,23 @@ public class CatalogController {
 
     // ---------------------------------------------------------------- 组织与导入
 
+    /** E/D 交叉：返回可见公司，供角色创建表单选择所属公司，也供各管理页面显示公司名称。 */
     @GetMapping("/companies")
     public ApiResponse<List<CompanyView>> companies(@RequestAttribute(OP) Operator op) {
         return ApiResponse.ok(org.companies(op));
     }
 
+    /** E/C 交叉：按公司取可见部门树，供组织浏览、指派适用部门选择等功能使用。 */
     @GetMapping("/departments/tree")
     public ApiResponse<List<DeptNode>> departmentTree(@RequestAttribute(OP) Operator op,
                                                       @RequestParam Long companyId) {
         return ApiResponse.ok(org.tree(op, companyId));
     }
 
+    /**
+     * E：组织页上传部门表与员工表，参数是 multipart 文件及公司信息。
+     * Controller 只负责打开/关闭输入流，组织数据解析与落库由 ImportService 完成。
+     */
     @PostMapping("/imports/organization")
     public ApiResponse<ImportReport> importOrganization(@RequestAttribute(OP) Operator op,
                                                         @RequestParam String companyCode,
@@ -149,6 +173,10 @@ public class CatalogController {
         }
     }
 
+    /**
+     * E/D 交叉：上传功能权限清单，同步权限目录和模板角色的业务授权（含 selfOnly）。
+     * 与 D11/D14 只新建定义不同，导入也可能回收清单已去掉的模板授权；返回后需核对异常报告。
+     */
     @PostMapping("/imports/permissions")
     public ApiResponse<ImportReport> importPermissions(@RequestAttribute(OP) Operator op,
                                                        @RequestPart("file") MultipartFile file) {
