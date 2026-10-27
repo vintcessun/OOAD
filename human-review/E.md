@@ -2,7 +2,7 @@
 
 主审姓名：刘翔宇；交叉复核姓名：待填写；日期：待填写；阅读状态：E 负责范围已读（AI 辅助静态审查）；实测与人工复核未完成，主审本人及复核人尚未签字。核对记录见 [E 的代码证据](problems/E/E-review-20261026.md)。
 
-答辩前可打开 [E 源码速查网页](E-code-explained.html)：按老师的问题、方法名或文件名搜索，先看口头讲法，再展开对应的原代码。网页代码片段是生成时的快照；源码改动后可运行 `python human-review/build-e-guide.py` 更新。
+答辩前可打开 [E 源码速查网页](E-code-explained.html)：按老师的问题、方法名或文件名搜索，先看口头讲法，再展开对应的原代码。[E 的 25 题详细追问与参考答案](E-defense-deep-QA.md)按 ER 图、API、调用链及函数整理。网页代码片段是生成时的快照；源码改动后可运行 `python human-review/build-e-guide.py` 更新。
 
 预计16小时，负责4个权限中心API。基线提交：a42b8018d6a9c9051fd527dcae05a8da04746082。
 
