@@ -185,3 +185,43 @@
 ## 四、上台前只背这一条完整例子
 
 老师若随机让你介绍一段 E 代码，可以选 **“部门与员工 Excel 导入”**：需求是把真实部门树和一万名员工导入权限中心，但同名部门、行顺序、异常数据不能导致误归属或自动越权；设计为两份文件同一入口，先建立部门再定位员工，最后关联负责人，报告逐行异常；代码从 `OrgView`、`orgApi`、`CatalogController` 进入 `ImportService.importOrganization`，经三个 Mapper 写入公司、部门、用户表；验证看导入报告、组织树和员工归属。最后主动补充：导入**不会自动分配角色**，负责人也**不会自动有管理权限**；HR-002/003 等边界仍需隔离环境复现。这样就覆盖老师问的“为什么设计、有什么实体、API 为什么存在、代码分几层、一个函数做什么、怎样连到数据库”。
+
+## 五、API 集中追问：方法、数量与边界
+
+### 26. 老师：45 个接口是不是太多？接口越多越容易出问题，你们为什么这样拆？
+
+**建议回答：** 数量本身不能证明设计合理。当前契约按认证、鉴权、用户、角色、权限、菜单、组织、统计八组列出 45 个操作，分别对应不同的查询、写入、授权和管理场景。以 E 为例，公司列表、按公司查部门树、组织导入、权限清单导入，输入结构、授权要求及副作用不同，合成一个“万能接口”会让权限和错误语义更模糊。反过来说，每多一个接口就多一处鉴权、参数、状态码与测试的维护面。因此我们的答辩重点不是“多就是好”，而是每个接口能说清场景、请求/响应、所需权限、数据范围、错误边界，并由契约与实现双向核对。不能把“45 个都在契约里”当作没有漏洞的证明。
+
+**定位：** [接口总表](../docs/04-api.md)、[OpenAPI 契约](../rbac-contract/src/main/resources/openapi/rbac-api.yaml)、[启动核对](../rbac-structured/src/main/java/com/xmu/rbac/structured/controller/WebConfig.java)。
+
+### 27. 老师：你们为什么全用 PUT，不用 PATCH？
+
+**先纠正前提：** 这句是别组的追问，不符合本仓库。当前权限中心的 45 个操作按契约统计是 **GET 19、POST 17、PATCH 4、DELETE 5、PUT 0**。四个 PATCH 是 `PATCH /users/{id}`、`PATCH /users/{id}/status`、`PATCH /roles/{id}`、`PATCH /menus/{id}`。`rbac-mock-biz` 示例业务接口另有 `PUT /hr/attendance/{id}`，不能算进权限中心的 45 个接口。
+
+**建议回答：** 一般来说，PUT 更适合客户端提交某资源的完整目标表示，PATCH 适合只修改部分字段；HTTP 方法选择还要与实际请求体语义一致。我们的用户和角色更新是典型部分更新：未提交的字段保持旧值。菜单虽然路由名为 PATCH，但契约明确规定 `SaveMenu` 整体覆盖可编辑字段；遗漏 `parentId`、`resourceId`、路由等会改变或清空旧值。这个特例不是理想的部分更新语义，答辩时应如实说明，不能笼统声称“四个 PATCH 都只改提交的字段”。可改进为真正的部分更新，或重新评估用 PUT 并在契约中要求完整可编辑表示；改法需同时改前端和测试。
+
+**定位：** [方法总表](../docs/04-api.md)、[菜单 PATCH 契约](../rbac-contract/src/main/resources/openapi/rbac-api.yaml)、[MenuService.apply](../rbac-structured/src/main/java/com/xmu/rbac/structured/service/MenuService.java)、[用户更新](../rbac-structured/src/main/java/com/xmu/rbac/structured/service/UserManagementService.java)、[角色更新](../rbac-structured/src/main/java/com/xmu/rbac/structured/service/RoleManagementService.java)。
+
+### 28. 老师：能给出一个 PATCH 与 PUT 的具体例子吗？少传字段会怎样？
+
+**建议回答：** 用户原资料是 `{realName: "张三", phone: "123", position: "职员"}`。调用 `PATCH /users/{id}` 只传 `{phone: "456"}`，`UserManagementService.update` 只对非 `null` 字段赋值，因此姓名和岗位保持不变。它还能用空字符串清空电话或岗位，这是“未提交”和“提交为空”的区别。角色的 `PATCH /roles/{id}` 也按非 `null` 字段更新。菜单是反例：`PATCH /menus/{id}` 只传 `{menuName: "新名称"}` 会把父菜单移到根、解除资源关联并清掉一些展示字段；因为契约就规定了覆盖，所以前端需要提交所有要保留的字段。若老师说这更像 PUT，应承认接口命名与实质语义存在可讨论处。
+
+**定位：** [UserManagementService.update](../rbac-structured/src/main/java/com/xmu/rbac/structured/service/UserManagementService.java)、[RoleManagementService.update](../rbac-structured/src/main/java/com/xmu/rbac/structured/service/RoleManagementService.java)、[SaveMenu 契约](../rbac-contract/src/main/resources/openapi/rbac-api.yaml)。
+
+### 29. 老师：为什么导入用 POST，查询用 GET？反复上传同一文件是否保证结果完全不变？
+
+**建议回答：** `GET /companies` 和 `GET /departments/tree` 只读，适合 GET；两种导入接收 Excel 并创建或调整数据库记录、审计和授权版本，适合 POST。组织导入对已经存在的用户名会跳过，权限导入会对角色模板做增删同步，但这不等于整个 POST 被严格保证为幂等操作：文件变化、数据库现状、异常行、审计等都可能改变结果。不能回答“重复调用一定完全一样”，应看导入报告的新增、跳过、异常与授权变化。
+
+**定位：** [CatalogController](../rbac-structured/src/main/java/com/xmu/rbac/structured/controller/CatalogController.java)、[ImportService](../rbac-structured/src/main/java/com/xmu/rbac/structured/service/ImportService.java)。
+
+### 30. 老师：仅凭 `x-required-permission`，接口就安全吗？如果手工改 URL 里的 ID 呢？
+
+**建议回答：** 入口权限只判定“能不能调用这类操作”。随后 Service 还要检查目标是否存在、是否属于操作者可管理的公司/部门，以及业务限制。例如组织树按 `scopeOf` 裁剪；用户调部门会检查目标公司相同且新部门也在编辑范围内。老师若手工把 `companyId` 或用户 ID 改成别人的，不能靠前端隐藏按钮防护。反过来，如果某个 Service 忘记目标范围检查，只有契约权限是不够的，这也是接口审查重点。
+
+**定位：** [PermissionInterceptor](../rbac-structured/src/main/java/com/xmu/rbac/structured/controller/PermissionInterceptor.java)、[OrgService](../rbac-structured/src/main/java/com/xmu/rbac/structured/service/OrgService.java)、[UserManagementService.update](../rbac-structured/src/main/java/com/xmu/rbac/structured/service/UserManagementService.java)。
+
+### 31. 老师：为什么说 API 是容易被追问的地方？你们应该怎么证明它？
+
+**建议回答：** 老师可以从契约任选一条路由，连续问“谁用、谁能调、请求体有哪些字段、为什么选这个方法、返回什么、错了是什么状态、Service 改哪些表、目标范围谁校验”。准备时按一条具体请求从前端到数据库走通，比背接口数量有效。以 `POST /imports/organization` 为例，要能说明两份文件、公司参数、`rbac:org:import`、先部门后员工、`ImportReport` 中的异常、事务行为，以及导入不会自动给员工分配角色。现有自动测试和契约核对是证据，但不能据此声称所有边界都实测过。
+
+**定位：** [E 四接口说明](../docs/04-api.md)、[CatalogController](../rbac-structured/src/main/java/com/xmu/rbac/structured/controller/CatalogController.java)、[ImportService](../rbac-structured/src/main/java/com/xmu/rbac/structured/service/ImportService.java)。
