@@ -6,7 +6,7 @@ link:README.adoc[返回分工总览]。目标是全员能交叉回答；持有�
 == 本地原始资料：每人持有同一份
 
 原始输入共11个文件，指纹与大小见 link:context-manifest.json[本地上下文清单]。清单只记录文件名、大小和SHA-256，不复制原文、压缩包或图片。
-`.tmp` 仍由根 .gitignore 的 `/.tmp/` 忽略；分发时由成员在本地取得原始资料，不把它们换目录归档入Git。未见正式评分PDF、课堂OOAD PPT原件，列为缺项；需求中的评分转述不等于核对原件。
+`.tmp` 仍由根 .gitignore 的 `/.tmp/` 忽略；分发时由成员在本地取得原始资料，不把它们换目录归档入Git。本地课程输入包另含评分 V4 和课堂《面向对象设计》讲义的 PDF。第二轮验收按评分原件核对，见 link:../requirements.adoc#course-delivery[课程交付约束与验收范围]。
 
 在仓库根执行 `python tools/review-history.py context` 可只读核对11份输入的大小与指纹；缺失/变化会明确报告，文件一致不表示成员已经阅读。
 
@@ -25,7 +25,7 @@ link:README.adoc[返回分工总览]。目标是全员能交叉回答；持有�
 
 == 现行工程共同阅读路线
 
-. link:../../README.md[工程总入口]、link:../requirements.adoc[需求追踪]、link:../implementation-contract.adoc[精确实施合同]、link:../schema-contract.adoc[物理模型合同]。
+. link:../../README.md[工程总入口]、link:../requirements.adoc[需求规格说明书]、link:../requirements-traceability.adoc[需求追踪]、link:../implementation-contract.adoc[精确实施合同]、link:../schema-contract.adoc[物理模型合同]。
 . link:../architecture-structured.adoc[结构化架构]与link:../architecture-ddd.adoc[DDD架构]；能够画出依赖方向，解释为何不共享核心算法。
 . link:../final-design.adoc[六组双设计]、link:../design/index.adoc[当前图索引]、link:../defense.adoc[现有口试卡]。图、源码和测试分别核对。
 . link:../test-plan.adoc[验证方法]、link:../final-acceptance.adoc[归档验收]、link:../deployment.adoc[运行边界]、link:../course-integration-contract.adoc[课程接口边界]。

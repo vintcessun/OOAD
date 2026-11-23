@@ -10,7 +10,7 @@
 
 | 文档 | 用途 |
 |---|---|
-| [需求与追踪](docs/requirements.adoc) / [完整输入](docs/sources/requirements-final.md) | 需求 ID、范围及验收定义 |
+| [需求规格说明书](docs/requirements.adoc) / [需求追踪与验收索引](docs/requirements-traceability.adoc) | 系统范围、功能与非功能要求、验收标准及核对入口 |
 | [实现合同](docs/implementation-contract.adoc) / [数据库合同](docs/schema-contract.adoc) | 两实现共同遵守的行为与十五表新基线 |
 | [课程集成合同](docs/course-integration-contract.adoc) | 教师身份/审计接口、真实 CC 与服务端边界 |
 | [结构化设计](docs/architecture-structured.adoc) / [DDD 设计](docs/architecture-ddd.adoc) | 实际分层、事务与独立领域模型 |
@@ -104,6 +104,6 @@ shared HTTP 使用本次唯一新库、私有临时 jar 快照和自有 Redis na
 - `/integration/*`、`/identity/*` 仅用于可信服务，需 bearer + 服务密钥，公共边缘拒绝访问；服务密钥不能进入前端。
 - 原始员工表只留在被忽略的 [data/raw](data/raw/README.md)，不提交、不打镜像。
 - 旧版文档、审查运行目录和演示代码由Git历史保存，不恢复多公司或业务scope模型。
-- 用户提供的37页PDF是一期RBAC0资料；未收到的新版评分原件/课堂PPT以及外部服务器条件不冒称已验收。
+- RBAC1 第二轮交付按本地课程输入包中的评分 V4 原件和《面向对象设计》讲义核对，见[课程交付约束与验收范围](docs/requirements.adoc#course-delivery)。
 - 部署工具不自动删除旧服务或数据卷；本地Swarm证据不能冒充外部生产部署。
 - [依赖安全核验](docs/dependency-security.adoc)：GitHub实际告警78→1个开发依赖medium，high/critical为0；npm仍计5个dev-only moderate，无兼容修复，明确保留而非假清零。

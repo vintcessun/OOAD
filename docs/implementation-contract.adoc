@@ -1,7 +1,7 @@
 = RBAC1 实施合同（M3起的唯一精确对接约定）
 :toc:
 
-本文件将完整需求细化为并行实现合同；完整需求仍见sources/requirements-final.md。
+本文件细化 link:requirements.adoc[需求规格说明书] 的接口与实现约定。
 重构开发空库，不兼容一期company/scope/selfOnly/统计接口；不操作旧生产库。
 两后端内部算法独立实现，仅共享本合同、OpenAPI、DDL、纯HTTP协议类型/错误词汇和黑盒夹具；不共享鉴权、领域计算或应用服务。
 
@@ -87,7 +87,7 @@ PUBLIC GET /.well-known/jwks.json；健康/info仍位于/api/v1/actuator/{health
 |GET /roles/{id} |RoleVO |rbac:role:view
 |PATCH /roles/{id} |{name?,description?,version?}，禁止status→RoleVO |rbac:role:edit
 |PUT /roles/{id}/status |{status}→RoleVO |rbac:role:status
-|DELETE /roles/{id} |受控退役/清指派、边、权限、准入，保护最后有效超级管理员 |rbac:role:edit
+|DELETE /roles/{id} |删除角色并清理指派、继承关系、权限绑定和准入，保护最后有效超级管理员 |rbac:role:edit
 |GET /roles/{id}/permissions |PermissionVO[]（直接） |rbac:role:view
 |PUT /roles/{id}/permissions |{permissionIds:Long[]}原子替换，仅同系统 |rbac:role:edit
 |GET /roles/{id}/effective-permissions |EffectiveVO（以该角色为直接角色，停用系统仍展示启用角色和权限的配置闭包） |rbac:role:view

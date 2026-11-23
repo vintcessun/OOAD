@@ -100,7 +100,7 @@ Windows的SIGTERM实际上终止进程、不执行Java shutdown hook，因此使
 . 两实例预热L1/L2后撤权、确定交错版本重算/持续变化503、10,000合成用户数据库分页、日志无fixture秘密。
 . 同一Vue前端连接两套真实后端进行桌面 Chromium 测试。TLS、私网、secrets、镜像一致性与本地受控切换分别验证。
 
-旧多公司/scope/selfOnly预期按link:requirements.adoc[映射]替换，仍适用的认证/越权/事务/缓存/保护/保密断言保留，不加skip伪绿。
+旧多公司/scope/selfOnly预期按link:requirements-traceability.adoc[映射]替换，仍适用的认证/越权/事务/缓存/保护/保密断言保留，不加skip伪绿。
 中心与课程跨库同步HTTP不是分布式事务；同UUID有限重试及未确认错误如实保留，不以Outbox/MQ掩盖。
 
 == 真实失败保留

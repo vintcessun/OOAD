@@ -1,0 +1,120 @@
+= RBAC1 需求追踪与验收索引
+:lang: zh-CN
+:toc:
+:toc-title: 目录
+
+业务规则与验收标准见 link:requirements.adoc[需求规格说明书]。本索引用需求 ID 查阅实施合同、评审和代表性验收。
+场景编号沿用既有测试文档，场景号与需求 ID 分别按各自的文本解释。场景清单及判定见 link:acceptance-plan.adoc[共享 HTTP 验收方案]、link:../tools/acceptance/suite.mjs[共享场景]和 link:test-plan.adoc[测试计划]；实际运行范围、版本和证据见 link:final-acceptance.adoc[最终本地验收]及各专项记录。
+
+== 身份、接入系统与组织
+
+协议与管理边界见 link:implementation-contract.adoc[实施合同]。源码和对应测试见 link:oral-review/A-identity.adoc[身份评审]、link:oral-review/B-directory.adoc[目录与组织评审]；后续部门生命周期及授权边界修订的实测见 link:oral-review/B-verification.adoc[目录最新验证记录]。
+
+[cols="1,2,4",options="header"]
+|===
+|需求 ID |主题 |代表性验收
+|xref:requirements.adoc#ID-01[ID-01] |接入系统登记及启停 |SELF-04、共享 ID-06。停用后立即拒绝对应系统的访问。
+|xref:requirements.adoc#ID-02[ID-02] |统一登录 |API-C01、API-C03。验证成功登录和单一目标系统。
+|xref:requirements.adoc#ID-03[ID-03] |退出与本人信息 |API-C01、API-C03、API-C08、U-04/U-05。验证本人投影、持久注销及账号恢复后旧令牌继续拒绝。
+|xref:requirements.adoc#ID-04[ID-04] |用户查找、资料与状态 |共享 ID-04。验证筛选后分页、资料和状态独立修改，以及恢复账号时检查保留角色的授权上界。
+|xref:requirements.adoc#ID-05[ID-05] |独立的人员调动 |ORG-05/06。跨部门调动清空目标用户全部直接指派；同部门提交保留指派；共享角色及其他用户不受影响。
+|xref:requirements.adoc#ID-06[ID-06] |按系统查看和指派角色 |SELF-03/04。课程系统身份和令牌不能用于中心管理，目标系统权限独立。
+|xref:requirements.adoc#ID-07[ID-07] |凭据及稳定主体 |API-C02、API-C13。验证错误输入、初始凭据、稳定身份、主体不可复用及敏感字段保护。
+|xref:requirements.adoc#ORG-01[ORG-01] |部门树及部门维护 |ORG-03/04、ORG-07。验证树结构、同一管理子树内创建和改名、越界拒绝。
+|xref:requirements.adoc#ORG-02[ORG-02] |部门启停 |ORG-07、共享部门停用场景。验证根和非叶限制、既有成员权限保留、新增和迁入阻止、课程目录隐藏及恢复。
+|xref:requirements.adoc#ORG-03[ORG-03] |部门删除 |ORG-07、共享部门停用场景。验证独立删除权限、范围限制、有成员或子部门时拒绝，删除后清理准入关系。
+|xref:requirements.adoc#ORG-04[ORG-04] |部门可指派角色配置 |既有 ORG-02、共享 ROLE-05。验证准入限制直接指派，超级管理员仍受准入限制，配置变更遵守目标系统授权上界。
+|===
+
+== 角色、继承与授权判断
+
+实现阅读入口见 link:oral-review/C-role-graph.adoc[角色继承评审]和 link:oral-review/D-authorization.adoc[授权评审]。共享验收覆盖权限来源、多路径、最后有效超级管理员保护及并发验环。
+
+[cols="1,2,4",options="header"]
+|===
+|需求 ID |主题 |代表性验收
+|xref:requirements.adoc#ROLE-01[ROLE-01] |角色维护与独立启停 |共享角色资料与启停分权场景。验证只有编辑权限时不能启停，只有启停权限时不能改名，拒绝后资料和状态保持。
+|xref:requirements.adoc#ROLE-02[ROLE-02] |直接、继承和有效权限 |DAG-01～04、DAG-15。验证多路径去重并保留每条来源。
+|xref:requirements.adoc#ROLE-03[ROLE-03] |建立与删除继承关系 |DAG-05～07、DAG-11。验证自环、重复、间接环及反向并发冲突；唯一落库的边须对应成功请求。
+|xref:requirements.adoc#ROLE-04[ROLE-04] |同系统继承及状态切断 |DAG-08/09。验证跨系统拒绝、停用节点切断及其他有效路径仍可达。
+|xref:requirements.adoc#ROLE-05[ROLE-05] |指派时校验部门准入 |ORG-02。验证合法指派、非准入拒绝、目标用户部门取自服务端及超级管理员不旁路。
+|xref:requirements.adoc#ROLE-06[ROLE-06] |组织管理范围及授权上界 |ORG-03/04、H-10。验证非根管理员不能管理兄弟部门或共享角色定义，普通根部门管理员仍受目标系统上界。
+|xref:requirements.adoc#ROLE-07[ROLE-07] |删除角色与最后管理员保护 |DAG-13。验证删除角色时清理关系，拒绝导致最后有效超级管理员失效的变更并回滚。
+|xref:requirements.adoc#ROLE-08[ROLE-08] |指定用户的有效权限详情 |DAG-12/15。验证按目标系统查看角色、结果、来源路径，拒绝查看越权用户。
+|xref:requirements.adoc#AUTHZ-01[AUTHZ-01] |管理端模拟判定与解释 |共享 AUTHZ 模拟场景。分别检查 UI 权限和 API 操作，验证合法的拒绝结论、停用目标及操作者会话。
+|===
+
+== UI 资源、API 目录与管理界面
+
+目录和校验入口见 link:api.adoc[API 文档]及 link:oral-review/E-resources.adoc[资源评审]。前端流程、视觉与深链回归见 link:acceptance/frontend-redesign.adoc[桌面验收]及 link:../rbac-web/e2e/console.spec.ts[浏览器用例]。
+
+[cols="1,2,4",options="header"]
+|===
+|需求 ID |主题 |代表性验收
+|xref:requirements.adoc#RES-01[RES-01] |菜单及按钮资源树 |T10。验证按钮关联有效的父菜单，父菜单权限不自动授予按钮。
+|xref:requirements.adoc#RES-02[RES-02] |独立 API 操作目录 |T11、SELF-01。验证真实操作的注册和状态约束，未知操作默认拒绝。
+|xref:requirements.adoc#RES-03[RES-03] |显式 UI 与 API 映射 |T10/T11、共享 RES-03。验证映射仅供追踪，不能授予 API 权限，拒绝跨系统及种类错误。
+|xref:requirements.adoc#RES-04[RES-04] |中心路由与接口契约一致 |T11、接口契约校验。验证未登记的受保护路由及无实现的登记项被检出。
+|xref:requirements.adoc#RES-05[RES-05] |资源维护及关系完整性 |资源评审、共享 RES-03。验证父子关系、类型、系统边界与停用影响。
+|xref:requirements.adoc#RES-06[RES-06] |菜单与按钮的有效投影 |T10、桌面管理流程。验证继承权限、父资源停用、当前页和深链的访问限制。
+|xref:requirements.adoc#UI-01[UI-01] |同一管理界面对接两套后端 |T21、双后端浏览器流程。在两套后端分别验证正常流程和拒绝行为。
+|xref:requirements.adoc#UI-02[UI-02] |中心主要管理页面 |J01～J04、桌面逐路由检查。验证导航、列表、详情、角色图、映射、鉴权与审计。
+|xref:requirements.adoc#UI-03[UI-03] |权限来源和路径展示 |DAG-04/15、桌面用户详情及角色图。验证直接来源、继承来源和多路径。
+|xref:requirements.adoc#UI-04[UI-04] |分页及准入角色选择 |ORG-02、共享 ID-04、桌面用户管理。验证分页选择、准入候选和越权拒绝。
+|xref:requirements.adoc#UI-05[UI-05] |真实交互和操作反馈 |T20/21、桌面验收。验证成功、拒绝、刷新失败与可追踪操作结果。
+|xref:requirements.adoc#UI-06[UI-06] |基础工作台和受限导航 |桌面受限工作台与仪表盘回归。验证基础统计受权限限制，保留本人资料入口。
+|===
+
+== 课程系统接入与审计
+
+外部接口与对象级边界见 link:course-integration-contract.adoc[课程集成合同]。当前中心内嵌鉴权代理见 link:final-design.adoc[最终设计 S04]；实际联调范围见 link:../course-integration/REAL-CENTERS-VERIFICATION.md[双中心课程联调]。审计源码和验证入口见 link:oral-review/F-audit.adoc[审计评审]。
+
+[cols="1,2,4",options="header"]
+|===
+|需求 ID |主题 |代表性验收
+|xref:requirements.adoc#EXT-01[EXT-01] |八个统一身份、鉴权和目录操作 |API-C01～08、API-C13 覆盖原身份鉴权契约。目录新增用例核对当前 API 文档及共享部门停用场景，验证有效课程管理员查询部门、成员与稳定身份。
+|xref:requirements.adoc#EXT-02[EXT-02] |两个外部审计操作 |API-C09～12、AUD-T09/10。验证写入与分页查询、用户认证和可信服务凭据。
+|xref:requirements.adoc#EXT-03[EXT-03] |教师课程操作登记 |T11、共享 EXT-03。核对 80 个课程操作的元数据，提供方的 10 个操作由中心直接实现。
+|xref:requirements.adoc#EXT-04[EXT-04] |可信课程路由与转发 |T13/14、当前 S04。受保护请求经中心内嵌代理匹配操作并鉴权，许可后送往配置的课程后端。验证伪造身份或路由提示不能绕过鉴权，保留课程后端对象级拒绝。
+|xref:requirements.adoc#EXT-05[EXT-05] |课程对象授权及两项私有投影 |T12、共享 EXT 私有投影、课程真实联调。验证组长与非组长的复制权限差异、可信服务和当前系统身份。
+|xref:requirements.adoc#EXT-06[EXT-06] |两系统 UI 权限隔离 |SELF-04、API-C03。按令牌的目标系统返回本人 UI 投影，API 权限清单不暴露给浏览器。
+|xref:requirements.adoc#EXT-07[EXT-07] |联调、重试与撤权 |API-C14/15、J03/04、课程联调。验证撤权生效、有限重试使用同一请求标识，未确认失败明确反馈。
+|xref:requirements.adoc#AUD-01[AUD-01] |外部审计同步幂等写入 |AUD-T01～03。串行及并发重复请求返回同一结果，冲突拒绝且只保留一份记录。
+|xref:requirements.adoc#AUD-02[AUD-02] |审计查询和系统隔离 |AUD-T10/11。验证筛选、时间边界、稳定分页及系统隔离。
+|xref:requirements.adoc#AUD-03[AUD-03] |敏感操作与拒绝记录 |T18/20。验证应留痕的拒绝独立提交，原业务没有成功副作用。
+|xref:requirements.adoc#AUD-04[AUD-04] |技术日志可关联 |T20。验证分层日志可按追踪标识关联，凭据不写日志。
+|xref:requirements.adoc#AUD-05[AUD-05] |业务与成功审计的原子性 |AUD-T04/08。真实注入审计写入失败，检查业务、授权版本和成功审计同时回滚。
+|xref:requirements.adoc#AUD-06[AUD-06] |审计来源、标识及快照 |AUD-T09/11。验证请求标识、来源系统、操作人和事件数据可追溯且经过安全校验。
+|===
+
+== 安全、可靠性与交付验证
+
+安全边界见 link:implementation-contract.adoc[实施合同]，部署验证见 link:deployment.adoc[部署说明]。本地验收与外部环境的结果分别记录。
+
+[cols="1,2,4",options="header"]
+|===
+|需求 ID |主题 |代表性验收
+|xref:requirements.adoc#NFR-01[NFR-01] |默认拒绝和稳定错误 |SELF、严格 DTO 回归。验证对未知操作和越权字段拒绝，并区分请求、认证、授权和依赖故障。
+|xref:requirements.adoc#NFR-02[NFR-02] |令牌校验、撤销和密钥轮换 |API-C08/13。验证签名、期限、目标系统、持久撤销和轮换。
+|xref:requirements.adoc#NFR-03[NFR-03] |授权更新后的缓存一致性 |DAG-14。预热两个实例后撤权，两侧下一次访问均拒绝，缓存故障按权威授权事实处理。
+|xref:requirements.adoc#NFR-04[NFR-04] |并发、原子性和外部等价 |DAG-11、AUD-T04、T21。验证并发不成环、失败事务回滚、两实现的响应和业务后置条件等价。
+|xref:requirements.adoc#NFR-05[NFR-05] |身份和路由真实性 |SELF-03、T13。验证令牌和可信路由约束、服务凭据及伪造身份拒绝。
+|xref:requirements.adoc#NFR-06[NFR-06] |敏感信息及数据最小化 |AUD-T09/10、共享日志检查。验证白名单字段、安全审计载荷，以及日志和响应不返回凭据。
+|xref:requirements.adoc#NFR-07[NFR-07] |安全部署与后端切换 |T22、最终本地验收。验证隔离网络、密钥管理及同一套数据的两后端切换，外部环境和恢复另行核验。
+|===
+
+== 新旧验收映射
+
+RBAC0 与 RBAC1 的业务范围已有变化。以下映射供迁移旧用例时查阅，替代后的验收仍覆盖原安全目标。
+
+[cols="2,4",options="header"]
+|===
+|RBAC0 的验证点 |RBAC1 验收落点
+|公司隔离、部门数据范围 |ID-01/06、ORG-01/04、ROLE-06。验证目标系统隔离、组织子树管理、部门直接准入及跨边界读写拒绝。课程对象权限由课程后端验证。
+|资源与动作、菜单、本人范围 |RES-01～04、EXT-05。验证菜单和按钮权限、独立 API 操作权限、显式映射与服务端默认拒绝。
+|角色权限并集与撤权 |ROLE-02～04、NFR-03。验证同系统继承、多来源、停用路径切断及跨实例撤权。
+|认证、越权与账号保护 |ID-02/03/07、ROLE-06/07、NFR-02。验证错误凭据、账号状态、令牌撤销、授权上界和最后有效超级管理员保护。
+|独立事务成功审计 |AUD-01/03/05。验证业务与成功记录同事务、适用的拒绝记录独立提交，以及重试幂等和故障回滚。
+|===
+
+两种后端设计的六组对照场景见 link:final-design.adoc[最终设计]。S01 覆盖继承验环，S02 覆盖部门准入与指派，S03 覆盖有效权限，S04 覆盖课程代理，S05 覆盖审计幂等，S06 覆盖业务与成功审计同事务。

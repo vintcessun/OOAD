@@ -11,7 +11,7 @@
 
 已完成：读取压缩包final及反馈、六份README、18份旧设计文档、现行OpenAPI和迁移；
 读取37页一期概要设计PDF；识别正式评分/PPT/最新教师源码尚缺；
-写入link:requirements.adoc[逐需求追踪]、link:migration-baseline.adoc[基线与决策]及原始输入快照。
+写入逐需求追踪（现见 link:requirements-traceability.adoc[需求追踪与验收索引]）、link:migration-baseline.adoc[基线与决策]及原始输入快照。
 
 可回退证据：仓库外完整Git bundle已verify；导论子目录独立历史提取、clone、fsck和Git tree一致性已核验。
 导论新远端未提供，因此源目录暂未移除。

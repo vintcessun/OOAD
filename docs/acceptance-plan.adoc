@@ -4,7 +4,7 @@
 == 权威与范围
 
 `tools/acceptance/` 只通过真实 HTTP 调用两个独立可执行 jar；不导入 Java Service、领域算法或 Spring 测试源码。
-精确输入输出优先 `implementation-contract.adoc`、`schema-contract.adoc`；完整需求来源 `sources/requirements-final.md`（含 §15/18/20/24）。
+现行需求见 link:requirements.adoc[需求规格说明书]，场景关联见 link:requirements-traceability.adoc[需求追踪与验收索引]。精确输入输出见 link:implementation-contract.adoc[实施合同]和 link:schema-contract.adoc[数据库合同]。
 本测试不兼容一期 company/scope/selfOnly 接口，也不以旧 jar 的行为修改冻结合同。
 共享的是测试，不共享后端核心实现。没有业务代码变更，也不执行 Git 提交。
 
