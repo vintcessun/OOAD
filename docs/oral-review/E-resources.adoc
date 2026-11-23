@@ -84,9 +84,9 @@ E汇总API、页面和部署证据，不代替其他成员读自己接口或页�
 
 == 对照图与口试题
 
-* link:../design/S04-structured-class.svg[S04-structured-class SVG] / link:../design/S04-structured-class.png[PNG]；核对图源和当前实际方法。
+* link:../design/S04-structured-current-class.svg[Structured 当前 S04 类图] / link:../design/S04-structured-current-class.png[PNG]，对应当前默认部署的课程过滤器。
 * link:../design/S04-structured-sequence.svg[S04-structured-sequence SVG] / link:../design/S04-structured-sequence.png[PNG]；核对图源和当前实际方法。
-* link:../design/S04-ddd-class.svg[S04-ddd-class SVG] / link:../design/S04-ddd-class.png[PNG]；核对图源和当前实际方法。
+* link:../design/S04-ddd-current-class.svg[DDD 当前 S04 类图] / link:../design/S04-ddd-current-class.png[PNG]，对应当前默认部署的课程过滤器。
 * link:../design/S04-ddd-sequence.svg[S04-ddd-sequence SVG] / link:../design/S04-ddd-sequence.png[PNG]；核对图源和当前实际方法。
 * link:../design/swarm-deployment-current.svg[当前六服务 Swarm 图] / link:../design/swarm-deployment-current.png[PNG]；历史七服务运行证据见 link:../design/swarm-deployment.svg[旧验收图]。
 

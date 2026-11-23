@@ -1,6 +1,6 @@
 # D 有效权限与缓存一致性问题记录
 
-更新于 2026-11-22。D-01 和 D-02 已在提交 `bfd3cfd` 中修复。
+更新于 2026-11-23。D-01 和 D-02 已在提交 `bfd3cfd` 中修复。
 结论以当前源码、公开接口和前端调用链为依据。双后端切换时，检查同一业务配置下原有功能能否继续使用，权限判定和页面结果是否正确。
 
 ## 问题索引
@@ -17,7 +17,7 @@
 | D-08 | 同一系统的 UI 权限和 API 权限同码时，页面曾混合显示两种来源。 | 已解决 | 两套后端和响应契约增加 `permissionKind`，前端按种类与编码归组。旧缓存若包含缺少种类的来源则重新计算。[响应契约](../../rbac-contract/src/main/resources/openapi/rbac-api.yaml#L4034-L4061) · [Structured 来源](../../rbac-structured/src/main/java/com/xmu/rbac/structured/service/AuthorizationService.java#L192-L196) · [DDD 来源](../../rbac-ddd/src/main/java/com/xmu/rbac/ddd/domain/AuthorizationPolicy.java#L7) · [前端回归测试](../../rbac-web/tests/components.spec.ts#L40) |
 | D-09 | SIM 共享接口曾允许空串或超长的权限码、操作 ID 进入业务判定。 | 已解决 | 两套实现均校验已提供字段的长度为 1–128。原有分支仍按 UI/API 类型要求对应字段，非法输入返回 `400 VALIDATION_ERROR`。[输入契约](../../rbac-contract/src/main/resources/openapi/rbac-api.yaml#L4577-L4601) · [Structured 校验](../../rbac-structured/src/main/java/com/xmu/rbac/structured/dto/Inputs.java#L197) · [DDD 校验](../../rbac-ddd/src/main/java/com/xmu/rbac/ddd/interfaces/rest/AuthorizationController.java#L35) |
 | D-10 | 前端保存成功后的权限刷新曾复用写入前已发出的同会话请求。 | 已解决 | 保存成功后发起一轮新权限读取，较早的同会话请求以最新刷新结果为准，避免过期成功覆盖权限和菜单，也避免过期失败误导路由。普通刷新继续合并同一会话中尚未完成的最新请求。[刷新顺序](../../rbac-web/src/stores/auth.ts#L50-L67) · [写后刷新](../../rbac-web/src/views/workspace.ts#L56-L81) · [回归测试](../../rbac-web/tests/auth.spec.ts#L58) |
-| D-11 | S04 时序图曾采用独立网关链路，前端分工表曾指向旧鉴权页。 | 已解决 | 两版 S04 主时序图更新为当前权限后端的内嵌 `CourseProxyFilter` 链路。独立网关类图标明历史用途，前端分工指出 `/authorization` 的 `AuthorizationView`。[设计图索引](../../docs/design/index.adoc) · [Structured 时序图](../../docs/design/S04-structured-sequence.svg) · [DDD 时序图](../../docs/design/S04-ddd-sequence.svg) · [前端分工](../../docs/oral-review/frontend.adoc) |
+| D-11 | S04 时序图曾采用独立网关链路，前端分工表曾指向旧鉴权页。 | 已解决 | 两版 S04 主时序图已更新为权限后端内嵌的 `CourseProxyFilter` 链路，后续补齐该链路在两版中的当前类图。独立网关类图保留为历史图。前端分工指出 `/authorization` 的 `AuthorizationView`。[Structured 类图](../design/S04-structured-current-class.svg) · [DDD 类图](../design/S04-ddd-current-class.svg) · [Structured 时序图](../../docs/design/S04-structured-sequence.svg) · [DDD 时序图](../../docs/design/S04-ddd-sequence.svg) · [设计图索引](../../docs/design/index.adoc) · [前端分工](../../docs/oral-review/frontend.adoc) |
 | D-12 | 中心超管在 Structured 中缺少某个已登记操作的显式权限时，点判定曾拒绝，影响管理系统列表加载。 | 已解决 | Structured 在校验用户、系统和已登记操作处于启用状态后，允许持有中心内置 `SUPER_ADMIN` 角色的用户执行中心操作。[Structured 判定](../../rbac-structured/src/main/java/com/xmu/rbac/structured/service/AuthorizationService.java#L260-L283) · [DDD 判定](../../rbac-ddd/src/main/java/com/xmu/rbac/ddd/domain/AuthorizationPolicy.java#L96-L105) · [回归测试](../../rbac-structured/src/test/java/com/xmu/rbac/structured/AuthorizationConsistencyTest.java#L70) |
 | D-13 | 停用系统下的角色详情在两版之间显示不一致。 | 已解决 | Structured 的角色详情沿用 DDD 的展示规则，返回启用角色配置及继承出的权限和来源。用户快照和实际鉴权继续校验系统状态。[Structured 查询](../../rbac-structured/src/main/java/com/xmu/rbac/structured/service/ManagementService.java#L452) · [DDD 查询](../../rbac-ddd/src/main/java/com/xmu/rbac/ddd/application/RoleApplicationService.java#L53) · [回归测试](../../rbac-structured/src/test/java/com/xmu/rbac/structured/AuthorizationConsistencyTest.java#L162) |
 | D-14 | DDD 普通模拟和 UI 解释可能混用停用前的目标状态与停用后的权限快照。 | 已解决 | UI 和 API 的 `check`、`explain` 都通过 `simulate()` 在同一授权版本内读取状态、快照和判定。并发停用时重试，返回对应的停用原因。[DDD 实现](../../rbac-ddd/src/main/java/com/xmu/rbac/ddd/application/AuthorizationApplicationService.java#L158) · [回归测试](../../rbac-ddd/src/test/java/com/xmu/rbac/ddd/application/AuthorizationSecurityRegressionTest.java#L397) · [模拟时序图](../../docs/design/SIM-ddd-sequence.svg) |
@@ -34,6 +34,18 @@
 | D-25 | 两版课程 API 配置使用的授权上界和空条件校验不同。 | 已解决 | 保存授权条件时，两版检查非超管是否拥有所选 API 权限和身份标记。此前补上的校验误拦了 DDD 仅停用已有课程 API 的请求，现已恢复该操作并允许重试同一停用请求。带授权条件的操作重新启用或同时修改其他字段时仍校验上界，固定中心 API 仍受登记冻结规则保护。停用系统的条件绑定返回业务 403。缺少两项条件的 `PROTECTED` 操作返回 `400 API_REQUIREMENT_MISSING`，空白的 `requiredRole` 返回 `400 VALIDATION_ERROR`。[DDD 保存](../../rbac-ddd/src/main/java/com/xmu/rbac/ddd/application/ResourceApplicationService.java#L147) · [DDD 回归](../../rbac-ddd/src/test/java/com/xmu/rbac/ddd/application/ResourceOperationConsistencyTest.java#L139) · [Structured 保存](../../rbac-structured/src/main/java/com/xmu/rbac/structured/service/ResourceService.java#L174) |
 | D-26 | 管理页的非标准路径可能跳过前端菜单权限校验。 | 已解决 | 路由守卫按匹配到的页面记录将地址转成登记路径，并保留查询参数和锚点。大小写及尾斜杠变体执行同一套菜单权限检查和刷新失败处理。[路由守卫](../../rbac-web/src/router/index.ts#L30) · [回归测试](../../rbac-web/tests/router.spec.ts#L52) |
 | D-27 | Structured 的 S03 时序图缺少正常响应，并混入事务外快照分支。 | 已解决 | 补齐正常及停用目标的快照转换与 HTTP 200。事务外的缓存和版本检查放在独立调用段，保留重试和 503 出口。回复用虚线空心箭头，调用箭头对齐执行条顶边。[源码](../../rbac-structured/src/main/java/com/xmu/rbac/structured/service/ManagementService.java#L568-L579) · [PUML](../../docs/design/S03-structured-sequence.puml) · [SVG](../../docs/design/S03-structured-sequence.svg) · [PNG](../../docs/design/S03-structured-sequence.png) |
+| D-28 | 更换中心按钮资源绑定的 UI 权限后，有新权限的用户仍看不到该按钮。 | 已解决 | 用启用的按钮资源码定位页面操作，再检查当前绑定的 UI 权限。权限重绑保留同一资源 ID 对应的 API 映射。内置按钮改资源码时需同步调整前端操作使用的资源码。[按钮判断](../../rbac-web/src/stores/auth.ts) · [映射约定](../implementation-contract.adoc) · [回归测试](../../rbac-web/tests/auth.spec.ts) |
+| D-29 | 在用户详情原地刷新权限时，新获指派权限的管理员看得到表单，但角色选项为空。 | 已解决 | 权限刷新开放指派表单时，为当前用户及目标系统加载可指派角色。失去指派权限时清理选项和选择。[用户详情](../../rbac-web/src/views/UserWorkspace.vue) · [回归测试](../../rbac-web/tests/user-workspace.spec.ts) |
+| D-30 | SIM 的 API 搜索提示声称支持权限码，解释步骤也有未翻译的状态码。 | 已解决 | API 目录提示使用操作标识或路径，UI 目录提示使用权限名称或权限码。解释步骤按两版实际返回的状态码显示中文。[鉴权解释页](../../rbac-web/src/views/AuthorizationView.vue) · [回归测试](../../rbac-web/tests/authorization-view.spec.ts) |
+| D-31 | 有效权限筛选后刷新为空集合时，筛选框消失，页面仍显示「无匹配权限」。 | 已解决 | 原始权限集合为空时显示「暂无有效权限」。有权限但筛选无结果时显示「无匹配权限」。[有效权限组件](../../rbac-web/src/components/EffectivePermissions.vue) · [回归测试](../../rbac-web/tests/components.spec.ts) |
+| D-32 | 删除用户或角色分页末页最后一项后，自动回退页加载失败未进入保存后的刷新提示。 | 已解决 | 用户和角色列表把回退页查询结果纳入重载结果，失败时显示保存已完成及刷新失败提示。[用户界面](../../rbac-web/src/views/UserWorkspace.vue) · [角色界面](../../rbac-web/src/views/RoleWorkspace.vue) · [回归测试](../../rbac-web/tests/user-workspace.spec.ts) |
+| D-33 | 从角色详情退役角色后，旧详情刷新收到 404，页面继续展示旧资料和操作。 | 已解决 | 成功后退出已退役角色的详情，保留当前系统并刷新列表。失败时留在详情显示错误。[角色详情](../../rbac-web/src/views/RoleWorkspace.vue) · [回归测试](../../rbac-web/tests/user-workspace.spec.ts) |
+
+### D-17 前端复核补充
+
+已解决工作台单独探测失败时误报 403 的场景。`getDashboard` 遇到网络错误或 503 时，打开工作台或在工作台手动刷新会进入权限刷新失败页，并保留原地址供重试。明确拒绝仍显示 403，其他页面可使用本轮正常取得的菜单权限。[权限刷新](../../rbac-web/src/stores/auth.ts) · [路由守卫](../../rbac-web/src/router/index.ts) · [回归测试](../../rbac-web/tests/router.spec.ts)
+
+定向测试仍复现两个场景。工作台已打开时，自动刷新遇到 503 会清空概览，页面缺少重试入口。手动刷新仍在等待时，用户点击有权访问的其他菜单，工作台的失败跳转可能中断这次导航。这两条路径尚未修复。[页面刷新](../../rbac-web/src/layouts/AppLayout.vue) · [概览加载](../../rbac-web/src/views/DashboardView.vue)
 
 ## 本轮范围复核
 
@@ -80,3 +92,7 @@ D-22 的回归用真实日志切面比对两个模拟入口的响应 ID 和 Logb
 D-19、D-20、D-24、D-25 修复后，183 项常规测试和 6 项 MySQL/Redis 集成测试通过。同一独立 MySQL 库、Redis 和签名密钥上完成 DDD → Structured → DDD 实际切换，切换前签发的令牌继续可用。两版均拦截不合规的中心 API 登记、缺少条件的受保护操作及超出上界的配置和启用请求。
 
 本轮全量复核通过 257 项 Maven 测试，含 MySQL 和 Redis 集成测试。补齐空白身份角色校验后，21 项后端定向测试与打包通过。最新产物通过 53 项 HTTP 验收，Structured 和 DDD 各通过 26 项，另有 1 项比较确认两版的业务响应和最终数据库状态一致。前端 53 项测试、类型检查和生产构建通过。共享 OpenAPI 校验、验收工具 21 项测试、绘图器 19 项测试及 31 条源码调用链检查通过。
+
+2026-11-23 前端复核修复后，72 项 Vitest 测试、TypeScript 类型检查、生产构建和共享 OpenAPI 校验通过。页面回归使用模拟接口响应，本轮未重跑真实后端端到端测试。
+
+补修角色退役并核对按钮映射后，74 项前端测试、类型检查、生产构建和共享 OpenAPI 校验通过。Structured、DDD 各通过 2 项真实浏览器定向测试，覆盖权限重绑时保留映射与按钮，以及退役成功后返回列表并停止读取旧详情。

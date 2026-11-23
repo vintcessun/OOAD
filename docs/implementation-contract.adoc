@@ -52,6 +52,8 @@ PUBLIC GET /.well-known/jwks.json；健康/info仍位于/api/v1/actuator/{health
 * MappingVO：uiResourceId,apiOperationId；显式多对多，仅追踪，不隐式赋权。
 * HierarchyVO：roles:RoleVO[],edges:[{seniorRoleId,juniorRoleId}]。
 
+权限中心的内置按钮用资源码 `rbac:ui:<operationId>` 对应前端操作，可配置的 `permissionCode` 决定按钮是否可见。原地更换权限码会保留该资源的 ID 和 UI/API 映射。调整关联的按钮或 API 时，在映射页选择对应的记录。若要更改内置按钮的资源码，需同步调整前端操作使用的资源码约定。
+
 == 管理API与输入（都在/api/v1）
 
 除/me、/menus/me、/auth/password外管理API必须aud=rbac-center；JWT有效和系统启用先于任何超级管理员处理。

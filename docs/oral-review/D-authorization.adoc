@@ -85,6 +85,8 @@ GRASP：Policy掌握集合/判定，图掌握路径，应用掌握加载/版本/
 * link:../design/S03-structured-sequence.svg[S03-structured-sequence SVG] / link:../design/S03-structured-sequence.png[PNG]；核对图源和当前实际方法。
 * link:../design/S03-ddd-class.svg[S03-ddd-class SVG] / link:../design/S03-ddd-class.png[PNG]；核对图源和当前实际方法。
 * link:../design/S03-ddd-sequence.svg[S03-ddd-sequence SVG] / link:../design/S03-ddd-sequence.png[PNG]；核对图源和当前实际方法。
+* link:../design/S04-structured-current-class.svg[Structured 当前 S04 类图] / link:../design/S04-structured-current-class.png[PNG]，查看课程过滤器如何接入 `TokenService` 和 `AuthorizationService`。
+* link:../design/S04-ddd-current-class.svg[DDD 当前 S04 类图] / link:../design/S04-ddd-current-class.png[PNG]，查看课程过滤器如何接入 `TokenProvider` 和 `AuthorizationApplicationService`。
 * link:../design/S04-ddd-policy-sequence.svg[S04-ddd-policy-sequence SVG] / link:../design/S04-ddd-policy-sequence.png[PNG]；核对图源和当前实际方法。
 * link:../design/SIM-ddd-class.svg[SIM-ddd-class SVG] / link:../design/SIM-ddd-class.png[PNG]；核对图源和当前实际方法。
 * link:../design/SIM-ddd-sequence.svg[SIM-ddd-sequence SVG] / link:../design/SIM-ddd-sequence.png[PNG]；核对图源和当前实际方法。

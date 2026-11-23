@@ -60,10 +60,13 @@ async function loadDetail() {
   if (loadedDirect && id === roleId.value && system === auth.targetSystem) selected.value = [...baseline.value]
   return loadedDirect && loadedEffective && loadedDirectory
 }
-async function reload() {
-  const results = await Promise.all([loadList(), loadDetail()])
+async function reloadList() {
+  const loaded = await loadList()
   const lastPage = Math.max(1, Math.ceil(rows.value.total / rows.value.pageSize))
-  if (results[0] && page.value > lastPage) await changePage(lastPage)
+  return loaded && (page.value <= lastPage || await changePage(lastPage))
+}
+async function reload() {
+  const results = await Promise.all([reloadList(), loadDetail()])
   return results.every(Boolean)
 }
 function changePage(next: number) { page.value = next; return loadList() }
@@ -88,6 +91,17 @@ function options() {
     { label: '退役角色', key: 'delete', show: allowed('deleteRole') },
   ].filter(option => option.show)
 }
+async function retire(row: RoleVO) {
+  const session = auth.session
+  await del(`/roles/${row.id}`)
+  const current = router.currentRoute.value
+  if (auth.session !== session || current.path !== '/roles' || roleId.value !== row.id || auth.targetSystem !== row.systemCode) return
+  await router.replace({ path: '/roles', query: { ...current.query, roleId: undefined, tab: undefined } })
+  if (auth.session === session && router.currentRoute.value.path === '/roles' && roleId.value === null && auth.targetSystem === row.systemCode) {
+    list.reset()
+    await reloadList()
+  }
+}
 function rowAction(action: string | number, row: RoleVO) {
   if (action === 'edit') edit(row)
   if (action === 'status') {
@@ -96,7 +110,7 @@ function rowAction(action: string | number, row: RoleVO) {
       next === 'DISABLED' ? `停用「${row.name}」将切断经由此角色的有效继承路径。` : `启用「${row.name}」后，系统将重新计算受影响的继承权限。`,
       () => put(`/roles/${row.id}/status`, { status: next }))
   }
-  if (action === 'delete') confirm('退役角色', `退役「${row.name}」会清理其指派、继承关系、准入与直接权限，历史审计保留。`, () => del(`/roles/${row.id}`))
+  if (action === 'delete') confirm('退役角色', `退役「${row.name}」会清理其指派、继承关系、准入与直接权限，历史审计保留。`, () => retire(row))
 }
 function setTab(next: string) {
   void router.replace({ path: '/roles', query: { ...route.query, tab: next === 'profile' ? undefined : next } })

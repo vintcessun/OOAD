@@ -5,6 +5,10 @@ import { homePath, managementRetryPath, pageByPath, pages } from './routes'
 
 const refreshFailurePath = '/auth-refresh-failed'
 
+export function refreshFailureRedirect(fullPath: string) {
+  return { path: refreshFailurePath, query: { redirect: fullPath } }
+}
+
 export function loginRedirectPath(route: RouteLocationNormalized) {
   const retry = route.matched.at(-1)?.path === refreshFailurePath
     ? managementRetryPath(route.query.redirect)
@@ -16,7 +20,8 @@ export function signedInDestination(router: Router, redirect: unknown, auth: Ret
   if (typeof redirect === 'string' && /^\/(?![\/\\])/.test(redirect)) {
     const target = router.resolve(redirect)
     const matchedPath = target.matched.at(-1)?.path
-    if (target.path === '/me' || (matchedPath && auth.canVisit(matchedPath))) return target.fullPath
+    if (target.path === '/me' || (matchedPath && auth.canVisit(matchedPath))
+        || (matchedPath === '/dashboard' && auth.dashboardUnavailable)) return target.fullPath
   }
   return homePath(auth.navigation)
 }
@@ -50,7 +55,7 @@ export function createAppRouter() {
       } catch (error) {
         if (auth.token && management) {
           if (error instanceof ApiError && error.status === 403) return '/403'
-          return { path: refreshFailurePath, query: { redirect: to.fullPath } }
+          return refreshFailureRedirect(to.fullPath)
         }
         if (auth.token && (auth.loaded || refreshFailed)) return true
         return to.path === '/login' ? true : login
@@ -58,6 +63,7 @@ export function createAppRouter() {
     }
     if (!auth.token) return to.path === '/login' ? true : '/login'
     if (to.path === '/login' || to.path === '/') return signedInDestination(router, to.query.redirect, auth)
+    if (to.path === '/dashboard' && auth.dashboardUnavailable) return refreshFailureRedirect(to.fullPath)
     if (management && !auth.canVisit(to.path)) return '/403'
     return true
   })

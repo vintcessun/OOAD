@@ -54,3 +54,22 @@ it('分别显示同码 UI 和 API 权限的来源', () => {
   expect(sources).toEqual([['UI_ROLE'], ['API_ROLE']])
   wrapper.unmount()
 })
+
+it('筛选有效权限后收到空权限快照时显示暂无有效权限', async () => {
+  const value: EffectiveVO = {
+    directRoles: [], effectiveRoles: [], sources: [],
+    permissions: [{ id: 1, systemCode: 'course', code: 'course:view', name: '查看课程', kind: 'UI', status: 'ENABLED' }],
+  }
+  const wrapper = mount(EffectivePermissions, { props: { value } })
+  try {
+    await wrapper.get('input[aria-label="筛选有效权限"]').setValue('不匹配')
+    expect(wrapper.text()).toContain('无匹配权限')
+
+    await wrapper.setProps({ value: { ...value, permissions: [] } })
+    expect(wrapper.find('input[aria-label="筛选有效权限"]').exists()).toBe(false)
+    expect(wrapper.text()).toContain('暂无有效权限')
+    expect(wrapper.text()).not.toContain('无匹配权限')
+  } finally {
+    wrapper.unmount()
+  }
+})

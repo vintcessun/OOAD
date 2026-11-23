@@ -27,7 +27,7 @@ const roleNames = computed(() => new Map([...props.value.directRoles, ...props.v
       <div><h3>有效角色</h3><span v-if="!value.effectiveRoles.length" class="muted">无</span><NTag v-for="role in value.effectiveRoles" :key="role.id" size="small">{{ role.name }}</NTag></div>
     </div>
     <div class="section-heading"><h3>权限及来源</h3><input v-if="value.permissions.length" v-model="filter" aria-label="筛选有效权限" placeholder="搜索权限名称或编码" /></div>
-    <ReadState v-if="!results.length" empty :description="filter ? '无匹配权限' : '暂无有效权限'" />
+    <ReadState v-if="!results.length" empty :description="value.permissions.length ? '无匹配权限' : '暂无有效权限'" />
     <div v-else class="table-scroll" tabindex="0" aria-label="有效权限及来源">
       <table class="data-table"><thead><tr><th>权限</th><th>种类</th><th>来源与路径</th></tr></thead>
         <tbody><tr v-for="permission in results" :key="permission.id">

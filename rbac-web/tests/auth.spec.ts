@@ -29,6 +29,31 @@ describe('身份与权限状态', () => {
     vi.mocked(authApi.menus).mockResolvedValue([{ id: 8 }] as UiResourceVO[])
     await store.refresh(); expect(store.has('rbac:ui:users:view')).toBe(false); expect(store.menus).toEqual([{ id: 8 }])
   })
+  it('按按钮资源码定位操作并使用重新绑定的 UI 权限', async () => {
+    const store = useAuthStore()
+    const code = 'rbac:ui:createUser'
+    const rebound = 'rbac:ui:updateUser'
+    const button = {
+      id: 12, type: 'BUTTON', status: 'ENABLED', code, permissionCode: code,
+    } as UiResourceVO
+    vi.mocked(authApi.me).mockResolvedValue({ ...who, permissions: [code] })
+    vi.mocked(authApi.menus).mockResolvedValue([button])
+    await store.refresh()
+    expect(store.canAct('createUser')).toBe(true)
+
+    vi.mocked(authApi.menus).mockResolvedValue([{ ...button, permissionCode: rebound }])
+    await store.refresh()
+    expect(store.canAct('createUser')).toBe(false)
+
+    vi.mocked(authApi.me).mockResolvedValue({ ...who, permissions: [rebound] })
+    await store.refresh()
+    expect(store.canAct('createUser')).toBe(true)
+    expect(store.canAct('updateUser')).toBe(false)
+
+    vi.mocked(authApi.menus).mockResolvedValue([{ ...button, permissionCode: rebound, status: 'DISABLED' }])
+    await store.refresh()
+    expect(store.canAct('createUser')).toBe(false)
+  })
   it('登录失败不制造会话，logout 即使网络失败也清理权限', async () => {
     const store = useAuthStore(); vi.mocked(authApi.login).mockRejectedValue(new Error('凭据错误'))
     await expect(store.login('x', 'x')).rejects.toThrow('凭据错误'); expect(store.token).toBeNull()

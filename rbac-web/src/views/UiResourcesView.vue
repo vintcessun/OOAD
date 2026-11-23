@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { NButton, NDrawer, NDrawerContent, NTag } from 'naive-ui'
 import { get, post, patch, del } from '@/api'
 import type { UiResourceVO } from '@/api/types'
+import { CENTER } from '@/stores/auth'
 import RecordForm, { type Field } from '@/components/RecordForm.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import ReadState from '@/components/ReadState.vue'
@@ -41,10 +42,14 @@ function toggle(id: number) {
 function edit(row?: UiResourceVO, parentId?: number) {
   const base = endpoint(), invalidParents = new Set(row ? [row.id, ...flatten(row.children ?? []).map(node => node.id)] : [])
   const parentOptions = all.value.filter(node => node.type === 'MENU' && !invalidParents.has(node.id)).map(node => ({ value: node.id, label: node.name + ' · ' + node.code }))
+  const codeField = text('code', '资源码')
+  if (row?.type === 'BUTTON' && row.systemCode === CENTER && row.code.startsWith('rbac:ui:')) {
+    codeField.hint = '内置按钮的资源码对应前端操作。更换授权时请保留资源码，只修改 UI 权限码。'
+  }
   const fields: Field[] = [
     choices('type', '资源类型', ['MENU', 'BUTTON']),
     { key: 'parentId', label: '上级菜单', type: 'select', options: parentOptions, hint: '按钮必须选择上级菜单' },
-    text('name', '名称'), text('code', '资源码'), text('route', '前端路由', false), text('component', '组件标识', false),
+    text('name', '名称'), codeField, text('route', '前端路由', false), text('component', '组件标识', false),
     text('permissionCode', 'UI 权限码'), { key: 'sortOrder', label: '排序', type: 'number' },
     choices('status', '状态', ['ENABLED', 'DISABLED']),
   ]

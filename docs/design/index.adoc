@@ -2,7 +2,9 @@
 
 2026-11-17：C 的7张图现行局部核验见 link:../oral-review/C-iterations.adoc[C迭代记录] 和 link:../oral-review/C-diagrams-verification.json[编译符号/源码调用顺序/图摘要]。其中4张顺序图已重生成；原全量 source-index.json 保留历史基线，不代表本轮全工程核验。
 
-2026-11-22：S03 两版顺序图、S04 两版主顺序图及 DDD SIM 类图和顺序图已按当前源码局部更新。S04 主顺序图对应 Compose 默认的中心内嵌课程代理，两张 S04 类图保留独立网关的历史结构。Swarm 当前六服务静态图与旧七服务验收归档分列。
+2026-11-22：S03 两版顺序图、S04 两版主顺序图及 DDD SIM 类图和顺序图已按当前源码局部更新。Swarm 当前六服务静态图与旧七服务验收归档分列。
+
+S04 的 `current-class` 类图和主顺序图对应 Compose 默认的内嵌课程代理。两张独立网关类图保留在各自的历史条目下。
 
 旧全量生成归档见 link:source-index.json[源码和图哈希]、link:generation-status.json[生成状态] 和 link:visual-review.json[目视摘要]。本次局部复核见 link:visual-review.adoc[图稿复核记录]。文本 SHA-256 仅归一化 CRLF→LF，class/jar/png 等二进制逐字节计算。STRICT_COMPILED_CHECKED / SIGNATURE_CHECKED 仅表示当次编译产物、符号及受检查源码调用顺序对齐。
 
@@ -92,11 +94,19 @@ link:S03-structured-sequence.png[PNG] / link:S03-structured-sequence.puml[PlantU
 
 == S04-ddd-class
 
-独立网关的历史类图。当前 Compose 的课程请求见下方 S04 主顺序图。
+独立网关历史类图。当前默认部署见 link:S04-ddd-current-class.svg[DDD 当前类图]。
 
 image::S04-ddd-class.svg[S04-ddd-class]
 
 link:S04-ddd-class.png[PNG] / link:S04-ddd-class.dot[DOT]
+
+== S04-ddd-current-class
+
+过滤器持有 `Authorize`，并调用它的 `require()`。`CourseProxyConfiguration` 创建过滤器时传入实现，调用 `TokenProvider` 和 `AuthorizationApplicationService`。普通课程 API 的访问要求由 `AuthorizationPolicy` 判断。
+
+image::S04-ddd-current-class.svg[DDD 当前 S04 类图]
+
+link:S04-ddd-current-class.png[PNG] / link:S04-ddd-current-class.dot[DOT]
 
 == S04-ddd-policy-sequence
 
@@ -112,11 +122,19 @@ link:S04-ddd-sequence.png[PNG] / link:S04-ddd-sequence.puml[PlantUML]
 
 == S04-structured-class
 
-独立网关的历史类图。当前 Compose 的课程请求见下方 S04 主顺序图。
+独立网关历史类图。当前默认部署见 link:S04-structured-current-class.svg[Structured 当前类图]。
 
 image::S04-structured-class.svg[S04-structured-class]
 
 link:S04-structured-class.png[PNG] / link:S04-structured-class.dot[DOT]
+
+== S04-structured-current-class
+
+过滤器持有 `Authorize`，并调用它的 `require()`。`CourseProxyConfiguration` 创建过滤器时传入实现，调用 `TokenService` 和 `AuthorizationService`。
+
+image::S04-structured-current-class.svg[Structured 当前 S04 类图]
+
+link:S04-structured-current-class.png[PNG] / link:S04-structured-current-class.dot[DOT]
 
 == S04-structured-sequence
 

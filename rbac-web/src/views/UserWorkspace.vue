@@ -33,6 +33,7 @@ const options = useRead<RoleVO[]>(() => [])
 const permissions = useRead<EffectiveVO | null>(() => null)
 const roleId = ref<number | null>(null)
 const { auth, error, message, stale, form, confirmation, busy, mutate, run, confirm, reset, refresh, allowed } = useWorkspace(reload, () => [auth.targetSystem, userId.value].join(':'))
+const canAssign = computed(() => allowed('createUserRoleAssignment'))
 function treeOptions(departments: DepartmentVO[]): TreeSelectOption[] {
   return departments.map(department => ({ key: department.id, label: department.name, children: treeOptions(department.children ?? []) }))
 }
@@ -48,9 +49,9 @@ function loadList() {
     page: page.value, pageSize: 20,
   }))
 }
-async function changePage(value: number) {
+function changePage(value: number) {
   page.value = value
-  await loadList()
+  return loadList()
 }
 function search() {
   applied.value = { ...filters, keyword: filters.keyword.trim() }
@@ -82,13 +83,13 @@ async function loadDetail() {
   const loaded = await detail.read(() => get<UserVO>(`/users/${id}`))
   if (id !== userId.value || system !== auth.targetSystem) return true
   if (!loaded || !detail.data.value) return false
-  const results = await Promise.all([loadAssignments(id), loadPermissions(id), allowed('createUserRoleAssignment') ? loadOptions() : true])
+  const results = await Promise.all([loadAssignments(id), loadPermissions(id), canAssign.value ? loadOptions() : true])
   return results.every(Boolean)
 }
 async function reload() {
   const results = await Promise.all([loadList(), userId.value ? loadDetail() : true])
   const lastPage = Math.max(1, Math.ceil(list.data.value.total / list.data.value.pageSize))
-  if (results[0] && page.value > lastPage) await changePage(lastPage)
+  if (results[0] && page.value > lastPage) results[0] = await changePage(lastPage)
   return results.every(Boolean)
 }
 function create() {
@@ -157,6 +158,15 @@ watch([userId, () => auth.targetSystem], () => {
   roleId.value = null
   void loadDetail()
 }, { immediate: true })
+watch([canAssign, userId, () => auth.targetSystem], ([allowedNow, id, system], [allowedBefore, previousId, previousSystem]) => {
+  if (id !== previousId || system !== previousSystem) return
+  if (!allowedNow) {
+    options.reset()
+    roleId.value = null
+  } else if (!allowedBefore && detail.data.value?.id === id && !detail.loading.value && !detail.error.value && !options.loading.value) {
+    void loadOptions()
+  }
+})
 onMounted(() => { void loadList(); void loadDirectory() })
 const user = detail.data, rows = list.data
 </script>
@@ -202,7 +212,7 @@ const user = detail.data, rows = list.data
         <template #assignments>
           <div class="section-heading"><h3>已指派角色</h3><TechText :value="auth.targetSystem" /></div>
           <p class="help-text">角色选项由当前部门和目标系统的准入规则决定。</p>
-          <form v-if="allowed('createUserRoleAssignment') && user.status !== 'DELETED'" class="toolbar assignment-form" @submit.prevent="assign">
+          <form v-if="canAssign && user.status !== 'DELETED'" class="toolbar assignment-form" @submit.prevent="assign">
             <div class="field wide"><label for="assign-role">可指派角色</label><NSelect id="assign-role" v-model:value="roleId" :options="eligible.map(role => ({ label: role.name + ' · ' + role.code, value: role.id }))" :loading="options.loading.value" aria-label="可指派角色" filterable placeholder="选择角色" /></div>
             <NButton type="primary" attr-type="submit" :loading="busy" :disabled="roleId === null || assignments.loading.value">指派角色</NButton>
           </form>

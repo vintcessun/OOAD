@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { NButton, NDropdown, NPopover } from 'naive-ui'
 import { CENTER, useAuthStore } from '@/stores/auth'
+import { refreshFailureRedirect } from '@/router'
 import { groups, pageByPath } from '@/router/routes'
 import { authApi, get } from '@/api'
 import type { SystemVO } from '@/api/types'
@@ -45,7 +46,14 @@ async function account(action: string) {
   if (action === 'refresh' && !refreshing.value) {
     refreshing.value = true
     accountFeedback.value = ''
-    try { await auth.refresh(); accountFeedback.value = '权限已刷新' }
+    try {
+      await auth.refresh()
+      if (auth.dashboardUnavailable && route.path === '/dashboard') {
+        await router.replace(refreshFailureRedirect(route.fullPath))
+      } else {
+        accountFeedback.value = auth.dashboardUnavailable ? '首页权限刷新失败，请重试' : '权限已刷新'
+      }
+    }
     catch { accountFeedback.value = '权限刷新失败，请重试' }
     finally { refreshing.value = false }
   }
@@ -60,6 +68,7 @@ function selectSystem(event: Event) {
 watch(() => auth.loadedAt, value => { if (value) void loadSystems() }, { immediate: true })
 watch(() => auth.session, reset)
 watch(() => [auth.navigation, route.path] as const, ([, path]) => {
+  if (path === '/dashboard' && auth.dashboardUnavailable) return
   if (auth.token && auth.loaded && pageByPath.has(path) && !auth.canVisit(path)) void router.replace('/403')
 }, { flush: 'post' })
 </script>

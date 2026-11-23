@@ -75,8 +75,9 @@ def key(short,mode):
     if len(matches)!=1: raise ValueError(f'Class not unique/existing: {mode}:{short}: {matches}')
     return matches[0]
 
-def method(k,m):
-    entry=INDEX[k]; src=re.sub(r'@[\w.]+(?:\([^)]*\))?', '', entry['source'])
+def method(k,m,entry=None):
+    if entry is None:entry=INDEX[k]
+    src=re.sub(r'@[\w.]+(?:\([^)]*\))?', '', entry['source'])
     # Only declarations, not call sites. javap is a second check when current compiled output exists.
     pattern=r'(?:public|private|protected|static|final|default|synchronized|abstract|\n|[;}])\s*(?:(?:public|private|protected|static|final|default|synchronized|abstract)\s+)*(?:<[^;{}]+>\s*)?(?!\s*(?:return|throw|new)\b)[\w.$<>?,\[\] ]+?\s+'+re.escape(m)+r'\s*\(([^)]*)\)\s*(?:throws\s+[\w., ]+)?[;{]'
     match=re.search(pattern,src)
@@ -164,12 +165,12 @@ def dot_render(name,body,engine='dot'):
         run(args+['-T'+fmt,path,'-o',OUT/(name+'.'+fmt)])
     FIGURES.append(name)
 
-def open_association_heads(positions,boxes,nodes,edges):
+def open_class_arrowheads(positions,boxes,nodes,edges,kinds):
     # neato -n2 renders these two straight segments as an open V in both formats.
     anchor='"_association_head"'
     rows=[f'{anchor} [pos="0,0!",shape=point,width=0,height=0,style=invis,label=""];']
     for source,target,kind,_ in edges:
-        if kind!='association':continue
+        if kind not in kinds:continue
         ax,ay=positions[nodes[source][1]]
         bx,by=positions[nodes[target][1]]
         distance=((bx-ax)**2+(by-ay)**2)**0.5
@@ -184,26 +185,43 @@ def open_association_heads(positions,boxes,nodes,edges):
         rows.append(f'{anchor} -> {anchor} [dir=none,pos="{path}"];')
     return rows
 
-def class_diagram(name,mode,nodes,edges):
+def diagram_class(short,mode):
+    owner,separator,nested=short.partition('.')
+    k=key(owner,mode)
+    entry=INDEX[k]
+    if not separator:return k,entry
+    declaration=re.search(r'\bpublic\s+interface\s+'+re.escape(nested)+r'\s*\{[^{}]*\}',entry['source'])
+    if not declaration:raise ValueError(f'Missing nested interface declaration: {k}.{nested}')
+    binary_name=k+'$'+nested
+    signatures=[]
+    if entry['bytecode']=='COMPILED':
+        classes=ROOT/entry['path'].split('/')[0]/'target/classes'
+        signatures=run([find_java('javap'),'-p','-classpath',classes,binary_name]).splitlines()
+    return binary_name,{**entry,'source':declaration.group(),'signatures':signatures}
+
+def class_diagram(name,mode,nodes,edges,*,node_modes=None):
     global CURRENT_FIGURE
     CURRENT_FIGURE=name
     # Fixed compass layout; Service center. Bounding checks use actual Graphviz plain geometry.
-    positions={'C':(0,0),'L':(-1000,0),'R':(1000,0),'T':(0,360),'B':(0,-360),'LB':(-1000,-360),'RB':(1000,-360),'RT':(1000,360)}
-    sim_style=name=='SIM-ddd-class'
+    positions={'C':(0,0),'L':(-1000,0),'R':(1000,0),'T':(0,360),'B':(0,-360),'LB':(-1000,-360),'RB':(1000,-360),'RT':(1000,360),'LT':(-1000,360),'LTC':(-870,180)}
+    current_s04=name.startswith('S04-') and name.endswith('-current-class')
+    aligned_style=name=='SIM-ddd-class' or current_s04
+    node_modes=node_modes or {}
+    symbols={alias:diagram_class(short,node_modes.get(alias,mode)) for alias,(short,_,_) in nodes.items()}
     rows=[]
     for alias,(short,slot,methods) in nodes.items():
-        k=key(short,mode); ent=INDEX[k]; src=ent['source']; sigs=[]
+        k,ent=symbols[alias]; src=ent['source']; sigs=[]
         for m in methods:
-            rendered=method(k,m)
+            rendered=method(k,m,ent)
             candidates=[s.strip().rstrip(';') for s in ent['signatures'] if re.search(r'\s'+re.escape(m)+r'\(',s)]
             sigs.extend([short_signature(s) for s in candidates] if ent['bytecode']=='COMPILED' and len(candidates)>1 else [rendered])
         field_lines=[]
-        for a,b,kind,role in edges:
-            if a==alias and kind=='association':
-                # Role labels must correspond to an actual field declaration.
-                field=re.search(r'\b([\w.$]+(?:<[^;=]+>)?(?:\[\])?)\s+'+re.escape(role)+r'\s*(?:[;=,])',src)
-                if not field: raise ValueError(f'Missing field {k}.{role}')
-                field_lines.append('- '+role+': '+field.group(1))
+        field_names=[role for a,_,kind,role in edges if a==alias and kind=='association']
+        for role in field_names:
+            # Role labels and displayed fields must correspond to actual declarations.
+            field=re.search(r'\b([\w.$]+(?:<[^;=]+>)?(?:\[\])?)\s+'+re.escape(role)+r'\s*(?:[;=,])',src)
+            if not field: raise ValueError(f'Missing field {k}.{role}')
+            field_lines.append('- '+role+': '+field.group(1))
         # Show actual scalar state, never fabricate fields for a conceptual model.
         for typ,field in re.findall(r'(?:public|private|protected)\s+(?:final\s+)?(String|long|Long|boolean|Boolean|int|Integer|Instant|Set<Long>)\s+(\w+)\s*[;=]',src):
             field_lines.append('- '+field+': '+typ)
@@ -221,27 +239,32 @@ def class_diagram(name,mode,nodes,edges):
             # BALIGN also covers the final line, which has no explicit BR.
             line_alignment=' BALIGN="LEFT"' if left_align_lines else ''
             return '<TR><TD ALIGN="LEFT"'+line_alignment+' BGCOLOR="'+bg+'">'+'<BR ALIGN="LEFT"/>'.join(html.escape(l) for l in wrapped)+'</TD></TR>'
-        stereotype='«interface» ' if re.search(r'public\s+interface\s+'+short,src) else ''
-        fields=cell(field_lines or [' '],'#ffffff',left_align_lines=sim_style or (name=='S03-ddd-class' and alias=='svc'))
-        operations=cell(sigs,'#ffffff',left_align_lines=sim_style)
+        stereotype='«interface» ' if re.search(r'public\s+interface\s+'+re.escape(short.rsplit('.',1)[-1])+r'\b',src) else ''
+        fields=cell(field_lines or [' '],'#ffffff',left_align_lines=aligned_style or (name=='S03-ddd-class' and alias=='svc'))
+        operations=cell(sigs,'#ffffff',left_align_lines=aligned_style)
         table='<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="10">'+cell([stereotype+short],'#dcecff')+'<HR/>'+fields+'<HR/>'+operations+'</TABLE>'
         x,y=positions[slot]; rows.append(f'"{alias}" [pos="{x},{y}!",label=<{table}>];')
     for a,b,kind,role in edges:
-        source=INDEX[key(nodes[a][0],mode)]['source']
+        source=symbols[a][1]['source']
         if kind=='implementation' and not re.search(r'implements\s+[^\{]*\b'+re.escape(nodes[b][0])+r'\b',source):
             raise ValueError(f'Implementation relation not in source: {name}:{a}->{b}')
         if kind=='dependency' and nodes[b][0] not in source:
             raise ValueError(f'Dependency target not referenced in source: {name}:{a}->{b}')
         opts={'association':'style=solid,arrowhead=vee','dependency':'style=dashed,arrowhead=vee','implementation':'style=dashed,arrowhead=empty'}[kind]
+        if current_s04 and kind=='dependency':opts='style=dashed,arrowhead=none'
         if kind=='association':
-            if sim_style:
+            if aligned_style:
                 opts='style=solid,arrowhead=none'
                 if positions[nodes[a][1]][0]==positions[nodes[b][1]][0]:role+='   '
+                if current_s04 and role=='authorize':role+=r'\n '
             opts+=',label="'+role+'",fontsize=14'
         rows.append(f'"{a}" -> "{b}" [{opts}];')
     rows.extend(['"_top" [pos="0,480!",shape=point,width=0,height=0,style=invis,label=""];','"_bottom" [pos="0,-480!",shape=point,width=0,height=0,style=invis,label=""];'])
-    body='digraph G { graph [overlap=true,splines=line,outputorder=edgesfirst,pad=0.3,bgcolor="white",label="'+name+' — current source snapshot",labelloc=t]; node [shape=plain,fontname="Microsoft YaHei",fontsize=15]; edge [color="#49627b",arrowsize=1.2,fontname="Microsoft YaHei"];\n'+'\n'.join(rows)+'\n}'
-    if sim_style:write(name,'dot',body)
+    title=name+' — current source snapshot'
+    if current_s04:
+        title+=r'\nCourseProxyConfiguration.courseProxy() supplies an Authorize lambda as the third CourseProxyFilter constructor argument.'
+    body='digraph G { graph [overlap=true,splines=line,outputorder=edgesfirst,pad=0.3,bgcolor="white",label="'+title+'",labelloc=t]; node [shape=plain,fontname="Microsoft YaHei",fontsize=15]; edge [color="#49627b",arrowsize=1.2,fontname="Microsoft YaHei"];\n'+'\n'.join(rows)+'\n}'
+    if aligned_style:write(name,'dot',body)
     else:dot_render(name,body,'neato')
     plain=run([GRAPHVIZ_DOT,'-Kneato','-n2','-Tplain',OUT/(name+'.dot')])
     boxes={}
@@ -260,8 +283,9 @@ def class_diagram(name,mode,nodes,edges):
             for i in range(1,1000):
                 px=x+(xx-x)*i/1000;py=y+(yy-y)*i/1000
                 if abs(px-cx)<cw/2 and abs(py-cy)<ch/2: raise ValueError(f'Edge crosses {name}: {a}->{b} through {c}')
-    if sim_style:
-        heads=open_association_heads(positions,boxes,nodes,edges)
+    if aligned_style:
+        kinds={'association','dependency'} if current_s04 else {'association'}
+        heads=open_class_arrowheads(positions,boxes,nodes,edges,kinds)
         dot_render(name,body[:-1]+'\n'.join(heads)+'\n}','neato')
 
 class Sequence:
@@ -315,6 +339,38 @@ def handler(mode, service_method):
     if not declarations: raise ValueError('Cannot resolve handler '+service_method)
     return declarations[-1].group(1)
 
+def s04_current_classes():
+    shared_nodes={
+        'filter':('CourseProxyFilter','C',['doFilter']),
+        'authorize':('CourseProxyFilter.Authorize','LTC',['require']),
+        'routes':('RouteRegistry','L',['resolve']),
+        'proxy':('ProxyClient','LB',['forward']),
+        'body':('BoundedBody','B',['read']),
+    }
+    common_edges=[
+        ('config','filter','dependency',''),
+        ('config','tokens','dependency',''),
+        ('config','auth','dependency',''),
+        ('filter','authorize','association','authorize'),
+        ('filter','routes','association','routes'),
+        ('filter','proxy','association','proxy'),
+        ('filter','body','dependency',''),
+    ]
+    for mode,token_class,auth_class,auth_methods in [
+        ('structured','TokenService','AuthorizationService',['api']),
+        ('ddd','TokenProvider','AuthorizationApplicationService',['validate','api']),
+    ]:
+        nodes={**shared_nodes,
+               'config':('CourseProxyConfiguration','T',['courseProxy']),
+               'tokens':(token_class,'LT',['verify']),
+               'auth':(auth_class,'R',auth_methods)}
+        edges=list(common_edges)
+        if mode=='ddd':
+            nodes['policy']=('AuthorizationPolicy','RB',['allows'])
+            edges.append(('auth','policy','association','policy'))
+        class_diagram('S04-'+mode+'-current-class',mode,nodes,edges,
+                      node_modes={alias:'gateway' for alias in shared_nodes})
+
 def classes():
     d='ddd';s='structured'
     class_diagram('S01-ddd-class',d,{'svc':('RoleApplicationService','C',['link','complete']),'repo':('AuthorizationRepository','L',['lockGrants','hierarchy','saveEdges']),'model':('RoleHierarchy','R',['link','unlink','requireGrantable']),'adapter':('JpaAuthorizationRepositoryAdapter','LB',['hierarchy','saveEdges']),'ctl':('RoleController','T',['link']),'auth':('AuthorizationApplicationService','B',['requireRoleManagement','requireGraphGrant','upperBound']),'role':('Role','RB',['superAdministratorCapability','requireManageable'])},[('ctl','svc','association','roles'),('svc','repo','association','repository'),('svc','model','dependency',''),('adapter','repo','implementation',''),('svc','auth','association','authorization'),('model','role','association','roles')])
@@ -331,6 +387,7 @@ def classes():
     class_diagram('S05-structured-class',s,{'svc':('AuditService','C',['external','same','success','denied']),'repo':('Store','L',['one','save','flush']),'model':('AuditLog','R',[]),'ctl':('AuthController','T',['write'])},[('svc','repo','association','db'),('svc','model','dependency',''),('ctl','svc','association','audit')])
     for mode in [d,s]:
         class_diagram('S04-'+mode+'-class','gateway',{'svc':('AuthBoundary','C',['authorize']),'repo':('IdentityClient','L',['check']),'ctl':('GatewayController','T',['forward']),'route':('RouteRegistry','R',['resolve'])},[('svc','repo','association','identity'),('ctl','svc','association','auth'),('ctl','route','association','routes')])
+    s04_current_classes()
 
 def sequences():
     path=ROOT/'tools/render-rbac1-design.scenarios.py'
@@ -684,8 +741,10 @@ def main():
     index={'runtimeEvidenceMode':args.runtime_evidence,'currentRuntimeVerified':False,'artifactsMatchCurrentBuild':args.runtime_evidence=='current','hashRules':HASH_RULES,'generatorSha256':sha(Path(__file__)),'artifacts':{p.name:sha(p) for f in sorted(set(FIGURES)) for p in [OUT/(f+'.svg'),OUT/(f+'.png')]},'generatedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'strictCompiled':args.strict_compiled,'status':'SOURCE_ONLY_PENDING_COMPILE' if WARNINGS else ('STRICT_COMPILED_CHECKED' if args.strict_compiled else 'SIGNATURE_CHECKED'),'warnings':WARNINGS,'tool':tool,'sources':sources,'references':REFS,'callChains':CALL_CHAINS,'figures':sorted(set(FIGURES)),'checks':{'classBoxes':'PASS','classEdgesThirdPartyBoxes':'PASS','symbols':'PASS','orderedSourceCallChains':'PASS','sourceHashesStable':'PASS','sequenceActivationBalance':'PASS','plantumlSyntax':'PASS','pngVisualInspection':'MANUAL_REQUIRED','tests':'NOT_RUN','deployment':'ARCHIVED_LOCAL_FINAL_CHECKED_NO_NEW_LIVE_PROBE'}}
     write('source-index','json',json.dumps(index,ensure_ascii=False,indent=2));write('generation-status','json',json.dumps({k:index[k] for k in ['generatedAt','runtimeEvidenceMode','currentRuntimeVerified','artifactsMatchCurrentBuild','hashRules','strictCompiled','status','warnings','checks']},ensure_ascii=False,indent=2))
     figure_captions={
-        'S04-structured-class':'独立网关的历史类图。当前 Compose 的课程请求见下方 S04 主顺序图。',
-        'S04-ddd-class':'独立网关的历史类图。当前 Compose 的课程请求见下方 S04 主顺序图。',
+        'S04-structured-class':'独立网关历史类图。当前默认部署见 link:S04-structured-current-class.svg[Structured 当前类图]。',
+        'S04-ddd-class':'独立网关历史类图。当前默认部署见 link:S04-ddd-current-class.svg[DDD 当前类图]。',
+        'S04-structured-current-class':'当前默认部署。过滤器持有 `Authorize`。`CourseProxyConfiguration` 创建过滤器时传入实现，调用 `TokenService` 和 `AuthorizationService`。',
+        'S04-ddd-current-class':'当前默认部署。过滤器持有 `Authorize`。`CourseProxyConfiguration` 创建过滤器时传入实现，调用 `TokenProvider` 和 `AuthorizationApplicationService`。',
         'swarm-deployment':'旧七服务本地验收归档。当前六服务部署见下方静态配置图。',
         'swarm-deployment-current':'根据当前 Compose 和 Nginx 配置绘制的六服务部署图。',
     }

@@ -20,7 +20,15 @@ const reasons: Record<string, string> = {
   OPERATION_NOT_FOUND: '目标系统中找不到该操作。',
   API_OPERATION_NOT_FOUND: '目标系统中找不到该 API 操作。',
 }
-const traceLabels: Record<string, string> = { TOKEN_VALID: '身份凭证有效', USER_SYSTEM_ACTIVE: '用户和目标系统已启用', ALLOW: '满足授权条件', DENY: '未满足授权条件' }
+const traceLabels: Record<string, string> = {
+  TOKEN_VALID: '身份凭证有效',
+  ACTOR_AUTHENTICATED: '操作者身份已认证',
+  USER_SYSTEM_ACTIVE: '用户和目标系统已启用',
+  USER_DISABLED: '目标用户已停用',
+  SYSTEM_DISABLED: '目标系统已停用',
+  REQUIREMENT_SATISFIED: '满足授权条件',
+  REQUIREMENT_NOT_SATISFIED: '未满足授权条件',
+}
 const auth = useAuthStore()
 const kind = ref<'API' | 'UI'>('API'), subject = ref(''), identifier = ref('')
 const decision = ref<Decision | null>(null), mode = ref<'check' | 'explain'>('check')
@@ -95,7 +103,7 @@ watch([subject, identifier], clearDecision)
         <div v-if="capabilities.data.value.users" class="field"><label for="auth-user-search">按名称查找用户</label><NSelect id="auth-user-search" :value="subject || null" aria-label="按名称查找用户" :options="candidates" filterable remote clearable :loading="users.loading.value" placeholder="输入姓名或账号" @search="searchUsers" @update:value="subject = $event ?? ''" /></div>
         <div class="field"><label for="auth-kind">鉴权种类</label><select id="auth-kind" v-model="kind"><option>API</option><option>UI</option></select></div>
         <div class="field"><label for="auth-operation">{{ kind === 'API' ? '操作标识' : 'UI 权限码' }}</label><input id="auth-operation" v-model="identifier" maxlength="128" :placeholder="kind === 'API' ? '例如 listUsers' : '输入完整权限码'" required /></div>
-        <div v-if="canSearchOperation" class="field"><label for="auth-operation-search">从目录查找</label><NSelect id="auth-operation-search" :value="identifier || null" aria-label="从目录查找" :options="operations.data.value" filterable remote clearable :loading="operations.loading.value" placeholder="输入名称、路径或权限码" @search="searchOperations" @update:value="identifier = $event ?? ''" /></div>
+        <div v-if="canSearchOperation" class="field"><label for="auth-operation-search">从目录查找</label><NSelect id="auth-operation-search" :value="identifier || null" aria-label="从目录查找" :options="operations.data.value" filterable remote clearable :loading="operations.loading.value" :placeholder="kind === 'API' ? '输入操作标识或路径' : '输入权限名称或权限码'" @search="searchOperations" @update:value="identifier = $event ?? ''" /></div>
         <p v-if="users.error.value || operations.error.value" class="help-text">目录暂时不可用，可以直接输入技术标识。</p>
         <TechText :value="auth.targetSystem" />
         <div class="row-actions"><NButton v-if="auth.canAct('checkAuthorization')" attr-type="submit" :loading="loading && mode === 'check'" :disabled="loading">检查权限</NButton><NButton v-if="auth.canAct('explainAuthorization')" type="primary" :loading="loading && mode === 'explain'" :disabled="loading" @click="check('explain')">解释来源</NButton></div>

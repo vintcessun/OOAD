@@ -1,6 +1,6 @@
 = UML PNG 目视复核记录
 
-全量归档曾审阅 35 种图稿。更新最终部署归档说明时，按原始 PNG SHA 比较变化并打开部署图，摘要相同的图稿沿用此前的目视记录。后续单独重绘并打开了 RBAC1 的十五表 ER 图。S03、S04、SIM 和六服务 Swarm 的局部复核见文末。link:visual-review.json[目视摘要] · link:source-index.json[源索引与哈希规则]
+全量归档曾审阅 35 种图稿。更新最终部署归档说明时，按原始 PNG SHA 比较变化并打开部署图，摘要相同的图稿沿用此前的目视记录。后续单独重绘并打开了 RBAC1 的十五表 ER 图。S03、S04、SIM 和六服务 Swarm 的局部复核见下文。link:visual-review.json[全量归档的目视摘要] · link:source-index.json[全量归档的源码索引与哈希规则]
 
 == 最新复核范围
 
@@ -10,7 +10,8 @@
 |S01 类图 |S01-ddd-class.png；S01-structured-class.png
 |S02 类图 |S02-ddd-class.png；S02-structured-class.png
 |S03 类图 |S03-ddd-class.png；S03-structured-class.png
-|S04 类图 |S04-ddd-class.png；S04-structured-class.png
+|S04 当前默认部署类图 |link:S04-ddd-current-class.png[DDD PNG] · link:S04-structured-current-class.png[Structured PNG]
+|S04 独立网关历史类图 |link:S04-ddd-class.png[DDD PNG] · link:S04-structured-class.png[Structured PNG]
 |S05 类图 |S05-ddd-class.png；S05-structured-class.png
 |S06 类图 |S06-ddd-class.png；S06-structured-class.png
 |S01 顺序 |S01-ddd-sequence.png；S01-structured-sequence.png
@@ -52,6 +53,8 @@ D-14 和 D-15 修复后，重生成两版 S03 时序图、DDD SIM 类图和时�
 D-27 单独重生成 Structured S03 的 SVG 与 PNG。打开 PNG 核对事务内 HTTP 200、事务外重试与 503 两段，另从 SVG 核对调用箭头对齐、虚线空心回复和 `walk` 执行条完整位于循环框内。
 
 D-26 修复后的图稿复核覆盖两版 S03 时序图和 DDD SIM 类图、时序图。定向重生成 DDD 的三张图。三张时序图核对同步消息、虚线空心回复、执行条和异常出口；SIM 类图核对编译签名、实线开放箭头关联和虚线空心三角实现。六服务 Swarm 图对照 Compose、Nginx 路由和服务内部端口做静态复核。
+
+S04 补齐当前默认部署的两张类图。两版以 `CourseProxyFilter` 为中心，用标为 `authorize` 的实线空心箭头连接 `CourseProxyFilter.Authorize`，接口框列出 `require()`。图注注明 `CourseProxyConfiguration.courseProxy()` 将本版的实现作为构造器第三个参数传入。DDD 图同时画出应用服务的 `policy` 字段及其关联。此次定向生成 DOT、SVG 和 PNG，核对 18 个方法声明、类框重叠和连线穿框，逐张打开 PNG 检查空心箭头、字段名和方法签名，绘图器 21 项测试通过。原先的 `GatewayController` 类图作为独立网关历史图保留。link:S04-structured-current-class.svg[Structured SVG] · link:S04-ddd-current-class.svg[DDD SVG]
 
 == 自动与人工证明的边界
 

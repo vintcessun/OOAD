@@ -1,12 +1,14 @@
 import { afterEach, beforeEach, it, expect, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { mount } from '@vue/test-utils'
+import { NDropdown } from 'naive-ui'
 import { authApi } from '@/api'
 import { ApiError } from '@/api/http'
 import { createAppRouter, loginRedirectPath, signedInDestination } from '@/router'
 import { useAuthStore } from '@/stores/auth'
 import { flattenMenus, visibleMenus } from '@/router/routes'
 import type { UiResourceVO } from '@/api/types'
+import AppLayout from '@/layouts/AppLayout.vue'
 import StatusView from '@/views/StatusView.vue'
 
 const menu = (id: number, route: string | null, type: 'MENU' | 'BUTTON' = 'MENU', children: UiResourceVO[] = []): UiResourceVO => ({
@@ -42,10 +44,72 @@ it('首页菜单存在时仍根据服务端仪表盘授权决定首页和深链'
   await router.push('/dashboard')
   expect(router.currentRoute.value.path).toBe('/403')
 
+  canCall.mockRejectedValue(new ApiError(403, 'FORBIDDEN', '无权访问'))
+  await router.push('/dashboard')
+  expect(router.currentRoute.value.path).toBe('/403')
+
   canCall.mockResolvedValue(true)
   await router.push('/dashboard')
   expect(router.currentRoute.value.path).toBe('/dashboard')
   expect(auth.canVisit('/dashboard')).toBe(true)
+})
+it.each([0, 503])('首页授权探测失败（%i）可重试且不影响其他页面', async status => {
+  const auth = useAuthStore()
+  auth.setToken('dummy')
+  vi.spyOn(authApi, 'me').mockResolvedValue({ subject: 'x', name: 'x', no: '', roles: [], permissions: ['p7', 'p2'] })
+  vi.spyOn(authApi, 'profile').mockResolvedValue({} as Awaited<ReturnType<typeof authApi.profile>>)
+  vi.spyOn(authApi, 'menus').mockResolvedValue([menu(7, '/dashboard'), menu(2, '/users')])
+  const canCall = vi.spyOn(authApi, 'canCall').mockRejectedValue(new ApiError(status, 'UNAVAILABLE', '无法确认首页权限'))
+  const router = createAppRouter()
+  const target = '/dashboard?from=login#top'
+
+  await router.push({ path: '/login', query: { redirect: target } })
+  expect(router.currentRoute.value.path).toBe('/auth-refresh-failed')
+  expect(router.currentRoute.value.query.redirect).toBe(target)
+  expect(auth.canVisit('/dashboard')).toBe(false)
+  await router.push('/users')
+  expect(router.currentRoute.value.path).toBe('/users')
+  await router.push(target)
+  expect(router.currentRoute.value.query.redirect).toBe(target)
+
+  canCall.mockResolvedValue(true)
+  const wrapper = mount(StatusView, { props: { status: 'refresh-failed' }, global: { plugins: [router] } })
+  try {
+    await wrapper.get('a').trigger('click')
+    await vi.waitFor(() => expect(router.currentRoute.value.fullPath).toBe(target))
+  } finally { wrapper.unmount() }
+})
+it('首页探测故障可离开首页，留在首页手动刷新时显示可重试的错误页', async () => {
+  const auth = useAuthStore()
+  auth.setToken('dummy')
+  vi.spyOn(authApi, 'me').mockResolvedValue({ subject: 'x', name: 'x', no: '', roles: [], permissions: ['p7', 'p2'] })
+  vi.spyOn(authApi, 'profile').mockResolvedValue({} as Awaited<ReturnType<typeof authApi.profile>>)
+  vi.spyOn(authApi, 'menus').mockResolvedValue([menu(7, '/dashboard'), menu(2, '/users')])
+  let dashboardAvailable = true
+  vi.spyOn(authApi, 'canCall').mockImplementation(async operation => {
+    if (operation !== 'getDashboard') return false
+    if (!dashboardAvailable) throw new ApiError(503, 'UNAVAILABLE', '无法确认首页权限')
+    return true
+  })
+  const router = createAppRouter()
+  const target = '/dashboard?from=refresh#top'
+  await router.push(target)
+  expect(router.currentRoute.value.path).toBe('/dashboard')
+
+  const wrapper = mount(AppLayout, { global: { plugins: [router], stubs: { RouterView: true } } })
+  try {
+    dashboardAvailable = false
+    await router.push('/users')
+    expect(router.currentRoute.value.path).toBe('/users')
+
+    dashboardAvailable = true
+    await router.push(target)
+    expect(router.currentRoute.value.path).toBe('/dashboard')
+    dashboardAvailable = false
+    wrapper.getComponent(NDropdown).vm.$emit('select', 'refresh')
+    await vi.waitFor(() => expect(router.currentRoute.value.path).toBe('/auth-refresh-failed'))
+    expect(router.currentRoute.value.query.redirect).toBe(target)
+  } finally { wrapper.unmount() }
 })
 it('菜单停用或从投影移除时，旧的精确权限不能直达页面', async () => {
   const auth = useAuthStore(); auth.setToken('dummy')
