@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Code-anchored RBAC1 diagrams. Python stdlib + Graphviz + JDK; no business dependencies.
+"""Code-anchored RBAC1 diagrams. Python, Graphviz, JDK and the frontend's Chromium.
 Run after compiling: python tools/render-rbac1-design.py --strict-compiled
 Without strict mode source diagrams are marked SOURCE_ONLY when bytecode is stale.
 """
 from pathlib import Path
-import argparse, datetime, hashlib, html, json, os, re, shutil, subprocess, tempfile, textwrap, urllib.request
+import argparse, datetime, hashlib, html, json, os, re, runpy, shutil, subprocess, tempfile, textwrap, urllib.request
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT/'docs/design'
 VERSION = '1.2025.2'
@@ -14,6 +14,10 @@ CALL_CHAINS = []; INPUTS = {}
 EXTRA_INPUTS = ['docs/final-acceptance.adoc', 'docs/acceptance/local-results.json', 'docs/acceptance/shared-http.json', 'tools/render-rbac1-design.test.py', 'rbac-contract/src/main/java/com/xmu/rbac/contract/ApiErrors.java', 'pom.xml', '.gitattributes', 'tools/render-rbac1-design.scenarios.py', 'rbac-contract/src/main/resources/db/migration/V1__rbac1_schema.sql', 'docker-compose.yml', 'deploy/full-stack.sh', 'rbac-web/nginx.conf', 'deploy/full-course-nginx.conf', 'deploy/deployment-evidence.json', 'course-integration/REAL-CENTERS-VERIFICATION.md']
 EXTRA_INPUTS.append('docs/design/swarm-deployment-current.puml')
 EXTRA_INPUTS.append('rbac-contract/src/main/resources/db/migration/V5__department_lifecycle_permissions.sql')
+PACKAGE_LAYOUT = 'tools/render-rbac1-design.packages.py'
+PACKAGE_TEMPLATE = 'tools/render-rbac1-design.package-template.svg'
+PACKAGE_RASTER = 'tools/render-rbac1-package-png.mjs'
+EXTRA_INPUTS.extend((PACKAGE_LAYOUT, PACKAGE_TEMPLATE, PACKAGE_RASTER))
 
 def run(args):
     p = subprocess.run([str(a) for a in args], capture_output=True, text=True, encoding='utf-8', errors='replace')
@@ -44,7 +48,7 @@ def find_java(tool):
 
 JAVA_MODULES = ('rbac-ddd', 'rbac-structured', 'rbac-gateway', 'rbac-course-proxy')
 
-def collect():
+def collect(inspect_bytecode=True):
     for path in EXTRA_INPUTS:
         file=ROOT/path
         if file.exists():INPUTS[path]={'sha256':sha(file),'source':source_text(file)}
@@ -53,9 +57,14 @@ def collect():
             source=source_text(path); package=re.search(r'package\s+([\w.]+)',source).group(1)
             if path.stem=='package-info': continue
             name=package+'.'+path.stem
+            if not inspect_bytecode:
+                INDEX[name]={'source':source}
+                continue
             bytecode=ROOT/module/'target/classes'/Path(*name.split('.')).with_suffix('.class')
             status='COMPILED' if bytecode.exists() and bytecode.stat().st_mtime>=path.stat().st_mtime else 'PENDING_COMPILE'
             INDEX[name]={'path':path.relative_to(ROOT).as_posix(),'sha256':sha(path),'source':source,'bytecode':status,'classPath':bytecode.relative_to(ROOT).as_posix(),'classSha256':sha(bytecode) if bytecode.exists() else None,'signatures':[]}
+    if not inspect_bytecode:
+        return
     # One javap process per module avoids a long, internally inconsistent per-class snapshot.
     for module in JAVA_MODULES:
         names=[n for n,e in INDEX.items() if e['path'].startswith(module+'/') and (ROOT/module/'target/classes'/Path(*n.split('.')).with_suffix('.class')).exists()]
@@ -401,17 +410,18 @@ def sequences():
     build_sequences()
 
 def packages():
-    for mode in ['ddd','structured']:
-        prefix='com.xmu.rbac.'+mode+'.';deps=set();counts={}
-        for name,entry in INDEX.items():
-            if not name.startswith(prefix):continue
-            package=name.rsplit('.',1)[0][len(prefix):];counts[package]=counts.get(package,0)+1
-            for imported in re.findall(r'import\s+(?:static\s+)?(com\.xmu\.rbac\.'+mode+r'\.[\w.*]+)',entry['source']):
-                target=imported.rsplit('.',1)[0][len(prefix):]
-                if package!=target:deps.add((package,target))
-        nodes='\n'.join(json.dumps(p)+' [label='+json.dumps((p or '(module root)')+'\n'+str(n)+' source files')+'];' for p,n in counts.items())
-        edges='\n'.join(json.dumps(a)+' -> '+json.dumps(b)+';' for a,b in sorted(deps) if a in counts and b in counts)
-        dot_render(mode+'-packages','digraph G {rankdir=LR;node [shape=folder,fontname="Microsoft YaHei"];graph [label="'+mode+' — explicit Java imports only (wildcards preserved)"];'+nodes+edges+'}')
+    layout = runpy.run_path(str(ROOT / PACKAGE_LAYOUT))
+    views = list(layout['package_views'](INDEX))
+    with tempfile.TemporaryDirectory(prefix='rbac-package-render-', dir=OUT) as directory:
+        staging = Path(directory)
+        for name, body in views:
+            (staging / (name + '.svg')).write_text(body, encoding='utf-8', newline='\n')
+        run(['node', ROOT / PACKAGE_RASTER, *(staging / name for name, _ in views)])
+        for name, _ in views:
+            for extension in ('.svg', '.png'):
+                file = name + extension
+                (staging / file).replace(OUT / file)
+    FIGURES.extend(name for name, _ in views)
 
 ER_WIDTH, ER_HEADER, ER_ROW = 510, 32, 19
 ER_SANS = 'Noto Sans CJK SC,Microsoft YaHei,sans-serif'
@@ -744,7 +754,18 @@ def plantuml():
     return {'plantumlVersion':VERSION,'jarSha256':sha(jar),'java':str(find_java('java'))}
 
 def main():
-    parser=argparse.ArgumentParser();parser.add_argument('--runtime-evidence',choices=['current','archived'],default='current',help='current (default) requires exact current JAR SHA match; archived validates historical local evidence only, never current runtime/build acceptance');parser.add_argument('--strict-compiled',action='store_true');parser.add_argument('--check',action='store_true',help='check saved source hashes without rendering');args=parser.parse_args();OUT.mkdir(parents=True,exist_ok=True)
+    parser=argparse.ArgumentParser();parser.add_argument('--runtime-evidence',choices=['current','archived'],default='current',help='current (default) requires exact current JAR SHA match; archived validates historical local evidence only, never current runtime/build acceptance');parser.add_argument('--strict-compiled',action='store_true');parser.add_argument('--check',action='store_true',help='check saved source hashes without rendering')
+    parser.add_argument('--packages-only', action='store_true', help='validate and render the two package views from Java sources')
+    args=parser.parse_args();OUT.mkdir(parents=True,exist_ok=True)
+    if args.packages_only:
+        if args.strict_compiled or args.check:
+            parser.error('--packages-only cannot be combined with --strict-compiled or --check')
+        try:
+            collect(inspect_bytecode=False)
+            packages()
+        except (OSError, RuntimeError, ValueError) as error:
+            parser.exit(1, str(error) + '\n')
+        return
     if args.check:
         data=json.loads((OUT/'source-index.json').read_text(encoding='utf-8'))
         if data.get('runtimeEvidenceMode','current')!=args.runtime_evidence:raise SystemExit('Evidence mode differs from saved snapshot; regenerate/check with the explicit matching --runtime-evidence mode')
@@ -784,7 +805,12 @@ def main():
         'swarm-deployment':'旧七服务本地验收归档。当前六服务部署见下方静态配置图。',
         'swarm-deployment-current':'根据当前 Compose 和 Nginx 配置绘制的六服务部署图。',
     }
-    write('index','adoc','= 当前源码图索引\n\n自动生成；源码哈希见 source-index.json。文本 SHA-256 仅归一化 CRLF→LF；class/jar/png 等二进制逐字节哈希。STRICT_COMPILED_CHECKED / SIGNATURE_CHECKED 仅表示编译产物、符号及受检查源码调用顺序对齐，不等于业务测试或部署通过。\n\n'+'\n\n'.join('== '+f+'\n\n'+(figure_captions[f]+'\n\n' if f in figure_captions else '')+'image::'+f+'.svg['+f+']\n\nlink:'+f+'.png[PNG] / link:'+f+('.puml[PlantUML]' if (OUT/(f+'.puml')).exists() else '.dot[DOT]') for f in sorted(set(FIGURES))))
+    def figure_source_link(figure):
+        if figure.endswith('-packages'):
+            return f'link:{figure}.svg[SVG] / link:../../{PACKAGE_LAYOUT}[SVG 布局源]'
+        return 'link:' + figure + ('.puml[PlantUML]' if (OUT / (figure + '.puml')).exists() else '.dot[DOT]')
+
+    write('index','adoc','= 当前源码图索引\n\n自动生成；源码哈希见 source-index.json。文本 SHA-256 仅归一化 CRLF→LF；class/jar/png 等二进制逐字节哈希。STRICT_COMPILED_CHECKED / SIGNATURE_CHECKED 仅表示编译产物、符号及受检查源码调用顺序对齐，不等于业务测试或部署通过。\n\n'+'\n\n'.join('== '+f+'\n\n'+(figure_captions[f]+'\n\n' if f in figure_captions else '')+'image::'+f+'.svg['+f+']\n\nlink:'+f+'.png[PNG] / '+figure_source_link(f) for f in sorted(set(FIGURES))))
     print(json.dumps({'status':index['status'],'figures':len(set(FIGURES)),'warnings':WARNINGS,'visual':'Every PNG must be opened; renderer does not assert manual inspection.'},ensure_ascii=False))
 if __name__=='__main__':
     try:main()

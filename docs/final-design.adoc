@@ -21,15 +21,17 @@
 ----
 # 在仓库根目录；JDK 21 的 javap/java 在 PATH，或设置 JAVA_HOME
 python tools/render-rbac1-design.py
+# 按 Java 源码局部重画两张包图，先在 rbac-web 安装项目依赖和 Playwright Chromium
+python tools/render-rbac1-design.py --packages-only
 # 业务代码稳定并编译三模块之后，要求编译产物不旧于源码
 python tools/render-rbac1-design.py --strict-compiled
 # 发布前检测源码/DDL/部署定义与图快照是否一致
 python tools/render-rbac1-design.py --check
-# 绘图器自身19项回归（原7项 + 证据模式12项），不是业务测试
+# 绘图器自身回归
 python tools/render-rbac1-design.test.py
 ----
 
-工具依赖 Python 标准库、Graphviz `dot`、JDK。PlantUML 固定为 1.2025.2，首次从 Maven Central 下载到系统临时目录；实际 jar SHA-256 写入索引，不引入业务依赖。首次运行需要公开网络，之后可复用同一 jar。
+全量生成依赖 Python 标准库、Graphviz `dot`、JDK 与 `rbac-web` 现有的 Playwright Chromium。包图生成使用 Python 输出 SVG，由 Chromium 导出同尺寸 PNG。首次准备浏览器时，在 `rbac-web` 运行 `npm ci` 和 `npx playwright install chromium`。PlantUML 固定为 1.2025.2，首次从 Maven Central 下载到系统临时目录，实际 jar SHA-256 写入索引。
 `--strict-compiled` 缺类或源码新于 class 时写出 `PENDING_COMPILE` 并失败，不伪造生成成功；普通模式只允许源码快照，显式记录待编译。生成时检查类、字段 role 和方法声明，编译产物当前时再检查 javap；源码在生成期间改变则失败。
 
 顺序图的维护源集中在 `tools/render-rbac1-design.scenarios.py`，与渲染引擎一起纳入失效检查；不要只改生成后的 puml。`--check` 同时检查新增 Java 文件、class 字节哈希、图文件哈希及部署输入变化。重载方法在索引保留全部 javap 候选签名，实际接收者与参数类型还要回到调用方法体核对。
@@ -61,7 +63,13 @@ image::ddd-packages.svg[DDD 包图]
 `domain.port.AuthorizationRepository` 等是面向领域/用例的端口，不是 JpaRepository；`infrastructure.persistence.Jpa*RepositoryAdapter` 实现这些接口并操作 `*Entity`。
 应用服务不应依赖具体 JpaAdapter。图中的实现关系为 Adapter → Repository，不画反。
 
-包图由当前显式 import 生成，保留真实细包，不把聚合包名当成实际存在的 Java 类；通配 import 只证明包依赖，不能证明所有类型都被使用。运行时反射、Spring 装配和完全限定类名不等价于 import 边，不能拿包图代替 ArchUnit。
+两张图沿用课程项目原始 SVG 的系统字体栈、浅灰底、分区色条、文件夹包框与图例。灰色虚线空心箭头表示主要依赖，蓝色虚线搭配空心三角表示包内类型实现了目标包中的端口。箭头均指向被依赖或被实现的一方。绘图范围是 `rbac-structured` 与 `rbac-ddd` 各自的主要 Java 子包，跨模块关系见 link:../diagrams/phase2/src/architecture-modules.mmd[模块架构图源]。图的 SVG 保留原项目的 MIT 许可说明。布局参照 link:https://gitee.com/mingqcn/course-project-mgt/blob/990cea2cc3686599ef5068945706a13e7e0afc5b/docs/backend-design.md[课程项目后端设计第 17.1、17.2 节]。
+
+结构化图保留 `service → mapper` 和 `service → entity` 两条依赖，分别对应事务脚本使用 `Store` 和直接处理数据实体。`dto → entity` 表示将请求输入映射到实体，角色、部门和用户的响应字段由 `service.Views` 组装。`config → controller` 对应 `WebConfig` 注册 `PermissionInterceptor`。
+
+DDD 图中的 `interfaces.rest → interfaces.rest.dto` 来自 REST 层对 DTO 的全限定类型引用。`interfaces.rest.dto → application` 对应 `CreateRoleRequest` 向 `RoleCommand` 的映射及 `RoleView` 从 `RoleResult` 的转换。`infrastructure.persistence → infrastructure.persistence.repository` 对应 `JpaAuthorizationRepositoryAdapter` 调用的三个 JPA Repository。仓储、身份、缓存和操作契约实现分别由 `infrastructure.persistence`、`infrastructure.identity`、`infrastructure.cache` 和 `infrastructure.config` 指向 `domain.port`。
+
+维护文件包括 link:../tools/render-rbac1-design.packages.py[RBAC1 包、关系与坐标] 和 link:../tools/render-rbac1-design.package-template.svg[改自课程项目的 SVG 模板]。生成时核对代表类型的包名、所选依赖的 import 或全限定类型引用，以及实现箭头对应的 `implements` 声明。包图用于阅读所选关系，全面的架构约束仍由项目测试校验。
 
 == 物理模型与继承方向
 

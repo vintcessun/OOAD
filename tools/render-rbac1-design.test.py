@@ -7,6 +7,7 @@ import tempfile
 import copy
 import json
 import re
+import runpy
 from xml.etree import ElementTree
 from unittest import mock
 
@@ -83,6 +84,40 @@ class RendererChecks(unittest.TestCase):
     def test_fifteen_physical_tables(self):
         ddl = (design.ROOT / 'rbac-contract/src/main/resources/db/migration/V1__rbac1_schema.sql').read_text(encoding='utf-8')
         self.assertEqual(len(re.findall(r'CREATE TABLE\s+\w+', ddl)), 15)
+
+    def test_package_views_distinguish_imports_from_port_realizations(self):
+        design.collect(inspect_bytecode=False)
+        layout = runpy.run_path(str(design.ROOT / design.PACKAGE_LAYOUT))
+        graphs = dict(layout['package_views'](design.INDEX))
+        for name, source, target, marker, *caption in (
+            ('structured-packages', 'service', 'mapper', 'openArrow'),
+            ('structured-packages', 'dto', 'entity', 'openArrow', '将请求输入映射到实体'),
+            ('ddd-packages', 'interfaces.rest', 'interfaces.rest.dto', 'openArrow'),
+            ('ddd-packages', 'interfaces.rest.dto', 'application', 'openArrow'),
+            ('ddd-packages', 'application', 'domain.port', 'openArrow'),
+            ('ddd-packages', 'infrastructure.persistence', 'domain.port', 'triangle'),
+            ('ddd-packages', 'infrastructure.persistence', 'infrastructure.persistence.repository', 'openArrow'),
+        ):
+            self.assertTrue(graphs[name].startswith('<svg'), 'Package views must use the reference SVG template')
+            graph = ElementTree.fromstring(graphs[name])
+            svg = '{http://www.w3.org/2000/svg}'
+            self.assertIn("'Segoe UI', 'Microsoft YaHei'", graph.find(svg+'g').get('font-family'))
+            for edge in graph.iter(svg+'g'):
+                if edge.get('data-source') == source and edge.get('data-target') == target:
+                    self.assertEqual(edge.find(svg+'polyline').get('marker-end'), f'url(#{marker})')
+                    if caption:
+                        self.assertEqual(''.join(edge.find(svg+'text').itertext()), caption[0])
+                    break
+            else:
+                self.fail(f'{name} is missing {source} → {target}')
+
+    def test_package_view_rejects_realization_when_implements_is_removed(self):
+        design.collect(inspect_bytecode=False)
+        adapter = 'com.xmu.rbac.ddd.infrastructure.persistence.JpaAuthorizationRepositoryAdapter'
+        design.INDEX[adapter]['source'] = design.INDEX[adapter]['source'].replace(' implements AuthorizationRepository', '')
+        layout = runpy.run_path(str(design.ROOT / design.PACKAGE_LAYOUT))
+        with self.assertRaisesRegex(ValueError, 'JpaAuthorizationRepositoryAdapter.*AuthorizationRepository'):
+            list(layout['package_views'](design.INDEX))
 
     def test_fixed_er_layout_preserves_columns_and_foreign_keys(self):
         ddl = (design.ROOT / 'rbac-contract/src/main/resources/db/migration/V1__rbac1_schema.sql').read_text(encoding='utf-8')

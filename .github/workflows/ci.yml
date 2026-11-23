@@ -76,6 +76,10 @@ jobs:
       # Do NOT clean or rerun JUnit here: both would risk losing the already collected evidence.
       - run: bash mvnw -B -ntp verify -DskipTests
         if: ${{ !cancelled() && steps.http-acceptance.outcome != 'skipped' }}
+      - run: npm ci --no-audit --no-fund
+        working-directory: rbac-web
+      - run: npx playwright install --with-deps chromium
+        working-directory: rbac-web
       - name: Verify actual compiled UML on this runner
         env:
           GRAPHVIZ_DOT: /usr/bin/dot
@@ -88,11 +92,7 @@ jobs:
           python tools/render-rbac1-design.test.py
           python tools/render-rbac1-design.py --strict-compiled --runtime-evidence=archived
           python tools/render-rbac1-design.py --check --runtime-evidence=archived
-      - run: npm ci --no-audit --no-fund
-        working-directory: rbac-web
       - run: npm run typecheck && npm run test:coverage && npm run build
-        working-directory: rbac-web
-      - run: npx playwright install --with-deps chromium
         working-directory: rbac-web
       # Desktop Chromium against each real backend, sequentially with a fresh database.
       - run: npm run e2e
