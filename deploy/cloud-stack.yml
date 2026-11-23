@@ -1,0 +1,149 @@
+version: '3.8'
+services:
+  mysql:
+    image: "${CLOUD_MYSQL_IMAGE:?Set the MySQL image digest}"
+    command: [--innodb-buffer-pool-size=64M, --max-connections=40, --performance-schema=OFF]
+    environment:
+      MYSQL_ROOT_PASSWORD_FILE: /run/secrets/mysql-root-password
+    volumes:
+      - mysql-data:/var/lib/mysql
+    secrets: [mysql-root-password, center-db-password, course-db-password]
+    configs:
+      - source: mysql-init
+        target: /docker-entrypoint-initdb.d/10-databases.sh
+        mode: 0555
+    healthcheck:
+      test: [CMD-SHELL, 'mysqladmin ping -h 127.0.0.1 --silent']
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    networks: [private]
+    deploy:
+      placement:
+        constraints: [node.hostname == mysql]
+      resources:
+        reservations: {memory: 256M}
+        limits: {memory: 512M}
+
+  redis:
+    image: "${CLOUD_REDIS_IMAGE:?Set the Redis image digest}"
+    command: [redis-server, --maxmemory, 64mb, --maxmemory-policy, allkeys-lru]
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    networks: [private]
+    deploy:
+      placement:
+        constraints: [node.hostname == mysql]
+      resources:
+        reservations: {memory: 32M}
+        limits: {memory: 128M}
+
+  rbac-backend:
+    image: "${CLOUD_DDD_IMAGE:?Set the DDD image digest}"
+    environment:
+      SERVER_PORT: '8081'
+      JAVA_OPTS: -Xms96m -Xmx384m -XX:ActiveProcessorCount=2
+      COURSE_UPSTREAM: http://course-backend:8080
+      SPRING_CONFIG_IMPORT: configtree:/run/secrets/
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/rbac_center?serverTimezone=UTC&allowPublicKeyRetrieval=true&useSSL=false
+      SPRING_DATASOURCE_USERNAME: rbac_center
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: '6379'
+      RBAC_JWT_PRIVATE_KEY_FILE: /run/secrets/jwt-private.pem
+      RBAC_JWT_PUBLIC_KEY_FILE: /run/secrets/jwt-public.pem
+      RBAC_JWT_KID: rbac1-cloud-1
+      RBAC_JWT_ISSUER: https://49.4.114.16:8443
+      MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: never
+      MANAGEMENT_ENDPOINT_HEALTH_SHOW_COMPONENTS: never
+    secrets:
+      - {source: center-db-password, target: spring.datasource.password}
+      - {source: bootstrap-password, target: RBAC_BOOTSTRAP_PASSWORD}
+      - {source: audit-service-key, target: rbac.audit-service-key}
+      - jwt-private.pem
+      - jwt-public.pem
+    networks: [private]
+    deploy: &java_deploy
+      replicas: 1
+      placement:
+        constraints: [node.role == worker, node.hostname != mysql]
+      update_config: {order: stop-first}
+      rollback_config: {order: stop-first}
+      restart_policy: {condition: on-failure, delay: 10s}
+      resources:
+        reservations: {memory: 512M}
+        limits: {memory: 896M}
+
+  course-backend:
+    image: "${CLOUD_COURSE_BACKEND_IMAGE:?Set the teacher backend image digest}"
+    environment:
+      SERVER_PORT: '8080'
+      JAVA_OPTS: -Xms96m -Xmx384m -XX:ActiveProcessorCount=2
+      IDENTITY_BASE_URL: http://rbac-backend:8081
+      SPRING_CONFIG_IMPORT: configtree:/run/secrets/
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/rbac_course?serverTimezone=UTC&allowPublicKeyRetrieval=true&useSSL=false
+      SPRING_DATASOURCE_USERNAME: rbac_course
+      DB_HOST: mysql
+      DB_PORT: '3306'
+      DB_NAME: rbac_course
+      DB_USER: rbac_course
+    secrets:
+      - {source: course-db-password, target: spring.datasource.password}
+      - {source: course-db-password, target: DB_PASSWORD}
+    networks: [private]
+    deploy: *java_deploy
+
+  rbac-web:
+    image: "${CLOUD_RBAC_WEB_IMAGE:?Set the RBAC web image digest}"
+    environment:
+      RBAC_PORT: '8081'
+    configs:
+      - {source: rbac-nginx, target: /etc/nginx/templates/default.conf.template}
+    secrets: &tls_secrets
+      - {source: tls-v2.key, target: tls.key}
+      - {source: tls-v2.crt, target: tls.crt}
+    ports: ['8443:443']
+    networks: [private]
+    deploy: &web_deploy
+      replicas: 1
+      placement:
+        constraints: [node.role == worker, node.hostname != mysql]
+      restart_policy: {condition: on-failure, delay: 5s}
+      resources:
+        reservations: {memory: 32M}
+        limits: {memory: 128M}
+
+  course-web:
+    image: "${CLOUD_COURSE_WEB_IMAGE:?Set the teacher web image digest}"
+    environment:
+      RBAC_PORT: '8081'
+      COURSE_PORT: '8080'
+    configs:
+      - {source: course-nginx, target: /etc/nginx/templates/default.conf.template}
+    secrets: *tls_secrets
+    ports: ['9443:443']
+    networks: [private]
+    deploy: *web_deploy
+
+networks:
+  private:
+    external: true
+    name: rbac_default
+volumes:
+  mysql-data:
+secrets:
+  mysql-root-password: {file: "${CLOUD_RUNTIME_DIR:?Set the absolute secrets directory}/mysql-root-password"}
+  center-db-password: {file: "${CLOUD_RUNTIME_DIR}/center-db-password"}
+  course-db-password: {file: "${CLOUD_RUNTIME_DIR}/course-db-password"}
+  bootstrap-password: {file: "${CLOUD_RUNTIME_DIR}/bootstrap-password"}
+  audit-service-key: {file: "${CLOUD_RUNTIME_DIR}/audit-service-key"}
+  jwt-private.pem: {file: "${CLOUD_RUNTIME_DIR}/jwt-private.pem"}
+  jwt-public.pem: {file: "${CLOUD_RUNTIME_DIR}/jwt-public.pem"}
+  tls-v2.key: {file: "${CLOUD_RUNTIME_DIR}/tls.key"}
+  tls-v2.crt: {file: "${CLOUD_RUNTIME_DIR}/tls.crt"}
+configs:
+  mysql-init: {file: "${CLOUD_SOURCE_DIR:?Set the absolute source directory}/deploy/full-mysql-init.sh"}
+  rbac-nginx: {file: "${CLOUD_SOURCE_DIR}/rbac-web/nginx.conf"}
+  course-nginx: {file: "${CLOUD_SOURCE_DIR}/deploy/full-course-nginx.conf"}
