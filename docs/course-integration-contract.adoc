@@ -2,7 +2,7 @@
 
 新版教师合同的八个鉴权接口和两个审计接口由权限中心提供，完整清单见 link:api.adoc[API 说明]。
 JWT 仍使用身份与有效期声明，/auth/me.permissions 仅返回 UI 权限。
-课程管理员凭课程 Bearer 和有效 TEC API 权限查询 /auth/departments、/auth/departments/{departmentId}/users 与 /auth/users/{userId}。
+课程管理员须持有课程系统的 Bearer，且在课程系统内拥有有效 `admin` 角色码和 `TEC` API 权限，方可查询 /auth/departments、/auth/departments/{departmentId}/users 与 /auth/users/{userId}。
 公开边缘转发这些路径并过滤服务密钥头。
 实际教师Service的AuthorityCodes（尤其非组长CC）不能从“copyCourse允许进入”推导。
 为受控后端补充以下私有提供方接口；它们不是课程业务代理，公开前端Nginx拒绝/integration和/identity根前缀。
