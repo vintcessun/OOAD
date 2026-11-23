@@ -1,0 +1,265 @@
+{
+  "scope": [
+    "S02",
+    "department-state"
+  ],
+  "sourceChecks": "ORDERED_SOURCE_CHECKED",
+  "compiledSources": {
+    "rbac-ddd/src/main/java/com/xmu/rbac/ddd/application/AuditApplicationService.java": "COMPILED",
+    "rbac-ddd/src/main/java/com/xmu/rbac/ddd/application/AuthorizationApplicationService.java": "COMPILED",
+    "rbac-ddd/src/main/java/com/xmu/rbac/ddd/application/DirectoryApplicationService.java": "COMPILED",
+    "rbac-ddd/src/main/java/com/xmu/rbac/ddd/application/GrantIntegrityService.java": "COMPILED",
+    "rbac-ddd/src/main/java/com/xmu/rbac/ddd/domain/DepartmentEligibility.java": "COMPILED",
+    "rbac-ddd/src/main/java/com/xmu/rbac/ddd/domain/OrganizationPolicy.java": "COMPILED",
+    "rbac-ddd/src/main/java/com/xmu/rbac/ddd/domain/port/AuthorizationRepository.java": "COMPILED",
+    "rbac-ddd/src/main/java/com/xmu/rbac/ddd/domain/port/DirectoryRepository.java": "COMPILED",
+    "rbac-ddd/src/main/java/com/xmu/rbac/ddd/domain/User.java": "COMPILED",
+    "rbac-ddd/src/main/java/com/xmu/rbac/ddd/infrastructure/persistence/JpaDirectoryRepositoryAdapter.java": "COMPILED",
+    "rbac-ddd/src/main/java/com/xmu/rbac/ddd/interfaces/rest/DirectoryController.java": "COMPILED",
+    "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/ManagementController.java": "COMPILED",
+    "rbac-structured/src/main/java/com/xmu/rbac/structured/mapper/Store.java": "COMPILED",
+    "rbac-structured/src/main/java/com/xmu/rbac/structured/service/AuditService.java": "COMPILED",
+    "rbac-structured/src/main/java/com/xmu/rbac/structured/service/AuthorizationService.java": "COMPILED",
+    "rbac-structured/src/main/java/com/xmu/rbac/structured/service/ManagementService.java": "COMPILED"
+  },
+  "orderedCallChains": [
+    {
+      "scenario": "S02",
+      "class": "com.xmu.rbac.ddd.application.DirectoryApplicationService",
+      "method": "assign",
+      "path": "rbac-ddd/src/main/java/com/xmu/rbac/ddd/application/DirectoryApplicationService.java",
+      "sourceSha256": "601458c334fefae409744410d949409ffb3fe55c74d4d48556b27dfa2fa57519",
+      "bodySha256": "dff98ce908ca07bd30398498c66df96ceb12ec73bc5b5b92558bfe7d4cdcdbfb",
+      "orderedTokens": [
+        "grants.lockGrants()",
+        "actor(",
+        "directory.user(id,true)",
+        "policy.requireAccepting(managed(",
+        "grants.role(roleId)",
+        "grants.systemEnabled(",
+        "requireRoleWithin(",
+        "aggregate(profile).assign(",
+        "directory.assign(",
+        "done("
+      ],
+      "normalizedOffsets": [
+        0,
+        58,
+        111,
+        135,
+        207,
+        231,
+        327,
+        357,
+        448,
+        487
+      ],
+      "status": "ORDERED_SOURCE_CHECKED",
+      "limit": "Lexical callsite order + manual branch review; not runtime/behavior proof"
+    },
+    {
+      "scenario": "S02",
+      "class": "com.xmu.rbac.ddd.application.DirectoryApplicationService",
+      "method": "requireRoleWithin",
+      "path": "rbac-ddd/src/main/java/com/xmu/rbac/ddd/application/DirectoryApplicationService.java",
+      "sourceSha256": "601458c334fefae409744410d949409ffb3fe55c74d4d48556b27dfa2fa57519",
+      "bodySha256": "cc717b3427fd84a0692312d512d4f1301298fc45beb594183946ce18920f363b",
+      "orderedTokens": [
+        "authorization.upperBound(",
+        "calculate(",
+        "grants.hierarchy(",
+        "grants.permissions("
+      ],
+      "normalizedOffsets": [
+        31,
+        94,
+        129,
+        154
+      ],
+      "status": "ORDERED_SOURCE_CHECKED",
+      "limit": "Lexical callsite order + manual branch review; not runtime/behavior proof"
+    },
+    {
+      "scenario": "B",
+      "class": "com.xmu.rbac.ddd.application.DirectoryApplicationService",
+      "method": "statusUser",
+      "path": "rbac-ddd/src/main/java/com/xmu/rbac/ddd/application/DirectoryApplicationService.java",
+      "sourceSha256": "601458c334fefae409744410d949409ffb3fe55c74d4d48556b27dfa2fa57519",
+      "bodySha256": "a42963acce390319736794fd8d935d502f9ee9eef382b88c28d58e3f9315899d",
+      "orderedTokens": [
+        "grants.lockGrants()",
+        "actor(",
+        "managed(",
+        "aggregate(old)",
+        "grants.systemEnabled(",
+        "requireRoleWithin(",
+        "user.changeStatus(",
+        "save(",
+        "done("
+      ],
+      "normalizedOffsets": [
+        0,
+        58,
+        125,
+        168,
+        314,
+        354,
+        386,
+        425,
+        440
+      ],
+      "status": "ORDERED_SOURCE_CHECKED",
+      "limit": "Lexical callsite order + manual branch review; not runtime/behavior proof"
+    },
+    {
+      "scenario": "B",
+      "class": "com.xmu.rbac.ddd.application.DirectoryApplicationService",
+      "method": "departmentStatus",
+      "path": "rbac-ddd/src/main/java/com/xmu/rbac/ddd/application/DirectoryApplicationService.java",
+      "sourceSha256": "601458c334fefae409744410d949409ffb3fe55c74d4d48556b27dfa2fa57519",
+      "bodySha256": "ef101fce33e8c17db9a7265f9bdaedb88252fd08dea3405f94b01c0d82f79a7e",
+      "orderedTokens": [
+        "grants.lockGrants()",
+        "actor(",
+        "managed(",
+        "returnold",
+        "policy.requireDisableable(",
+        "directory.saveDepartment(",
+        "done("
+      ],
+      "normalizedOffsets": [
+        0,
+        58,
+        112,
+        261,
+        300,
+        383,
+        496
+      ],
+      "status": "ORDERED_SOURCE_CHECKED",
+      "limit": "Lexical callsite order + manual branch review; not runtime/behavior proof"
+    },
+    {
+      "scenario": "S02",
+      "class": "com.xmu.rbac.ddd.application.DirectoryApplicationService",
+      "method": "done",
+      "path": "rbac-ddd/src/main/java/com/xmu/rbac/ddd/application/DirectoryApplicationService.java",
+      "sourceSha256": "601458c334fefae409744410d949409ffb3fe55c74d4d48556b27dfa2fa57519",
+      "bodySha256": "6b137893e85cc0f91aed2d6d7d4d5284269cf04e2842f5bf8b638063e292283a",
+      "orderedTokens": [
+        "integrity.requireAdministrator()",
+        "grants.advanceVersion()",
+        "audits.local("
+      ],
+      "normalizedOffsets": [
+        0,
+        33,
+        57
+      ],
+      "status": "ORDERED_SOURCE_CHECKED",
+      "limit": "Lexical callsite order + manual branch review; not runtime/behavior proof"
+    },
+    {
+      "scenario": "S02",
+      "class": "com.xmu.rbac.ddd.infrastructure.persistence.JpaDirectoryRepositoryAdapter",
+      "method": "saveUser",
+      "path": "rbac-ddd/src/main/java/com/xmu/rbac/ddd/infrastructure/persistence/JpaDirectoryRepositoryAdapter.java",
+      "sourceSha256": "e4092fab79f49b449088ed500a4bd1b14661ba9669f1e7c9a91db2c06b8c3e46",
+      "bodySha256": "487527961f6b78f83e84c7bc410254b2132f0d74d29157b7117902d4be5ee352",
+      "orderedTokens": [
+        "e.setSubject(",
+        "UUID.randomUUID()",
+        "em.persist(e)",
+        "em.flush()",
+        "returnuser(e)"
+      ],
+      "normalizedOffsets": [
+        103,
+        142,
+        518,
+        533,
+        544
+      ],
+      "status": "ORDERED_SOURCE_CHECKED",
+      "limit": "Lexical callsite order + manual branch review; not runtime/behavior proof"
+    },
+    {
+      "scenario": "S02",
+      "class": "com.xmu.rbac.structured.service.ManagementService",
+      "method": "assign",
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/service/ManagementService.java",
+      "sourceSha256": "ede37085668755503d01365433a1debd6f1b1c1e0fdc720d108dbe6de8eabcaf",
+      "bodySha256": "652fb16c5bf20a8d0d42ad4d7e0af717b39e3d1d72f12ba8ab37db445c0c8f85",
+      "orderedTokens": [
+        "begin(",
+        "az.scope(",
+        "requireAccepting(",
+        "db.one(",
+        "az.upper(",
+        "db.save(ur)",
+        "finish("
+      ],
+      "normalizedOffsets": [
+        14,
+        84,
+        111,
+        430,
+        591,
+        765,
+        777
+      ],
+      "status": "ORDERED_SOURCE_CHECKED",
+      "limit": "Lexical callsite order + manual branch review; not runtime/behavior proof"
+    },
+    {
+      "scenario": "B",
+      "class": "com.xmu.rbac.structured.service.ManagementService",
+      "method": "departmentStatus",
+      "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/service/ManagementService.java",
+      "sourceSha256": "ede37085668755503d01365433a1debd6f1b1c1e0fdc720d108dbe6de8eabcaf",
+      "bodySha256": "eee05ac12c7f139384206116d74abfb1c19dc2e12ce8d277ea624524d2e2ee9d",
+      "orderedTokens": [
+        "begin(",
+        "az.scope(",
+        "returndepartment(d)",
+        "ROOT_DEPARTMENT_DISABLE_FORBIDDEN",
+        "departmentHasChildren(",
+        "DEPARTMENT_HAS_CHILDREN",
+        "d.status=status",
+        "finish("
+      ],
+      "normalizedOffsets": [
+        14,
+        54,
+        239,
+        337,
+        376,
+        430,
+        457,
+        473
+      ],
+      "status": "ORDERED_SOURCE_CHECKED",
+      "limit": "Lexical callsite order + manual branch review; not runtime/behavior proof"
+    }
+  ],
+  "figures": {
+    "S02-ddd-class.dot": "bcebfba8dd8253aab8660e891e4f1176bec3d0d05ba69d598ba60145e5194f5c",
+    "S02-ddd-class.png": "5329dbe286ccf78746e96482cdc434fc9d7796711316da8709de8bbd402a8ed2",
+    "S02-ddd-class.svg": "e9f40968fb907732ee5f723f6dd298d7727bafc2ccdb43049d3cae61be4acd8c",
+    "S02-structured-class.dot": "e4dd07f2e3194328162b5fde48134faf209ccabc1a3fe6b122e839161f5eac8b",
+    "S02-structured-class.png": "69c53201d1199a99899cec489bfd60efd5733dcc9743e2b716bdc23d878580f5",
+    "S02-structured-class.svg": "fca41ed356594aa617e9225051c8e64dddcd0929007ff7edaba858cec789980d",
+    "S02-ddd-sequence.png": "35afdbc0c89c9b2223096e9aebf5e70b12f284c9c13c278252fbbf6e6cdac243",
+    "S02-ddd-sequence.puml": "13ea58372d087185765fda844adfadb7dbc95f44f8ff48bb0abee6d41ca61356",
+    "S02-ddd-sequence.svg": "bbdf4045494fac890a8019e0b9e39d4440705cd35010bc6b87fd4005b130450f",
+    "S02-structured-sequence.png": "87973f137f9d5aaa8260ecf622db67152c4c74d0920a8f2615808b47468bfc31",
+    "S02-structured-sequence.puml": "604abc742cf5203c71d0b535fd65a4bcaf51e97a0af3d67d1158031eb7b1f04f",
+    "S02-structured-sequence.svg": "c616386abcb0b00e2e64be8d93b6bc909fec0ca8ef8eae6c583461515b6518fc",
+    "department-state.png": "2cd752fe863ecd908d2e629d332bdaac0f90d88fa4f273e0c464bfc33344b607",
+    "department-state.puml": "6f9648016cfcd96c20ffe2d199b130c373c760f727a84df7464f9680eed3388d",
+    "department-state.svg": "c1ff0a435f65fd33867cd94a86e7b8dca205b1e9b88889f57de0acf54cfab6b9"
+  },
+  "generator": "6869db86b1f9b81dc4b27ce4f9091c5188fda25527a54d18c42b82bdd36a80d2",
+  "scenarioSource": "b0a0e4d29b0020bbf0066be5eb3eb2bf7db635f8bae56a442fa346e0e511dfa7",
+  "plantumlJar": "1cd5997e353fc23bf9ddcf78d57ba846c1aa8a33dc4e3787872c8dec34fd35ce"
+}

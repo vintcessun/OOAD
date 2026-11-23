@@ -1144,6 +1144,16 @@
       "reviewState": "NOT_STARTED"
     },
     {
+      "path": "rbac-contract/src/main/resources/db/migration/V5__department_lifecycle_permissions.sql",
+      "lead": "B",
+      "owners": [
+        "B",
+        "E"
+      ],
+      "depth": "core",
+      "reviewState": "NOT_STARTED"
+    },
+    {
       "path": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
       "lead": "E",
       "owners": [
@@ -2296,7 +2306,8 @@
         "D",
         "A",
         "C",
-        "E"
+        "E",
+        "B"
       ],
       "depth": "core",
       "reviewState": "NOT_STARTED"
@@ -3762,6 +3773,16 @@
       "reviewState": "NOT_STARTED"
     },
     {
+      "path": "rbac-web/src/views/DepartmentsView.vue",
+      "lead": "B",
+      "owners": [
+        "B",
+        "E"
+      ],
+      "depth": "core",
+      "reviewState": "NOT_STARTED"
+    },
+    {
       "path": "rbac-web/src/views/LoginView.vue",
       "lead": "A",
       "owners": [
@@ -4375,6 +4396,7 @@
         "departments",
         "createDepartment",
         "renameDepartment",
+        "departmentStatus",
         "deleteDepartment",
         "allowedRoles",
         "replaceAllowed",
@@ -4534,8 +4556,10 @@
       "methods": [
         "departments",
         "department",
+        "departmentStatus",
         "deleteDepartment",
         "allowed",
+        "requireRoleWithin",
         "users",
         "user",
         "createUser",
@@ -4604,6 +4628,7 @@
         "department",
         "departments",
         "saveDepartment",
+        "departmentHasChildren",
         "departmentOccupied",
         "deleteDepartment",
         "user",
@@ -4760,6 +4785,17 @@
     },
     {
       "method": "GET",
+      "path": "/auth/users/{userId}",
+      "operationId": "lookupIdentityUser",
+      "lead": "A",
+      "partners": [
+        "B",
+        "E"
+      ],
+      "reviewState": "NOT_STARTED"
+    },
+    {
+      "method": "GET",
       "path": "/auth/audit-logs",
       "operationId": "queryIdentityAuditLogs",
       "lead": "F",
@@ -4896,6 +4932,18 @@
       "reviewState": "NOT_STARTED"
     },
     {
+      "method": "PUT",
+      "path": "/api/v1/departments/{id}/status",
+      "operationId": "setDepartmentStatus",
+      "lead": "B",
+      "partners": [
+        "C",
+        "E",
+        "F"
+      ],
+      "reviewState": "NOT_STARTED"
+    },
+    {
       "method": "DELETE",
       "path": "/api/v1/departments/{id}",
       "operationId": "deleteDepartment",
@@ -4922,6 +4970,28 @@
       "lead": "B",
       "partners": [
         "C"
+      ],
+      "reviewState": "NOT_STARTED"
+    },
+    {
+      "method": "GET",
+      "path": "/auth/departments",
+      "operationId": "listIdentityDepartments",
+      "lead": "B",
+      "partners": [
+        "A",
+        "E"
+      ],
+      "reviewState": "NOT_STARTED"
+    },
+    {
+      "method": "GET",
+      "path": "/auth/departments/{departmentId}/users",
+      "operationId": "listIdentityDepartmentUsers",
+      "lead": "B",
+      "partners": [
+        "A",
+        "E"
       ],
       "reviewState": "NOT_STARTED"
     },

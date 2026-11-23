@@ -35,7 +35,7 @@ CloneFactory 0.0.2 通过 record 访问器将五个创建 DTO 的同名同型字
 
 == 授权与课程调用
 
-. RouteRegistry读取67项OAS；WebConfig与MVC路由双向核对，BootstrapService与中心sys_api_operation核对。未登记默认拒绝；中心受保护目录不可弱化成PUBLIC或换掉OAS要求。
+. RouteRegistry 读取 68 项 OAS，WebConfig 与 MVC 路由双向核对，BootstrapService 与中心 sys_api_operation 核对。未登记默认拒绝，固定受保护操作保持 OAS 规定的授权要求。
 . TokenService验证RS256、kid/issuer/单aud、sub/iat/exp/jti/tokenVersion；实时读取用户/系统状态和MySQL撤销，先于超级管理员处理。JWT不携带角色或权限claim。
 . AuthorizationService先取当前系统启用直接角色，再遍历senior→junior；停用节点切断路径，权限去重、来源可多条；identityRole仅投影student/teacher/admin。
 . 中心管理同时要求中心API权限、当前组织管理子树及授权上界；系统共享定义写还要求根部门。部门只控制组织管理与直接准入，不是旧业务数据范围；SUPER_ADMIN也不能绕过目标用户部门准入。

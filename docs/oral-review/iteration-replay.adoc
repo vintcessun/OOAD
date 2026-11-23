@@ -55,7 +55,7 @@ context子命令只核对本地原始资料的大小/指纹，报告缺失或变
 
 == 索引维护
 
-link:coverage.json[机器清单]与link:source-map.adoc[可读索引]列明源码责任；link:api-matrix.adoc[API责任表]列明64操作。
+link:coverage.json[机器清单]与 link:source-map.adoc[可读索引]列明源码责任，link:api-matrix.adoc[API 责任表]列明现行 68 项中心操作。
 源码新增、移动、共享方法改名或OAS操作变更后，`check`失败时先按实际链路补责任，不为通过而删除仍存在的源码或放宽检查。
 源码清点覆盖Git跟踪及未忽略的新文件，包括业务代码、测试、配置、SQL、工具、补丁、部署配方和diagrams中的图源/工具；一期图表标historical，图版本协调标coordination，不误当当前业务源码。docs/design中的生成业务图由各人按卡片链接核查，不重复算作程序源码。
 不列node_modules/target、锁文件或教师完整缓存。锁文件随对应包/构建负责人了解，不作逐行业务审查。

@@ -1,4 +1,4 @@
-= 中心64操作：链路责任表
+= 中心 68 操作链路责任表
 :toc:
 
 link:README.adoc[总览] / link:source-map.adoc[源码与共享方法] / link:coverage.json[机器清单]。
@@ -6,7 +6,7 @@ link:README.adoc[总览] / link:source-map.adoc[源码与共享方法] / link:co
 直接从link:../../rbac-contract/src/main/resources/openapi/rbac-api.yaml[现行中心OAS]读取方法、路径和operationId；不依赖页面图册的旧快照。每项只设一名主责，协作人按接口衔接复核，全部初始NOT_STARTED。
 五身份鉴权分布于A/D、两审计归F；私有投影E、管理资源E、有效权限读取D。健康/info由E汇总运行边界、A说明装配，不据UP声称业务通过。
 
-== A（6操作）
+== A（7操作）
 
 [cols="1,4,3,1",options="header"]
 |===
@@ -14,12 +14,13 @@ link:README.adoc[总览] / link:source-map.adoc[源码与共享方法] / link:co
 |POST |`/auth/login` |`login` |F
 |POST |`/auth/logout` |`logout` |F
 |GET |`/auth/me` |`getIdentityCurrentUser` |D/F
+|GET |`/auth/users/{userId}` |`lookupIdentityUser` |B/E
 |GET |`/api/v1/me` |`getMe` |D/F
 |POST |`/api/v1/auth/password` |`changePassword` |F
 |GET |`/.well-known/jwks.json` |`getJwks` |F
 |===
 
-== B（17操作）
+== B（20操作）
 
 [cols="1,4,3,1",options="header"]
 |===
@@ -27,9 +28,12 @@ link:README.adoc[总览] / link:source-map.adoc[源码与共享方法] / link:co
 |GET |`/api/v1/departments/tree` |`getDepartmentTree` |C
 |POST |`/api/v1/departments` |`createDepartment` |C
 |PATCH |`/api/v1/departments/{id}` |`updateDepartment` |C
+|PUT |`/api/v1/departments/{id}/status` |`setDepartmentStatus` |C/E/F
 |DELETE |`/api/v1/departments/{id}` |`deleteDepartment` |C
 |GET |`/api/v1/departments/{id}/assignable-roles` |`getDepartmentAssignableRoles` |C
 |PUT |`/api/v1/departments/{id}/assignable-roles` |`replaceDepartmentAssignableRoles` |C
+|GET |`/auth/departments` |`listIdentityDepartments` |A/E
+|GET |`/auth/departments/{departmentId}/users` |`listIdentityDepartmentUsers` |A/E
 |GET |`/api/v1/users` |`listUsers` |A/C/D
 |POST |`/api/v1/users` |`createUser` |A/C/D
 |GET |`/api/v1/users/{id}` |`getUser` |A/C/D

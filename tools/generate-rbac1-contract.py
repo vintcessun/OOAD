@@ -21,6 +21,7 @@ DIRECTORY = {
     '/auth/departments/{departmentId}/users': ('listIdentityDepartmentUsers', 'IdentityDepartmentUser'),
     '/auth/users/{userId}': ('lookupIdentityUser', None),
 }
+DEPARTMENT_STATUS_PATH = '/api/v1/departments/{id}/status'
 OPERATION_GROUPS = {
     '统一身份鉴权': {
         'login': '登录',
@@ -45,6 +46,7 @@ OPERATION_GROUPS = {
         'getDepartmentTree': '查询部门树',
         'createDepartment': '新增子部门',
         'updateDepartment': '修改部门名称',
+        'setDepartmentStatus': '启用或停用部门',
         'deleteDepartment': '删除空部门',
         'getDepartmentAssignableRoles': '查询部门可指派角色',
         'replaceDepartmentAssignableRoles': '替换部门可指派角色',
@@ -301,11 +303,11 @@ def oas():
         schemas[n+'UpdateInput']=copy.deepcopy(schemas[n+'CreateInput']);schemas[n+'UpdateInput']['required']=[]
     table=(ROOT/'docs/implementation-contract.adoc').read_text(encoding='utf8')
     rows=re.findall(r'^\|(GET|POST|PATCH|PUT|DELETE) (/[^ |]+) \|([^\n]+) \|([^\n]+)$',table,re.M)
-    assert len(rows)==52,len(rows)
+    assert len(rows)==53,len(rows)
     # Explicit operationIds are stable and not derived from translated labels.
     definitions=[
     ('getMe',None,'MeVO'),('changePassword','PasswordInput',None),('listSystems',None,arr('SystemVO')),('createSystem','SystemCreateInput','SystemVO'),('updateSystem','NameInput','SystemVO'),('setSystemStatus','StatusInput','SystemVO'),
-    ('getDepartmentTree',None,arr('DepartmentVO')),('createDepartment','DepartmentCreateInput','DepartmentVO'),('updateDepartment','NameInput','DepartmentVO'),('deleteDepartment',None,None),('getDepartmentAssignableRoles',None,arr('RoleVO')),('replaceDepartmentAssignableRoles','RoleIdsInput',None),
+    ('getDepartmentTree',None,arr('DepartmentVO')),('createDepartment','DepartmentCreateInput','DepartmentVO'),('updateDepartment','NameInput','DepartmentVO'),('setDepartmentStatus','StatusInput','DepartmentVO'),('deleteDepartment',None,None),('getDepartmentAssignableRoles',None,arr('RoleVO')),('replaceDepartmentAssignableRoles','RoleIdsInput',None),
     ('listUsers',None,'PageUserVO'),('createUser','UserCreateInput','UserVO'),('getUser',None,'UserVO'),('updateUser','UserUpdateInput','UserVO'),('setUserStatus','UserStatusInput','UserVO'),('deleteUser',None,None),('changeUserDepartment','DepartmentChangeInput','UserVO'),
     ('listRoles',None,'PageRoleVO'),('createRole','RoleCreateInput','RoleVO'),('getRole',None,'RoleVO'),('updateRole','RoleUpdateInput','RoleVO'),('setRoleStatus','StatusInput','RoleVO'),('deleteRole',None,None),('getRolePermissions',None,arr('PermissionVO')),('replaceRolePermissions','PermissionIdsInput',None),('getRoleEffectivePermissions',None,'EffectiveVO'),('getRoleHierarchy',None,'HierarchyVO'),('addRoleInheritance',None,None),('deleteRoleInheritance',None,None),
     ('listUserRoleAssignments',None,arr('AssignmentVO')),('createUserRoleAssignment','AssignmentInput','AssignmentVO'),('deleteUserRoleAssignment',None,None),('getUserEffectivePermissions',None,'EffectiveVO'),('listPermissions',None,'PagePermissionVO'),('createPermission','PermissionCreateInput','PermissionVO'),('setPermissionStatus','StatusInput','PermissionVO'),('getUiResources',None,arr('UiResourceVO')),('createUiResource','UiCreateInput','UiResourceVO'),('updateUiResource','UiUpdateInput','UiResourceVO'),('deleteUiResource',None,None),('getMyMenus',None,arr('UiResourceVO')),('listApiOperations',None,'PageApiOperationVO'),('createApiOperation','ApiCreateInput','ApiOperationVO'),('updateApiOperation','ApiUpdateInput','ApiOperationVO'),('getUiApiMappings',None,'MappingCoverageVO'),('replaceUiApiMappings','MappingsInput',None),('checkAuthorization','AuthorizationInput','DecisionVO'),('explainAuthorization','AuthorizationInput','ExplanationVO'),('queryAuditLogs',None,'PageAuditVO'),('getDashboard',None,'DashboardVO')]
@@ -320,6 +322,7 @@ def oas():
         'getDepartmentTree': '返回以操作者所属部门为起点的组织树，包含该部门及其下级部门。',
         'createDepartment': '在管理范围内的父部门下新建子部门。父部门通过 `parentId` 指定，系统已有根部门。',
         'updateDepartment': '修改管理范围内指定部门的名称，并返回更新后的部门资料。',
+        'setDepartmentStatus': '启用或停用管理范围内指定部门。仅非根且无子部门的节点可停用。停用保留成员和既有角色指派，并关闭新接纳。',
         'deleteDepartment': '删除管理范围内的空部门并清理其角色准入配置。指定部门为根部门或仍关联人员、子部门时返回 HTTP 409。',
         'getDepartmentAssignableRoles': '查询指定部门已配置的角色准入清单，可用 `systemCode` 筛选角色所属系统。',
         'replaceDepartmentAssignableRoles': '用 `roleIds` 整体替换指定部门的角色准入清单，并在同一事务内撤销该部门直属用户已不满足准入条件的角色指派。',
@@ -517,8 +520,8 @@ def seed(document, course, manifest):
         for method,op in methods.items():
             if method not in METHODS:continue
             code=op['x-required-permission'];policy='PUBLIC' if code=='PUBLIC' else 'AUTHENTICATED' if code=='@authenticated' else 'PROTECTED'
-            # Keep the already applied V2 byte-for-byte stable. V3 upgrades this operation.
-            seed_code='rbac:role:edit' if op['operationId']=='setRoleStatus' else code
+            # Keep applied V2 stable while coverage reflects the capabilities after migrations.
+            seed_code={'setRoleStatus':'rbac:role:edit', 'deleteDepartment':'rbac:department:edit'}.get(op['operationId'], code)
             pid=None if policy!='PROTECTED' else permission(1,'API',seed_code)
             aid=len(apis)+1;apis[(1,op['operationId'])]=aid
             add('sys_api_operation',id=aid,system_id=1,operation_id=op['operationId'],method=method.upper(),path_template=path,permission_id=pid,required_role=None,access_policy=policy,enabled=True,version=0)
@@ -580,6 +583,8 @@ def seed(document, course, manifest):
     for uid,aid in sorted(mapping):add('sys_ui_api_mapping',ui_resource_id=uid,api_operation_id=aid)
     text+='ALTER TABLE sys_user AUTO_INCREMENT=10000;\n'
     emit('db/migration/V2__rbac1_seed.sql',text)
+    status_row = [1, 'setDepartmentStatus', 'PUT', DEPARTMENT_STATUS_PATH, 'rbac:department:status', '', '中心管理', '', '']
+    coverage.insert(next(i for i, row in enumerate(coverage) if row[1] == 'deleteDepartment'), status_row)
     buf=io.StringIO(newline='');writer=csv.writer(buf,lineterminator='\n');writer.writerow(['systemId','operationId','method','path','permissionCode','requiredRole','category','uiResourceId','apiOperationId']);writer.writerows(row for row in coverage if row[1] != 'lookupIdentityUser')
     writer.writerows([1, oid, 'GET', path, 'TEC', 'admin', '统一身份鉴权', '', '']
                      for path, (oid, _) in DIRECTORY.items())
@@ -674,6 +679,56 @@ def validate(document):
     assert document['components']['schemas']['RoleVO']['properties']['identityRole']['enum']==['student','teacher','admin']
     return count
 
+def split_department_permissions(document):
+    status = q(document['paths'][DEPARTMENT_STATUS_PATH]['put']['x-required-permission'])
+    delete = q(document['paths']['/api/v1/departments/{id}']['delete']['x-required-permission'])
+    emit('db/migration/V5__department_lifecycle_permissions.sql', f"""-- Register department lifecycle capabilities without changing applied migrations.
+START TRANSACTION;
+
+INSERT INTO sys_permission (system_id, code, name, kind, status)
+SELECT id, {status}, '启停部门', 'API', 'ENABLED' FROM sys_system WHERE code='rbac-center'
+UNION ALL
+SELECT id, {delete}, '删除部门', 'API', 'ENABLED' FROM sys_system WHERE code='rbac-center'
+UNION ALL
+SELECT id, 'rbac:ui:setDepartmentStatus', '启停部门', 'UI', 'ENABLED' FROM sys_system WHERE code='rbac-center';
+
+UPDATE sys_api_operation a
+JOIN sys_system s ON s.id=a.system_id AND s.code='rbac-center'
+JOIN sys_permission p ON p.system_id=s.id AND p.kind='API' AND p.code={delete}
+SET a.permission_id=p.id, a.version=a.version+1
+WHERE a.operation_id='deleteDepartment';
+
+INSERT INTO sys_api_operation (system_id, operation_id, method, path_template, permission_id, access_policy)
+SELECT s.id, 'setDepartmentStatus', 'PUT', {q(DEPARTMENT_STATUS_PATH)}, p.id, 'PROTECTED'
+FROM sys_system s JOIN sys_permission p ON p.system_id=s.id AND p.kind='API' AND p.code={status}
+WHERE s.code='rbac-center';
+
+INSERT INTO sys_ui_resource (system_id, parent_id, type, code, name, sort_order, status, permission_id)
+SELECT s.id, menu.id, 'BUTTON', p.code, '启停部门', menu.sort_order, 'ENABLED', p.id
+FROM sys_system s
+JOIN sys_ui_resource menu ON menu.system_id=s.id AND menu.code='rbac:ui:departments:view'
+JOIN sys_permission p ON p.system_id=s.id AND p.kind='UI' AND p.code='rbac:ui:setDepartmentStatus'
+WHERE s.code='rbac-center';
+
+INSERT INTO sys_ui_api_mapping (ui_resource_id, api_operation_id)
+SELECT ui.id, a.id FROM sys_system s
+JOIN sys_ui_resource ui ON ui.system_id=s.id AND ui.code='rbac:ui:setDepartmentStatus'
+JOIN sys_api_operation a ON a.system_id=s.id AND a.operation_id='setDepartmentStatus'
+WHERE s.code='rbac-center';
+
+INSERT INTO sys_role_permission (role_id, permission_id)
+SELECT r.id, p.id FROM sys_system s
+JOIN sys_role r ON r.system_id=s.id AND r.builtin=TRUE AND r.code IN ('SUPER_ADMIN','RBAC_ADMIN')
+JOIN sys_permission p ON p.system_id=s.id AND (
+    (p.kind='API' AND p.code IN ({status},{delete}))
+    OR (p.kind='UI' AND p.code='rbac:ui:setDepartmentStatus'))
+WHERE s.code='rbac-center';
+
+UPDATE sys_grant_version SET version=version+1 WHERE id=1;
+
+COMMIT;
+""")
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--check',action='store_true');args=parser.parse_args()
     ddl()
@@ -681,7 +736,7 @@ def main():
     course, manifest = course_catalog()
     # V2 is an applied migration. Reconstruct the historical inputs while generating current coverage.
     legacy_document = dict(document, paths={p: methods for p, methods in document['paths'].items()
-                                           if p not in DIRECTORY})
+                                           if p not in DIRECTORY and p != DEPARTMENT_STATUS_PATH})
     legacy_course = [r for r in course if r['operationId'] != 'courseLogin']
     teacher_index = next(i for i, row in enumerate(legacy_course) if row['operationId'] == 'listTeachers')
     legacy_course.insert(teacher_index, {'operationId': 'lookupIdentityUser', 'method': 'GET',
@@ -689,9 +744,13 @@ def main():
                                          'permissionCode': 'TEC', 'requiredRole': 'admin'})
     counts = seed(legacy_document, legacy_course, manifest)
     counts['centerOperations'] = counts['validatedOasOperations'] = validate(document)
-    counts['mappings'] -= 1
+    # V4 removes the retired course mapping; V5 adds the department status mapping.
+    counts['permissions'] += 3
+    counts['uiResources'] += 1
+    counts['rolePermissionGrants'] += 6
     split_role_status_permission(document)
     update_course_identity()
+    split_department_permissions(document)
     old=list((RES/'db/migration').glob('V*.sql'))
     expected={p for p in OUTPUTS if p.suffix=='.sql'}
     if args.check:

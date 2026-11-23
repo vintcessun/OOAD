@@ -37,6 +37,10 @@ export async function runSuite(f, record) {
     return {status:r.status,body:data};
   }
   function status(r,expected) {assert.equal(r.status,expected,`HTTP expected ${expected}, received ${r.status} (${r.body?.code??'no error code'})`); if(expected>=400) {assert.equal(typeof r.body?.code,'string');assert.equal(typeof r.body?.message,'string');assert.ok(!JSON.stringify(r.body).includes('java.lang.'));}return r.body;}
+  function rejects(response, http, code) {
+    const body = status(response, http);
+    assert.equal(body.code, code);
+  }
   async function ok(method,path,body,auth=root) {
     const r=await request(method,'/api/v1'+path,body,auth);assert.ok(r.status>=200&&r.status<300,`${method} ${path}: expected success, received ${r.status} (${r.body?.code??'no code'})`);
     if(r.status===204) {assert.equal(r.body,null);return null;}assert.equal(r.body.code,'OK');assert.equal(r.body.message,'成功');assert.ok(Number.isFinite(Date.parse(r.body.timestamp)));return r.body.data;
@@ -71,6 +75,21 @@ export async function runSuite(f, record) {
   async function eligible(dep,roles) {await ok('PUT',`/departments/${dep.id}/assignable-roles`,{roleIds:roles.map(r=>r.id)});}
   async function assign(u,r) {return ok('POST',`/users/${u.id}/role-assignments`,{roleId:r.id});}
   async function createUser(username,dep) {return ok('POST','/users',{username,name:username,departmentId:dep.id,password:fixturePassword,no:`FIX-${username}`});}
+  async function createDepartment(parentId, code) {
+    return ok('POST', '/departments', {parentId, code, name: code});
+  }
+  async function storedAssignments(userId) {
+    const [rows] = await f.db.query('SELECT id, role_id FROM sys_user_role WHERE user_id=? ORDER BY id', [userId]);
+    return rows;
+  }
+  async function storedEligibility(departmentId) {
+    const [rows] = await f.db.query('SELECT role_id FROM sys_department_allowed_role WHERE department_id=? ORDER BY role_id', [departmentId]);
+    return rows.map(row => row.role_id);
+  }
+  async function grantEffects() {
+    const [[row]] = await f.db.query("SELECT version, (SELECT COUNT(*) FROM sys_audit_log WHERE result='SUCCESS') successes FROM sys_grant_version WHERE id=1");
+    return row;
+  }
   const auditHeaders={'X-Audit-Service-Key':f.serviceKey};
   const auditBody=()=>({requestId:randomUUID(),type:'score_changed',objectType:'student',objectId:'cpm-student-42',target:'fixture target',before:{status:'DRAFT'},after:{status:'PUBLISHED'}});
   const audit=(body,t=token,headers=auditHeaders)=>request('POST','/auth/audit-logs',body,t,0,headers);
@@ -171,6 +190,8 @@ export async function runSuite(f, record) {
   await scenario('ID-05 department move revokes only moved user not shared role',async()=>{
     const peer=await createUser('fixture_peer',department);await assign(peer,role);const pt=await freshLogin(peer.username,fixturePassword,C);
     const before=await ok('GET',`/roles/${role.id}/permissions`);
+    // Even when the receiving department allows the same role, a cross-department move clears it.
+    await eligible(sibling,[role]);
     await ok('PUT',`/users/${user.id}/department`,{departmentId:sibling.id});
     assert.deepEqual(await ok('GET',`/users/${user.id}/role-assignments?systemCode=${C}`),[]);assert.equal(await allowed(token),false);assert.equal(await allowed(pt),true);
     assert.deepEqual(await ok('GET',`/roles/${role.id}/permissions`),before);
@@ -246,6 +267,229 @@ export async function runSuite(f, record) {
     const outsider=await createUser('fixture_sibling',sibling);
     status(await request('PATCH',`/api/v1/users/${outsider.id}`,{name:'forbidden sibling'},t),403);
     status(await request('PUT',`/api/v1/users/${outsider.id}/department`,{departmentId:department.id},t),403);
+  });
+  await scenario('ORG-07 department edit, status and delete require distinct capabilities and subtree scope', async () => {
+    const home = await createDepartment(department.parentId, 'FX_DEPARTMENT_OPERATOR_HOME');
+    const operatorRole = await makeRole('FX_DEPARTMENT_OPERATOR', B);
+    const permissions = await ok('GET', `/permissions?systemCode=${B}&kind=API&keyword=rbac%3Adepartment%3A`);
+    const required = suffix => {
+      const permission = permissions.items.find(p => p.code === `rbac:department:${suffix}`);
+      assert.ok(permission, `Department ${suffix} API permission must come from the migration`);
+      return permission;
+    };
+    const [edit, changeStatus, remove] = ['edit', 'status', 'delete'].map(required);
+    await grant(operatorRole, [edit]);
+    await eligible(home, [operatorRole]);
+    const operator = await createUser('fixture_department_operator', home);
+    await assign(operator, operatorRole);
+    const operatorToken = await freshLogin(operator.username, fixturePassword, B);
+    const leaf = await ok('POST', '/departments', {
+      parentId: home.id, code: 'FX_DEPARTMENT_OPERATOR_LEAF', name: 'Operator leaf',
+    }, operatorToken);
+    const leafPath = `/departments/${leaf.id}`;
+    const guarded = (method, path, body) => request(method, `/api/v1${path}`, body, operatorToken);
+    assert.equal((await ok('PATCH', leafPath, {name: 'Renamed leaf'}, operatorToken)).name, 'Renamed leaf');
+    rejects(await guarded('PUT', `${leafPath}/status`, {status: 'DISABLED'}), 403, 'PERMISSION_DENIED');
+    rejects(await guarded('DELETE', leafPath), 403, 'PERMISSION_DENIED');
+
+    const refuseProfileEdits = async () => {
+      rejects(await guarded('POST', '/departments', {parentId: home.id, code: 'FX_FORBIDDEN_CHILD', name: 'Forbidden'}), 403, 'PERMISSION_DENIED');
+      rejects(await guarded('PATCH', leafPath, {name: 'Forbidden rename'}), 403, 'PERMISSION_DENIED');
+    };
+    await grant(operatorRole, [changeStatus]);
+    await refuseProfileEdits();
+    rejects(await guarded('DELETE', leafPath), 403, 'PERMISSION_DENIED');
+    rejects(await guarded('PUT', `/departments/${sibling.id}/status`, {status: 'DISABLED'}), 403, 'OUT_OF_MANAGE_SCOPE');
+    status(await guarded('PUT', `${leafPath}/status`, {status: 'ACTIVE'}), 400);
+    assert.equal((await ok('PUT', `${leafPath}/status`, {status: 'DISABLED'}, operatorToken)).status, 'DISABLED');
+    assert.equal((await ok('PUT', `${leafPath}/status`, {status: 'ENABLED'}, operatorToken)).status, 'ENABLED');
+
+    await grant(operatorRole, [remove]);
+    await refuseProfileEdits();
+    rejects(await guarded('PUT', `${leafPath}/status`, {status: 'DISABLED'}), 403, 'PERMISSION_DENIED');
+    rejects(await guarded('DELETE', `/departments/${sibling.id}`), 403, 'OUT_OF_MANAGE_SCOPE');
+    rejects(await guarded('DELETE', `/departments/${home.id}`), 409, 'DEPARTMENT_NOT_EMPTY');
+    await eligible(leaf, [operatorRole]);
+    assert.equal(await ok('DELETE', leafPath, undefined, operatorToken), null);
+    const [remaining] = await f.db.query('SELECT id FROM sys_department WHERE id=?', [leaf.id]);
+    assert.deepEqual(remaining, []);
+    assert.deepEqual(await storedEligibility(leaf.id), []);
+  });
+  await scenario('ORG department suspension preserves existing member access and closes new admissions', async () => {
+    const parent = await createDepartment(department.parentId, 'FX_LIFECYCLE_PARENT');
+    const leaf = await createDepartment(parent.id, 'FX_LIFECYCLE_LEAF');
+    const courseRoles = await ok('GET', `/roles?systemCode=${C}&pageSize=100`);
+    const courseAdmin = courseRoles.items.find(candidate => candidate.code === 'admin');
+    assert.ok(courseAdmin);
+    const extraRole = await makeRole('FX_LIFECYCLE_EXTRA');
+    await eligible(leaf, [courseAdmin, role, extraRole]);
+    await eligible(parent, [extraRole]);
+    const member = await createUser('fixture_lifecycle_member', leaf);
+    await assign(member, courseAdmin);
+    const revocable = await assign(member, role);
+    const memberToken = await freshLogin(member.username, fixturePassword, C);
+    const outgoing = await createUser('fixture_lifecycle_outgoing', leaf);
+    await assign(outgoing, extraRole);
+    const incoming = await createUser('fixture_lifecycle_incoming', parent);
+    const statusPath = `/departments/${leaf.id}/status`;
+    const courseChildren = `/auth/departments?parentId=${parent.id}&keyword=${leaf.code}`;
+    const courseMembers = `/auth/departments/${leaf.id}/users`;
+    const readCourse = path => request('GET', path, undefined, memberToken);
+    assert.equal(status(await readCourse(courseChildren), 200).items[0]?.id, leaf.id);
+    assert.equal(status(await readCourse(courseMembers), 200).total, 2);
+
+    const precondition = await grantEffects();
+    rejects(await request('PUT', `/api/v1/departments/${department.parentId}/status`, {status: 'DISABLED'}), 409, 'ROOT_DEPARTMENT_DISABLE_FORBIDDEN');
+    rejects(await request('PUT', `/api/v1/departments/${parent.id}/status`, {status: 'DISABLED'}), 409, 'DEPARTMENT_HAS_CHILDREN');
+    assert.deepEqual(await grantEffects(), precondition);
+    const [[memberBefore]] = await f.db.query('SELECT status, token_version, version FROM sys_user WHERE id=?', [member.id]);
+    const memberAssignments = await storedAssignments(member.id);
+
+    assert.equal((await ok('PUT', statusPath, {status: 'DISABLED'})).status, 'DISABLED');
+    const [[disabled]] = await f.db.query('SELECT status, version FROM sys_department WHERE id=?', [leaf.id]);
+    assert.equal(disabled.status, 'DISABLED');
+    const afterDisable = await grantEffects();
+    assert.deepEqual(afterDisable, {version: precondition.version + 1, successes: precondition.successes + 1});
+    const [[statusAudit]] = await f.db.query("SELECT COUNT(*) n FROM sys_audit_log WHERE event_type='DEPARTMENT_STATUS_CHANGED' AND actor_id=1 AND target=? AND result='SUCCESS'", [String(leaf.id)]);
+    assert.equal(statusAudit.n, 1);
+
+    assert.equal((await ok('PUT', statusPath, {status: 'DISABLED'})).status, 'DISABLED');
+    const departmentTree = await ok('GET', '/departments/tree');
+    const parentNode = departmentTree.flatMap(dept => dept.children).find(dept => dept.id === parent.id);
+    assert.equal(parentNode?.children.find(dept => dept.id === leaf.id)?.status, 'DISABLED');
+    assert.deepEqual(status(await readCourse(courseChildren), 200).items, []);
+    rejects(await readCourse(courseMembers), 404, 'NOT_FOUND');
+    assert.equal(await allowed(memberToken, ui.code), true);
+    const newUser = {username: 'fixture_lifecycle_blocked', name: 'Blocked', departmentId: leaf.id, password: fixturePassword};
+    for (const [method, path, body] of [
+      ['POST', '/departments', {parentId: leaf.id, code: 'FX_LIFECYCLE_BLOCKED', name: 'Blocked'}],
+      ['POST', '/users', newUser],
+      ['PUT', `/users/${incoming.id}/department`, {departmentId: leaf.id}],
+      ['POST', `/users/${member.id}/role-assignments`, {roleId: extraRole.id}],
+    ]) rejects(await request(method, `/api/v1${path}`, body), 409, 'DEPARTMENT_DISABLED');
+    assert.deepEqual(await grantEffects(), afterDisable);
+    const [[departmentAfter]] = await f.db.query('SELECT status, version FROM sys_department WHERE id=?', [leaf.id]);
+    assert.deepEqual(departmentAfter, disabled);
+    const [[memberAfter]] = await f.db.query('SELECT status, token_version, version FROM sys_user WHERE id=?', [member.id]);
+    assert.deepEqual(memberAfter, memberBefore);
+    assert.deepEqual(await storedAssignments(member.id), memberAssignments);
+    const [[incomingAfter]] = await f.db.query('SELECT department_id FROM sys_user WHERE id=?', [incoming.id]);
+    assert.equal(incomingAfter.department_id, parent.id);
+    const [[newRecords]] = await f.db.query("SELECT (SELECT COUNT(*) FROM sys_user WHERE username=?) + (SELECT COUNT(*) FROM sys_department WHERE code='FX_LIFECYCLE_BLOCKED') n", [newUser.username]);
+    assert.equal(newRecords.n, 0);
+
+    const outgoingAssignments = await storedAssignments(outgoing.id);
+    assert.equal((await ok('PUT', `/users/${outgoing.id}/department`, {departmentId: leaf.id})).departmentId, leaf.id);
+    assert.deepEqual(await storedAssignments(outgoing.id), outgoingAssignments);
+    assert.equal((await ok('PUT', `/users/${outgoing.id}/department`, {departmentId: parent.id})).departmentId, parent.id);
+    assert.deepEqual(await storedAssignments(outgoing.id), []);
+    await ok('DELETE', `/users/${member.id}/role-assignments/${revocable.id}`);
+    assert.equal(await allowed(memberToken, ui.code), false);
+
+    assert.equal((await ok('PUT', statusPath, {status: 'ENABLED'})).status, 'ENABLED');
+    assert.equal(status(await readCourse(courseChildren), 200).items[0]?.id, leaf.id);
+    assert.equal(status(await readCourse(courseMembers), 200).total, 1);
+    assert.equal((await ok('PUT', `/users/${incoming.id}/department`, {departmentId: leaf.id})).departmentId, leaf.id);
+    assert.equal((await assign(member, extraRole)).roleId, extraRole.id);
+    assert.equal((await createUser('fixture_lifecycle_reopened', leaf)).departmentId, leaf.id);
+    assert.equal((await createDepartment(leaf.id, 'FX_LIFECYCLE_REOPENED_CHILD')).parentId, leaf.id);
+  });
+  await scenario('ID-04 user restoration checks retained role permissions and identity marks independently', async () => {
+    const home = await createDepartment(department.parentId, 'FX_RESTORATION_HOME');
+    const operatorRole = await makeRole('FX_RESTORATION_OPERATOR', B);
+    await grant(operatorRole, [await makePermission('rbac:user:edit', 'API', B)]);
+    const permissionRole = await makeRole('FX_RESTORATION_PERMISSION');
+    const permissionJunior = await makeRole('FX_RESTORATION_PERMISSION_JUNIOR');
+    await grant(permissionJunior, [apiPermission]);
+    status(await edge(permissionRole, permissionJunior), 200);
+    const identityRole = await makeRole('FX_RESTORATION_IDENTITY');
+    const identityJunior = await makeRole('FX_RESTORATION_IDENTITY_JUNIOR', C, 'student');
+    status(await edge(identityRole, identityJunior), 200);
+    await eligible(home, [operatorRole, permissionRole, identityRole]);
+    const operator = await createUser('fixture_restoration_operator', home);
+    await assign(operator, operatorRole);
+    const operatorToken = await freshLogin(operator.username, fixturePassword, B);
+
+    const storedStatus = async id => {
+      const [[row]] = await f.db.query('SELECT status, token_version, version FROM sys_user WHERE id=?', [id]);
+      return row;
+    };
+    const targets = [];
+    for (const [label, retainedRole] of [['permission', permissionRole], ['identity', identityRole]]) {
+      const target = await createUser(`fixture_restoration_${label}`, home);
+      const assignment = await assign(target, retainedRole);
+      const path = `/users/${target.id}/status`;
+      await ok('PUT', path, {status: 'DISABLED'});
+      const profile = await storedStatus(target.id);
+      assert.equal(profile.status, 'DISABLED');
+      const assignments = await storedAssignments(target.id);
+      assert.deepEqual(assignments, [{id: assignment.id, role_id: retainedRole.id}]);
+      const before = await grantEffects();
+      rejects(await request('PUT', `/api/v1${path}`, {status: 'ACTIVE'}, operatorToken), 403, 'PRIVILEGE_ESCALATION');
+      assert.deepEqual(await storedStatus(target.id), profile);
+      assert.deepEqual(await storedAssignments(target.id), assignments);
+      assert.deepEqual(await grantEffects(), before);
+      targets.push({target, path, assignments});
+    }
+
+    const systems = await ok('GET', '/systems');
+    const course = systems.find(system => system.code === C);
+    assert.ok(course);
+    const paused = targets[0];
+    await ok('PUT', `/systems/${course.id}/status`, {status: 'DISABLED'});
+    try {
+      assert.equal((await ok('PUT', paused.path, {status: 'ACTIVE'}, operatorToken)).status, 'ACTIVE');
+      assert.deepEqual(await storedAssignments(paused.target.id), paused.assignments);
+      await ok('PUT', paused.path, {status: 'DISABLED'});
+    } finally {
+      await ok('PUT', `/systems/${course.id}/status`, {status: 'ENABLED'});
+    }
+
+    await assign(operator, permissionRole);
+    await assign(operator, identityRole);
+    for (const {target, path, assignments} of targets) {
+      const before = await grantEffects();
+      assert.equal((await ok('PUT', path, {status: 'ACTIVE'}, operatorToken)).status, 'ACTIVE');
+      assert.equal((await storedStatus(target.id)).status, 'ACTIVE');
+      assert.deepEqual(await storedAssignments(target.id), assignments);
+      assert.deepEqual(await grantEffects(), {version: before.version + 1, successes: before.successes + 1});
+    }
+  });
+  await scenario('ROLE-05 edit-only replacement preserves unchanged disabled system eligibility', async () => {
+    const home = await createDepartment(department.parentId, 'FX_ELIGIBILITY_OPERATOR_HOME');
+    const target = await createDepartment(home.id, 'FX_ELIGIBILITY_TARGET');
+    const operatorRole = await makeRole('FX_ELIGIBILITY_OPERATOR', B);
+    await grant(operatorRole, [await makePermission('rbac:department:edit', 'API', B)]);
+    await eligible(home, [operatorRole]);
+    const operator = await createUser('fixture_eligibility_operator', home);
+    await assign(operator, operatorRole);
+    const operatorToken = await freshLogin(operator.username, fixturePassword, B);
+    const activeRole = await makeRole('FX_ELIGIBILITY_ENABLED', B);
+    const pausedSystem = await ok('POST', '/systems', {code: 'fixture-paused-eligibility', name: 'Fixture paused eligibility'});
+    const retained = await makeRole('FX_ELIGIBILITY_RETAINED', pausedSystem.code);
+    const added = await makeRole('FX_ELIGIBILITY_ADDED', pausedSystem.code);
+    await eligible(target, [retained]);
+    const member = await createUser('fixture_eligibility_member', target);
+    await assign(member, retained);
+    const path = `/departments/${target.id}/assignable-roles`;
+    rejects(await request('GET', `/api/v1${path}`, undefined, operatorToken), 403, 'PERMISSION_DENIED');
+    await ok('PUT', `/systems/${pausedSystem.id}/status`, {status: 'DISABLED'});
+    const before = await grantEffects();
+    const retainedAssignment = await storedAssignments(member.id);
+    for (const roleIds of [[retained.id, added.id], []]) {
+      rejects(await request('PUT', `/api/v1${path}`, {roleIds}, operatorToken), 403, 'PRIVILEGE_ESCALATION');
+      assert.deepEqual(await storedEligibility(target.id), [retained.id]);
+      assert.deepEqual(await storedAssignments(member.id), retainedAssignment);
+      assert.deepEqual(await grantEffects(), before);
+    }
+    assert.equal(await ok('PUT', path, {roleIds: [retained.id, activeRole.id]}, operatorToken), null);
+    assert.deepEqual(await storedEligibility(target.id), [activeRole.id, retained.id]);
+    assert.deepEqual(await storedAssignments(member.id), retainedAssignment);
+    assert.deepEqual(await grantEffects(), {version: before.version + 1, successes: before.successes + 1});
+
+    assert.equal(await ok('PUT', path, {roleIds: [activeRole.id, added.id]}), null);
+    assert.deepEqual(await storedEligibility(target.id), [activeRole.id, added.id]);
+    assert.deepEqual(await storedAssignments(member.id), []);
   });
   await scenario('ROLE status and profile changes require separate API permissions',async()=>{
     const [[hq]]=await f.db.query('SELECT id FROM sys_department WHERE parent_id IS NULL ORDER BY id LIMIT 1');

@@ -956,7 +956,7 @@ paths:
       - 部门与角色准入
       x-apifox-folder: 部门与角色准入
       description: 删除管理范围内的空部门并清理其角色准入配置。指定部门为根部门或仍关联人员、子部门时返回 HTTP 409。
-      x-required-permission: rbac:department:edit
+      x-required-permission: rbac:department:delete
       x-required-audience: rbac-center
       responses:
         '200':
@@ -996,6 +996,62 @@ paths:
           $ref: '#/components/responses/Conflict'
         '503':
           $ref: '#/components/responses/Unavailable'
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id002
+  /api/v1/departments/{id}/status:
+    put:
+      operationId: setDepartmentStatus
+      summary: 启用或停用部门
+      tags:
+      - 部门与角色准入
+      x-apifox-folder: 部门与角色准入
+      description: 启用或停用管理范围内指定部门。仅非根且无子部门的节点可停用。停用保留成员和既有角色指派，并关闭新接纳。
+      x-required-permission: rbac:department:status
+      x-required-audience: rbac-center
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - OK
+                  message:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/DepartmentVO'
+                  timestamp: *id001
+                required:
+                - code
+                - message
+                - data
+                - timestamp
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StatusInput'
       parameters:
       - name: id
         in: path

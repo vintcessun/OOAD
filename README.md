@@ -26,7 +26,7 @@
 ## 工程
 
 ```text
-rbac-contract/      唯一 OpenAPI、V1–V4、课程 80 操作目录；不含共享业务实现
+rbac-contract/      唯一 OpenAPI、V1–V5、课程 80 操作目录；不含共享业务实现
 rbac-structured/    Controller → 无状态 Service → Spring Data/JPA/Redis Mapper
 rbac-ddd/           独立纯JDK领域、应用编排、端口、JPA/Redis适配器及REST
 rbac-course-proxy/  课程路由匹配、请求限额和固定上游转发
@@ -40,7 +40,7 @@ tools/             合同生成、CloneFactory、共享真库验收和设计核�
 ```
 
 权限中心均为 Java21 / Spring Boot3.3.5 / JPA / MySQL8 / Redis7。教师工程保留其固定版本和 MIT 许可，不伪装为我方重新实现的课程业务。
-共享契约目前为 **67 个中心操作、80 个课程操作、15 张表**；两个额外私有身份投影不向浏览器开放。
+共享契约目前为 **68 个中心操作、80 个课程操作、15 张表**。两个私有身份投影仅供受信服务调用。
 
 非RBAC导论实验已迁入独立私有仓库 [vintcessun/intro-spec-coding](https://github.com/vintcessun/intro-spec-coding)。原四条历史及1176个文件的初始 tree `29c24ee631060a8d208350ad65ac2b294b25ce95` 已与远端核验；后续提交 `381e498` 修正独立说明和凭据忽略规则。原目录退出主仓库，被忽略的私有资产保全在仓库外。
 

@@ -31,17 +31,27 @@ deactivate auth
 svc -> auth: 6. scope(actor, user.departmentId)
 activate auth
 deactivate auth
+alt department is disabled
+svc -> svc: 7. requireAccepting(department)
+activate svc
+svc --> obj: DEPARTMENT_DISABLED; abort
+deactivate svc
+else department accepts assignments
+svc -> svc: 8. requireAccepting(department)
+activate svc
+deactivate svc
+end
 note over svc
 ACTIVE user and enabled role/system required.
 end note
-svc -> repo: 7. one(DepartmentAllowedRole.class, predicate, departmentId, roleId)
+svc -> repo: 9. one(DepartmentAllowedRole.class, predicate, departmentId, roleId)
 activate repo
 deactivate repo
 alt admitted
-svc -> auth: 8. upper(actor, systemCode, proposed)
+svc -> auth: 10. upper(actor, systemCode, proposed)
 activate auth
 deactivate auth
-svc -> repo: 9. save(ur)
+svc -> repo: 11. save(ur)
 activate repo
 deactivate repo
 else disabled / forbidden
@@ -50,7 +60,7 @@ end
 note over svc
 finish: Store.flush → preserveAdministrator → g.version++
 end note
-svc -> audit: 10. success(actor, ROLE_ASSIGNED, userId)
+svc -> audit: 12. success(actor, ROLE_ASSIGNED, userId)
 activate audit
 deactivate audit
 end

@@ -132,6 +132,7 @@ public class ManagementService {
         }
         az.scope(a, input.parentId());
         Department parent = az.require(Department.class, input.parentId());
+        requireAccepting(parent);
         Department d = CloneFactory.copy(new Department(), input);
         d.parentId = parent.id;
         d.path = parent.path;
@@ -152,14 +153,40 @@ public class ManagementService {
         finish(g, a, "DEPARTMENT_UPDATED", id);
         return department(d);
     }
+    /** 启停只改变部门接纳状态，已有成员和直接指派保留。 */
+    @Transactional
+    public Object departmentStatus(Actor a, Long id, String status) {
+        GrantVersion g = begin(a, "rbac:department:status", false);
+        az.scope(a, id);
+        Department d = az.require(Department.class, id);
+        if (!"DISABLED".equals(status) && !"ENABLED".equals(status))
+            throw BizException.bad("VALIDATION_ERROR");
+        if (status.equals(d.status)) return department(d);
+        if ("DISABLED".equals(status)) {
+            if (d.parentId == null)
+                throw BizException.conflict("ROOT_DEPARTMENT_DISABLE_FORBIDDEN");
+            if (departmentHasChildren(id))
+                throw BizException.conflict("DEPARTMENT_HAS_CHILDREN");
+        }
+        d.status = status;
+        finish(g, a, "DEPARTMENT_STATUS_CHANGED", id);
+        return department(d);
+    }
+    private boolean departmentHasChildren(Long id) {
+        return !db.where(Department.class, "e.parentId=?1", id).isEmpty();
+    }
+    private void requireAccepting(Department department) {
+        if (!"ENABLED".equals(department.status))
+            throw BizException.conflict("DEPARTMENT_DISABLED");
+    }
     /** 执行deleteDepartment操作，保持服务到持久化层的单向依赖。 */
     @Transactional
     public void deleteDepartment(Actor a, Long id) {
-        GrantVersion g = begin(a, "rbac:department:edit", false);
+        GrantVersion g = begin(a, "rbac:department:delete", false);
         az.scope(a, id);
         Department d = az.require(Department.class, id);
         if (d.parentId == null || !db.where(User.class, "e.departmentId=?1", id).isEmpty()
-            || !db.where(Department.class, "e.parentId=?1", id).isEmpty())
+            || departmentHasChildren(id))
             throw BizException.conflict("DEPARTMENT_NOT_EMPTY");
         for (DepartmentAllowedRole r :
             db.where(DepartmentAllowedRole.class, "e.departmentId=?1", id))
@@ -181,17 +208,29 @@ public class ManagementService {
     }
     /** 原子替换部门角色准入并回收不合资格指派。 */
     @Transactional
-    public Object replaceAllowed(Actor a, Long id, List<Long> roles) {
+    public void replaceAllowed(Actor a, Long id, List<Long> roles) {
         GrantVersion g = begin(a, "rbac:department:edit", false);
         az.scope(a, id);
-        for (Long role : roles) {
-            Role r = az.require(Role.class, role);
-            az.upper(a, code(r.systemId), az.calculate(List.of(r.id), r.systemId));
-        }
         Set<Long> wanted = new HashSet<>(roles);
-        for (DepartmentAllowedRole old :
-            db.where(DepartmentAllowedRole.class, "e.departmentId=?1", id))
-            db.remove(old);
+        List<DepartmentAllowedRole> current = db.where(DepartmentAllowedRole.class,
+            "e.departmentId=?1", id);
+        Set<Long> existing = new HashSet<>();
+        for (DepartmentAllowedRole row : current) existing.add(row.roleId);
+        for (Long roleId : wanted) {
+            Role role = az.require(Role.class, roleId);
+            SoftwareSystem system = az.require(SoftwareSystem.class, role.systemId);
+            if ("ENABLED".equals(system.status)) {
+                az.upper(a, system.code, az.calculate(List.of(roleId), system.id));
+            } else if (!existing.contains(roleId)) {
+                az.requireRoleGrantSystem(a, system);
+            }
+        }
+        for (Long roleId : existing) {
+            if (wanted.contains(roleId)) continue;
+            Role role = az.require(Role.class, roleId);
+            az.requireRoleGrantSystem(a, az.require(SoftwareSystem.class, role.systemId));
+        }
+        for (DepartmentAllowedRole old : current) db.remove(old);
         db.flush();
         for (Long role : wanted) {
             DepartmentAllowedRole allowed = new DepartmentAllowedRole();
@@ -204,7 +243,6 @@ public class ManagementService {
                 if (!wanted.contains(assignment.roleId))
                     db.remove(assignment);
         finish(g, a, "DEPARTMENT_ROLES_REPLACED", id);
-        return allowedRoles(a, id, null);
     }
     /** 执行users操作，保持服务到持久化层的单向依赖。 */
     public Object users(
@@ -243,6 +281,7 @@ public class ManagementService {
     public Object createUser(Actor a, Inputs.UserCreate input) {
         GrantVersion g = begin(a, "rbac:user:edit", false);
         az.scope(a, input.departmentId());
+        requireAccepting(az.require(Department.class, input.departmentId()));
         User u = CloneFactory.copy(new User(), input);
         u.subject = "rbac-" + UUID.randomUUID();
         u.passwordHash = passwords.encode(input.password());
@@ -309,6 +348,7 @@ public class ManagementService {
         az.scope(a, u.departmentId);
         az.scope(a, input.departmentId());
         if (!Objects.equals(u.departmentId, input.departmentId())) {
+            requireAccepting(az.require(Department.class, input.departmentId()));
             u.departmentId = input.departmentId();
             for (UserRole ur : db.where(UserRole.class, "e.userId=?1", id))
                 db.remove(ur);
@@ -532,6 +572,7 @@ public class ManagementService {
         GrantVersion g = begin(a, "rbac:assignment:edit", false);
         User u = az.require(User.class, id);
         az.scope(a, u.departmentId);
+        requireAccepting(az.require(Department.class, u.departmentId));
         if (!"ACTIVE".equals(u.status))
             throw BizException.conflict("USER_DISABLED");
         Role r = az.require(Role.class, role);

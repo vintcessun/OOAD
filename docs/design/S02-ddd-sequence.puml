@@ -15,6 +15,7 @@ participant "repo: AuthorizationRepository" as repo
 participant "user: User" as user
 participant "audit: AuditApplicationService" as audit
 participant "directory: DirectoryRepository" as directory
+participant "organization: OrganizationPolicy" as organization
 participant "eligibility: DepartmentEligibility" as eligibility
 participant "integrity: GrantIntegrityService" as integrity
 activate obj
@@ -35,24 +36,43 @@ deactivate directory
 note over svc
 managed(actor, department) checks OrganizationPolicy scope.
 end note
-svc -> repo: 6. role(roleId)
+alt department is disabled
+svc -> organization: 6. requireAccepting(department)
+activate organization
+organization --> obj: DEPARTMENT_DISABLED; abort
+deactivate organization
+else department accepts assignments
+svc -> organization: 7. requireAccepting(department)
+activate organization
+deactivate organization
+end
+svc -> repo: 8. role(roleId)
 activate repo
 deactivate repo
-svc -> auth: 7. upperBound(actor, systemCode, proposed)
+svc -> repo: 9. systemEnabled(systemCode)
+activate repo
+deactivate repo
+note over svc
+Disabled target system throws ROLE_DISABLED.
+end note
+svc -> svc: 10. requireRoleWithin(actor, role)
+activate svc
+svc -> auth: 11. upperBound(actor, systemCode, proposed)
 activate auth
 deactivate auth
-svc -> repo: 8. eligibility(departmentId)
+deactivate svc
+svc -> repo: 12. eligibility(departmentId)
 activate repo
 deactivate repo
 alt user inactive / department mismatch
-svc -> user: 9. assign(role, eligibility)
+svc -> user: 13. assign(role, eligibility)
 activate user
 user --> obj: DomainException; abort / rollback
 deactivate user
 else user admits assignment
-svc -> user: 10. assign(role, eligibility)
+svc -> user: 14. assign(role, eligibility)
 activate user
-user -> eligibility: 11. requireEligible(role)
+user -> eligibility: 15. requireEligible(role)
 activate eligibility
 deactivate eligibility
 deactivate user
@@ -61,17 +81,17 @@ Missing eligibility or disabled role throws here.
 User then rejects duplicate direct assignment; all exceptions
 abort before DirectoryRepository.assign.
 end note
-svc -> directory: 12. assign(userId, roleId, actor.id())
+svc -> directory: 16. assign(userId, roleId, actor.id())
 activate directory
 deactivate directory
 end
-svc -> integrity: 13. requireAdministrator()
+svc -> integrity: 17. requireAdministrator()
 activate integrity
 deactivate integrity
-svc -> repo: 14. advanceVersion()
+svc -> repo: 18. advanceVersion()
 activate repo
 deactivate repo
-svc -> audit: 15. local(actor, rbac-center, ROLE_ASSIGNED, subject, SUCCESS, null)
+svc -> audit: 19. local(actor, rbac-center, ROLE_ASSIGNED, subject, SUCCESS, null)
 activate audit
 deactivate audit
 end

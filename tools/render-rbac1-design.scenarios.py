@@ -66,7 +66,7 @@ def build_sequences():
            'auth':'AuthorizationApplicationService' if d else 'AuthorizationService',
            'repo':'AuthorizationRepository' if d else 'Store',
            'user':'User' if d else 'Store','audit':'AuditApplicationService' if d else 'AuditService'}
-        if d:p.update({'directory':'DirectoryRepository','eligibility':'DepartmentEligibility','integrity':'GrantIntegrityService'})
+        if d:p.update({'directory':'DirectoryRepository','organization':'OrganizationPolicy','eligibility':'DepartmentEligibility','integrity':'GrantIntegrityService'})
         else:p.pop('user',None)
         q=Sequence('S02-'+mode+'-sequence',mode,p,'ctl','assign' if d else handler(mode,'assign'),'bearer, userId, input' if d else 'actor, userId, input')
         q.open('ctl','svc','assign','principal, userId, roleId' if d else 'actor, userId, roleId')
@@ -75,7 +75,13 @@ def build_sequences():
         q.call('svc','auth','require' if d else 'center','principal, rbac:assignment:edit, false' if d else 'actor, rbac:assignment:edit')
         if d:
             q.call('svc','directory','user','userId, true');q.raw('note over svc: managed(actor, department) checks OrganizationPolicy scope.')
-            q.call('svc','repo','role','roleId');q.call('svc','auth','upperBound','actor, systemCode, proposed')
+            q.raw('alt department is disabled');q.open('svc','organization','requireAccepting','department')
+            q.raw('organization --> obj: DEPARTMENT_DISABLED; abort');q.close('organization','svc')
+            q.raw('else department accepts assignments');q.call('svc','organization','requireAccepting','department')
+            q.raw('end');q.call('svc','repo','role','roleId');q.call('svc','repo','systemEnabled','systemCode')
+            q.raw('note over svc: Disabled target system throws ROLE_DISABLED.')
+            q.open('svc','svc','requireRoleWithin','actor, role');q.call('svc','auth','upperBound','actor, systemCode, proposed')
+            q.close('svc','svc')
             q.call('svc','repo','eligibility','departmentId')
             q.raw('alt user inactive / department mismatch')
             q.open('svc','user','assign','role, eligibility');q.raw('user --> obj: DomainException; abort / rollback');q.close('user','svc')
@@ -85,7 +91,11 @@ def build_sequences():
             q.call('svc','directory','assign','userId, roleId, actor.id()');q.raw('end')
         else:
             q.call('svc','auth','captureUpper','actor');q.call('svc','auth','scope','actor, user.departmentId')
-            q.raw('note over svc: ACTIVE user and enabled role/system required.')
+            q.raw('alt department is disabled')
+            q.open('svc','svc','requireAccepting','department')
+            q.raw('svc --> obj: DEPARTMENT_DISABLED; abort');q.close('svc','svc')
+            q.raw('else department accepts assignments');q.call('svc','svc','requireAccepting','department')
+            q.raw('end\nnote over svc: ACTIVE user and enabled role/system required.')
             q.call('svc','repo','one','DepartmentAllowedRole.class, predicate, departmentId, roleId')
             q.raw('alt admitted');q.call('svc','auth','upper','actor, systemCode, proposed');q.call('svc','repo','save','ur')
             q.raw('else disabled / forbidden\nsvc --> obj: BizException; abort / rollback\nend')

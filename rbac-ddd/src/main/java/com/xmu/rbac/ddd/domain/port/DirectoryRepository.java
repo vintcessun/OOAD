@@ -70,6 +70,8 @@ public interface DirectoryRepository {
 
     boolean departmentOccupied(long id);
 
+    boolean departmentHasChildren(long id);
+
     AuthorizationRepository.Page<Profile> users(
             String keyword, Long departmentId, String status, String actorPath, int page, int size);
 

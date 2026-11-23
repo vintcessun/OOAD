@@ -26,7 +26,7 @@ link:design/swarm-deployment-current.png[PNG] · link:design/swarm-deployment-cu
 
 == 安全边界
 
-RBAC1 V1/V2 用于初始化新库。已执行当前 RBAC1 V1/V2 的库随新版本应用 V3 和 V4，分别更新角色启停权限及课程身份目录与登录登记。保留 Flyway 历史及校验和，旧 RBAC0 库须另行迁移。
+RBAC1 V1/V2 用于初始化新库。Flyway 随发布应用未运行的 V3–V5，分别更新角色启停权限、课程身份目录和登录登记，以及部门启停与删除权限。保留 Flyway 历史及校验和，旧 RBAC0 库须另行迁移。
 构建/测试实例仅loopback13306/16379，课程测试13316，与部署私有数据卷隔离；禁止把运行中的部署数据库当测试库。
 任何脚本不得prune、删除旧服务/卷、误杀共享JVM或操作其它stack；旧服务名冲突应拒绝并请求维护窗口，不自动迁移。
 

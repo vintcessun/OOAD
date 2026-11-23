@@ -1,10 +1,15 @@
 import { onScopeDispose, ref, shallowRef } from 'vue'
+import type { TreeSelectOption } from 'naive-ui'
 import { useAuthStore } from '@/stores/auth'
 import { ApiError } from '@/api/http'
+import type { DepartmentVO } from '@/api/types'
 import type { Field, RecordEditor } from '@/components/RecordForm.vue'
 
 export function errorText(error: unknown) {
   if (error instanceof ApiError && error.code === 'ROLE_CYCLE') return '这条关系会形成循环。请选择另一个被继承角色，或先移除冲突的继承关系（ROLE_CYCLE）。'
+  if (error instanceof ApiError && error.code === 'DEPARTMENT_DISABLED') return '该部门已停用，暂停接纳。请刷新部门状态或选择启用的部门。'
+  if (error instanceof ApiError && error.code === 'DEPARTMENT_HAS_CHILDREN') return '该部门仍有子部门，无法停用。'
+  if (error instanceof ApiError && error.code === 'ROOT_DEPARTMENT_DISABLE_FORBIDDEN') return '根部门必须保持启用。'
   return error instanceof Error ? error.message : '操作未完成，请稍后重试。'
 }
 
@@ -106,6 +111,15 @@ export function tone(value: string) {
 }
 export function flatten<T extends { children: T[] }>(rows: T[]): T[] {
   return rows.flatMap(row => [row, ...flatten(row.children ?? [])])
+}
+export function departmentOptions(rows: DepartmentVO[], enabledOnly = false): TreeSelectOption[] {
+  return rows
+    .filter(department => !enabledOnly || department.status === 'ENABLED')
+    .map(department => ({
+      key: department.id,
+      label: department.name,
+      children: departmentOptions(department.children ?? [], enabledOnly),
+    }))
 }
 export function positiveId(value: unknown) {
   return typeof value === 'string' && /^[1-9]\d*$/.test(value) && Number.isSafeInteger(Number(value)) ? Number(value) : null

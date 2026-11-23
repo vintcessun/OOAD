@@ -41,7 +41,7 @@ DDD 角色删除由 RoleController 和 RoleApplicationService 负责。有效权
 |===
 |公共内容 |汇总人 |原始责任仍归属
 |ER/表关系 |B |各人负责本链路表；用户凭据 A/B，角色关联 B/C，授权版本 C/D，审计 F
-|OpenAPI/路由覆盖 |E |各人负责自己操作；link:api-matrix.adoc[64操作责任表]
+|OpenAPI/路由覆盖 |E |各人负责自己操作，见 link:api-matrix.adoc[68 操作责任表]
 |CloneFactory/JPA/事务/错误转换 |A |每人指出自己链路的真实代码，不以公共说明代替检查
 |双实现测试等价/归一化 |D |各人阅读本链路断言、夹具、DB后置条件
 |UML/版本索引 |F协调 |各主审人核对自己的两版图，实际打开PNG

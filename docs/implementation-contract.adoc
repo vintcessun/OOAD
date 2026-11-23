@@ -71,9 +71,10 @@ PUBLIC GET /.well-known/jwks.json；健康/info仍位于/api/v1/actuator/{health
 |GET /departments/tree |DepartmentVO[] |rbac:department:view
 |POST /departments |{parentId?,code,name}→DepartmentVO |rbac:department:edit
 |PATCH /departments/{id} |{name}→DepartmentVO |rbac:department:edit
-|DELETE /departments/{id} |有员工/子部门则409；无数据再删 |rbac:department:edit
+|PUT /departments/{id}/status |{status}→DepartmentVO |rbac:department:status
+|DELETE /departments/{id} |根部门或存在成员记录、子部门时返回409 |rbac:department:delete
 |GET /departments/{id}/assignable-roles |?systemCode→RoleVO[] |rbac:department:view
-|PUT /departments/{id}/assignable-roles |{roleIds:Long[]}原子替换，回收不合资格指派 |rbac:department:edit
+|PUT /departments/{id}/assignable-roles |{roleIds:Long[]}原子替换，回收不合资格指派，返回null |rbac:department:edit
 |GET /users |?keyword,departmentId,status,page,pageSize→Page<UserVO>，数据库分页 |rbac:user:view
 |POST /users |{username,name,no?,phone?,departmentId,password}→UserVO |rbac:user:edit
 |GET /users/{id} |UserVO |rbac:user:view
@@ -121,11 +122,15 @@ PUBLIC GET /.well-known/jwks.json；健康/info仍位于/api/v1/actuator/{health
 == 不变量与安全决策
 
 . 组织管理范围：中心管理权限 + actor当前部门子树；总部根部门覆盖全部。权限计算不再带部门数据scope。
+. 部门创建、改名和准入替换要求 `rbac:department:edit`。启停和删除分别要求 `rbac:department:status`、`rbac:department:delete`。前端按钮分别使用 `rbac:ui:setDepartmentStatus`、`rbac:ui:deleteDepartment`。
+. 仅非根叶部门可停用，根部门及有子部门的节点分别返回 `409 ROOT_DEPARTMENT_DISABLE_FORBIDDEN`、`409 DEPARTMENT_HAS_CHILDREN`。停用保留已有成员、账号状态和角色指派，课程目录隐藏该部门。向停用部门新建子部门、新建用户、从其他部门迁入、添加角色指派均返回 `409 DEPARTMENT_DISABLED`。管理端仍可查询、改名、维护准入、迁出成员和撤销指派。重复设置相同状态返回当前部门。实际变更推进授权版本并记录 `DEPARTMENT_STATUS_CHANGED`。
 . 角色启停要求 API 权限 `rbac:role:status`，角色资料修改仍要求 `rbac:role:edit`。按钮保留独立 UI 权限 `rbac:ui:setRoleStatus`。
 . 直接指派必须在目标用户当前部门的DepartmentAllowedRole清单内，即使超级管理员也要满足；引导root的SUPER_ADMIN准入在种子中明确建立。
 . 非超级管理员不能赋予或改出自己在目标系统没有的有效权限及identityRole标记，改继承前按完整新闭包检验提升。中心管理入口资格与目标系统授权上界分开读取。系统级共享定义（系统/角色/权限/继承/UI/API）的写操作还要求操作者所属根部门；部门管理员只管理子树人员、准入和指派，不能借共享角色影响范围外人员。
 角色直接权限替换、加继承边及重新启用均检查自身与全部受影响上级的最终闭包，操作者上界取保存前事实。特殊SUPER_ADMIN可达性检查不因停用节点切断，避免预埋恢复能力。
 . 普通管理员新增或修改停用系统的角色授权时返回 `403 PRIVILEGE_ESCALATION`。重新启用系统前先核对会恢复生效的角色闭包和身份标记。非超级管理员设置 API 的权限或身份角色条件时，需在目标系统拥有对应授权。目标系统停用时，该类变更返回业务 403。
+. 替换部门准入独立于查看权限。普通管理员可原样携带停用系统的准入集合，新增或移除其中的角色返回 `403 PRIVILEGE_ESCALATION`。中心超级管理员可维护停用系统的准入。
+. 恢复停用用户前，按当前有效权限和 `identityRole` 校验启用系统中的保留指派。超出操作者上界返回 `403 PRIVILEGE_ESCALATION`，用户仍停用。停用系统的指派暂不生效，系统启用时检查恢复的授权。
 . RoleHierarchy同系统senior→junior，停用节点切断路径；系统行/授权版本行排他锁串行化所有图写，避免并发成环。版本与授权/状态/映射变更同本地事务提交。
 . 移部门先锁用户并校验原、新部门的管理范围。跨部门调动在同一事务中更新部门并清空本人的角色指派。新部门的角色需要重新指派。提交当前部门时保留现有指派。保护最后有效 SUPER_ADMIN，调动若会使其失效则整笔回滚。
 受保护的最后管理员须同时具备根部门管理资格、SUPER_ADMIN角色准入、活动用户状态和有效超级管理员能力；存在其他合格管理员时允许迁移。

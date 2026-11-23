@@ -40,9 +40,11 @@ public class DirectoryApplicationService {
         return authorization.require(p, permission, shared);
     }
 
-    private void managed(AuthorizationRepository.Identity actor, long department) {
-        policy.requireManaged(
-                grants.departmentPath(actor.departmentId()), directory.department(department));
+    private Department managed(AuthorizationRepository.Identity actor, long department) {
+        String actorPath = grants.departmentPath(actor.departmentId());
+        Department target = directory.department(department);
+        policy.requireManaged(actorPath, target);
+        return target;
     }
 
     private void done(AuthorizationRepository.Identity actor, String type, String target) {
@@ -87,10 +89,11 @@ public class DirectoryApplicationService {
             TokenProvider.Principal p, Long id, Long parentId, String code, String name) {
         grants.lockGrants();
         AuthorizationRepository.Identity actor = actor(p, "rbac:department:edit", false);
-        Department old = id == null ? null : directory.department(id);
+        DomainException.require(id != null || parentId != null, 409, "ROOT_DEPARTMENT_EXISTS");
+        Department target = managed(actor, id == null ? parentId : id);
+        Department old = id == null ? null : target;
         Long parent = old == null ? parentId : old.parentId();
-        DomainException.require(id != null || parent != null, 409, "ROOT_DEPARTMENT_EXISTS");
-        managed(actor, id == null ? parent : id);
+        if (id == null) policy.requireAccepting(target);
         Department saved =
                 directory.saveDepartment(
                         new Department(
@@ -98,7 +101,7 @@ public class DirectoryApplicationService {
                                 parent,
                                 old == null ? code : old.code(),
                                 name,
-                                old == null ? directory.department(parent).path() : old.path(),
+                                target.path(),
                                 old == null ? "ENABLED" : old.status(),
                                 old == null ? 0 : old.version()));
         done(actor, "DEPARTMENT_CHANGED", saved.code());
@@ -106,11 +109,28 @@ public class DirectoryApplicationService {
     }
 
     @Transactional
+    public Department departmentStatus(TokenProvider.Principal p, long id, String status) {
+        grants.lockGrants();
+        AuthorizationRepository.Identity actor = actor(p, "rbac:department:status", false);
+        Department old = managed(actor, id);
+        DomainException.require(
+                "DISABLED".equals(status) || "ENABLED".equals(status), 400, "VALIDATION_ERROR");
+        if (status.equals(old.status())) return old;
+        if ("DISABLED".equals(status))
+            policy.requireDisableable(old, directory.departmentHasChildren(id));
+        Department saved = directory.saveDepartment(
+                new Department(
+                        id, old.parentId(), old.code(), old.name(), old.path(), status, old.version()));
+        done(actor, "DEPARTMENT_STATUS_CHANGED", Long.toString(id));
+        return saved;
+    }
+
+    @Transactional
     public void deleteDepartment(TokenProvider.Principal p, long id) {
         grants.lockGrants();
-        AuthorizationRepository.Identity actor = actor(p, "rbac:department:edit", false);
-        managed(actor, id);
-        policy.requireDeletable(directory.department(id), directory.departmentOccupied(id));
+        AuthorizationRepository.Identity actor = actor(p, "rbac:department:delete", false);
+        Department target = managed(actor, id);
+        policy.requireDeletable(target, directory.departmentOccupied(id));
         directory.deleteDepartment(id);
         done(actor, "DEPARTMENT_DELETED", Long.toString(id));
     }
@@ -129,20 +149,35 @@ public class DirectoryApplicationService {
         grants.lockGrants();
         AuthorizationRepository.Identity actor = actor(p, "rbac:department:edit", false);
         managed(actor, id);
+        Set<Long> current = directory.allowed(id);
         for (Long roleId : roleIds) {
-            Role r = grants.role(roleId);
-            authorization.upperBound(
-                    actor,
-                    r.systemCode(),
-                    new AuthorizationPolicy()
-                            .calculate(
-                                    r.systemCode(),
-                                    Set.of(r.id()),
-                                    grants.hierarchy(r.systemCode()),
-                                    grants.permissions(r.systemCode())));
+            Role role = grants.role(roleId);
+            if (grants.systemEnabled(role.systemCode())) {
+                requireRoleWithin(actor, role);
+            } else if (!current.contains(roleId)) {
+                authorization.requireRoleGrantSystem(actor, role.systemCode());
+            }
+        }
+        for (Long roleId : current) {
+            if (roleIds.contains(roleId)) continue;
+            String system = grants.role(roleId).systemCode();
+            if (!grants.systemEnabled(system)) authorization.requireRoleGrantSystem(actor, system);
         }
         directory.replaceEligibility(id, roleIds);
         done(actor, "DEPARTMENT_ELIGIBILITY_CHANGED", Long.toString(id));
+    }
+
+    private void requireRoleWithin(AuthorizationRepository.Identity actor, Role role) {
+        String system = role.systemCode();
+        authorization.upperBound(
+                actor,
+                system,
+                new AuthorizationPolicy()
+                        .calculate(
+                                system,
+                                Set.of(role.id()),
+                                grants.hierarchy(system),
+                                grants.permissions(system)));
     }
 
     public AuthorizationRepository.Page<Profile> users(
@@ -185,7 +220,7 @@ public class DirectoryApplicationService {
             String password) {
         grants.lockGrants();
         AuthorizationRepository.Identity actor = actor(p, "rbac:user:edit", false);
-        managed(actor, department);
+        policy.requireAccepting(managed(actor, department));
         Profile saved =
                 directory.saveUser(
                         new Profile(
@@ -278,6 +313,12 @@ public class DirectoryApplicationService {
         Profile old = directory.user(id, true);
         managed(actor, old.departmentId());
         User user = aggregate(old);
+        if (user.status() == User.Status.DISABLED && status == User.Status.ACTIVE) {
+            for (Long roleId : user.roleIds()) {
+                Role role = grants.role(roleId);
+                if (grants.systemEnabled(role.systemCode())) requireRoleWithin(actor, role);
+            }
+        }
         user.changeStatus(status);
         Profile saved = save(old, user);
         done(actor, "USER_STATUS_CHANGED", old.subject());
@@ -290,8 +331,9 @@ public class DirectoryApplicationService {
         AuthorizationRepository.Identity actor = actor(p, "rbac:user:edit", false);
         Profile old = directory.user(id, true);
         managed(actor, old.departmentId());
-        managed(actor, department);
+        Department destination = managed(actor, department);
         policy.requireVersion(version, old.version());
+        if (old.departmentId() != department) policy.requireAccepting(destination);
         User user = aggregate(old);
         user.transfer(department);
         Profile saved = save(old, user);
@@ -309,19 +351,11 @@ public class DirectoryApplicationService {
         grants.lockGrants();
         AuthorizationRepository.Identity actor = actor(p, "rbac:assignment:edit", false);
         Profile profile = directory.user(id, true);
-        managed(actor, profile.departmentId());
+        policy.requireAccepting(managed(actor, profile.departmentId()));
         Role role = grants.role(roleId);
         if (!grants.systemEnabled(role.systemCode()))
             throw DomainException.auditedDenial(409, "ROLE_DISABLED");
-        authorization.upperBound(
-                actor,
-                role.systemCode(),
-                new AuthorizationPolicy()
-                        .calculate(
-                                role.systemCode(),
-                                Set.of(roleId),
-                                grants.hierarchy(role.systemCode()),
-                                grants.permissions(role.systemCode())));
+        requireRoleWithin(actor, role);
         aggregate(profile).assign(role, grants.eligibility(profile.departmentId()));
         Assignment saved = directory.assign(id, roleId, actor.id());
         done(actor, "ROLE_ASSIGNED", profile.subject());

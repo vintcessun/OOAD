@@ -56,6 +56,10 @@ D-26 修复后的图稿复核覆盖两版 S03 时序图和 DDD SIM 类图、时�
 
 S04 补齐当前默认部署的两张类图。两版以 `CourseProxyFilter` 为中心，用标为 `authorize` 的实线空心箭头连接 `CourseProxyFilter.Authorize`，接口框列出 `require()`。图注注明 `CourseProxyConfiguration.courseProxy()` 将本版的实现作为构造器第三个参数传入。DDD 图同时画出应用服务的 `policy` 字段及其关联。此次定向生成 DOT、SVG 和 PNG，核对 18 个方法声明、类框重叠和连线穿框，逐张打开 PNG 检查空心箭头、字段名和方法签名，绘图器 21 项测试通过。原先的 `GatewayController` 类图作为独立网关历史图保留。link:S04-structured-current-class.svg[Structured SVG] · link:S04-ddd-current-class.svg[DDD SVG]
 
+== 2026-11-23 B 局部复核
+
+重绘两版 S02 类图、顺序图及部门状态图。打开 PNG 核对类框、关联、拒绝分支与事务审计，使用 JDK 21 编译符号和源码调用点复核图中接口。版本与图稿摘要见 link:../oral-review/B-diagrams-verification.json[B 图稿核验]。
+
 == 自动与人工证明的边界
 
 自动通过的项目是类/方法及实现关系存在、类框/穿框几何、执行条平衡、PlantUML 语法、25 组指定方法体的调用点词法顺序、源码/class 哈希稳定；不证明全程序调用图、所有异常分支或业务等价性。运行结果见 link:verification.adoc[本轮核验]。

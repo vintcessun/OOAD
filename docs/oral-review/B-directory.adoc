@@ -15,14 +15,14 @@ ID-04/05/06、ROLE-05/06/08、组织管理相关SELF；身份字段A、角色定
 |===
 |定位 |要阅读的具体责任
 |link:../../rbac-structured/src/main/java/com/xmu/rbac/structured/controller/ManagementController.java[ManagementController.java] |用户/部门/准入/指派入口；DTO不应夹带状态、部门或scope
-|link:../../rbac-structured/src/main/java/com/xmu/rbac/structured/service/ManagementService.java[ManagementService.java] |departments/createDepartment/renameDepartment/deleteDepartment、allowedRoles/replaceAllowed、users/user/createUser/patchUser/userStatus/moveUser、assignments/assign/unassign/effectiveUser、dashboard
+|link:../../rbac-structured/src/main/java/com/xmu/rbac/structured/service/ManagementService.java[ManagementService.java] |departments/createDepartment/renameDepartment/departmentStatus/deleteDepartment、allowedRoles/replaceAllowed、users/user/createUser/patchUser/userStatus/moveUser、assignments/assign/unassign/effectiveUser、dashboard
 |link:../../rbac-structured/src/main/java/com/xmu/rbac/structured/service/AuthorizationService.java[AuthorizationService.java] |scope/root/upper/captureUpper协作；权限计算主体归D，上界/管理员保护与C共审
 |link:../../rbac-structured/src/main/java/com/xmu/rbac/structured/mapper/Store.java[Store.java] |page在SQL完成、用户排他锁、查询参数绑定；通用Store其他调用归对应链
 |link:../../rbac-ddd/src/main/java/com/xmu/rbac/ddd/interfaces/rest/DirectoryController.java[DirectoryController.java] |用户/部门/准入/指派/调动与DTO→Command，系统入口归E
-|link:../../rbac-ddd/src/main/java/com/xmu/rbac/ddd/application/DirectoryApplicationService.java[DirectoryApplicationService.java] |managed、allowed、users/user、createUser/patchUser/statusUser/transfer/assign/unassign、aggregate/save/effective/dashboard，system归E
+|link:../../rbac-ddd/src/main/java/com/xmu/rbac/ddd/application/DirectoryApplicationService.java[DirectoryApplicationService.java] |managed、departmentStatus/deleteDepartment、allowed、users/user、createUser/patchUser/statusUser/transfer/assign/unassign、aggregate/save/effective/dashboard，system归E
 |link:../../rbac-ddd/src/main/java/com/xmu/rbac/ddd/domain/User.java[User.java] |assign/transfer/changeStatus、roleIds和tokenVersion，不自行查库
 |link:../../rbac-ddd/src/main/java/com/xmu/rbac/ddd/domain/DepartmentEligibility.java[DepartmentEligibility.java] |requireEligible/retained与管理范围检查
-|link:../../rbac-ddd/src/main/java/com/xmu/rbac/ddd/domain/OrganizationPolicy.java[OrganizationPolicy.java] |路径范围、版本和可删除性
+|link:../../rbac-ddd/src/main/java/com/xmu/rbac/ddd/domain/OrganizationPolicy.java[OrganizationPolicy.java] |路径范围、版本、接纳、可停用和可删除条件
 |link:../../rbac-ddd/src/main/java/com/xmu/rbac/ddd/domain/port/DirectoryRepository.java[DirectoryRepository.java] |Profile/Department/Assignment、目录读写端口；识别包含凭据的内部Profile不直接输出
 |link:../../rbac-ddd/src/main/java/com/xmu/rbac/ddd/infrastructure/persistence/JpaDirectoryRepositoryAdapter.java[JpaDirectoryRepositoryAdapter.java] |分页、用户/部门写入、准入替换与关联回收
 |link:../../rbac-ddd/src/main/java/com/xmu/rbac/ddd/infrastructure/persistence/repository/UserJpaRepository.java[UserJpaRepository.java] |搜索PageRequest、账号/用户锁；登录锁与A共享
@@ -32,9 +32,11 @@ ID-04/05/06、ROLE-05/06/08、组织管理相关SELF；身份字段A、角色定
 
 structured：ManagementController → ManagementService.begin(授权锁/入口/上界) → scope/准入/角色校验 → UserRole或用户部门变更 → finish(版本/成功审计)。
 
-DDD指派：DirectoryController.assign → DirectoryApplicationService.assign → lockGrants/actor/managed/upperBound → aggregate(profile).assign(role, eligibility) → DirectoryRepository.assign → done。
+DDD 指派经过 DirectoryController.assign、DirectoryApplicationService.assign、授权锁和管理范围校验，再检查部门接纳及目标系统状态。requireRoleWithin 计算上界，User.assign 校验账号和准入，最后由仓储写入指派并推进授权版本和成功审计。
 
 DDD 调动流程先锁定用户并校验原、新部门的管理范围及版本。跨部门时，User.transfer 清空本人的角色指派，由 save 删除对应记录，并在同一事务中更新授权版本和审计。
+
+两版用户恢复均校验启用系统中保留角色的有效权限及身份标记。两版部门启停按 `rbac:department:status` 和子树校验，仅非根叶部门可停用。删除按 `rbac:department:delete` 校验，成功删除同时清理准入关系。创建、改名和准入替换仍用 `rbac:department:edit`。
 
 == 主审检查项
 
@@ -44,7 +46,9 @@ DDD 调动流程先锁定用户并校验原、新部门的管理范围及版本�
 * [ ] 核对跨部门调动清空本人的角色指派，并检查其他用户的指派和共享角色权限。替换准入时核对不再符合准入的指派。
 * [ ] 用户状态/资料/部门独立API；PATCH存在性和显式null、version与不可改字段逐项核对。
 * [ ] 分页过滤、稳定顺序、万级用户场景和数据库offset边界；删除部门遇员工/子部门冲突。
-* [ ] 用户停用/恢复与上界、最后管理员、tokenVersion分别与A/C/D确认。
+* [ ] 用户停用保留指派，恢复检查授权上界。分别核对最后管理员、tokenVersion、拒绝后的用户状态与指派。
+* [ ] 普通管理员可原样保留停用系统的准入，变动该集合会被拒绝。仅有部门编辑权限也可成功替换准入。
+* [ ] 部门停用保留成员和指派，阻止新建子部门、新建用户、迁入和新指派。使用启停与删除的独立权限验证子树和根部门保护。
 
 == 数据与职责
 
@@ -66,7 +70,7 @@ GRASP：User掌握自己的状态/部门/直接角色，Eligibility掌握允许�
 
 == 必须准备的场景
 
-* 正常：允许部门中的用户获得角色，调往仍允许的部门保留指派。
+* 正常场景包含在准入部门中获得角色、跨部门清空该用户全部直接指派，以及在同一部门提交时保留指派。跨部门后可按新部门准入重新指派。
 * 等价/边界：不准入、兄弟部门管理员、空角色集合、无用户/无部门、可空PATCH及分页0/1/最大值。
 * 异常/并发：assignment属于别人、部门有子节点/用户、调动版本冲突；两次调动后的唯一部门与实际指派一致。
 
@@ -76,6 +80,7 @@ GRASP：User掌握自己的状态/部门/直接角色，Eligibility掌握允许�
 * link:../design/S02-structured-sequence.svg[S02-structured-sequence SVG] / link:../design/S02-structured-sequence.png[PNG]；核对图源和当前实际方法。
 * link:../design/S02-ddd-class.svg[S02-ddd-class SVG] / link:../design/S02-ddd-class.png[PNG]；核对图源和当前实际方法。
 * link:../design/S02-ddd-sequence.svg[S02-ddd-sequence SVG] / link:../design/S02-ddd-sequence.png[PNG]；核对图源和当前实际方法。
+* link:../design/department-state.svg[部门状态图 SVG] / link:../design/department-state.png[PNG]；核对启停权限、根/子部门约束、接纳规则与事务审计。
 
 . 准入为什么不是授权？继承来的角色还要逐一准入吗？
 . 迁移用户为什么不能清空角色权限？
@@ -87,19 +92,19 @@ GRASP：User掌握自己的状态/部门/直接角色，Eligibility掌握允许�
 按link:review-card.adoc[统一审查卡]记录需求、两版实际链路、表与约束、事务/异常、测试、图、GRASP、问题及互审结论。
 同时阅读相关DTO/Command/Result/Views、Entity、Port、Adapter和配置；上述入口不是只读几个Service即可完成的最小文件清单。
 每项标符合/偏离/不适用/待核对；场景和测试名仅是阅读入口，需检查断言和DB后置条件。归档证据不当本次运行。
-本卡初始状态NOT_STARTED。准备5分钟主讲、伙伴链路和至少3个追问；源码差异只登记参考，不在本轮自动修复。
+人工主审的初始状态仍为 NOT_STARTED。准备五分钟主讲、伙伴链路和至少三个追问。代码修复及验证结果见 link:B-verification.adoc[B 修复核验]。
 
 == 新增前端审核范围（2026-11-19，NOT_STARTED）
 
 保留本卡原有后端职责与历史证据。完整交接见link:frontend.adoc[前端总表]；本节为追加任务，尚未人工审查。
 
-页面/组件：`/users`、`/departments`；UserWorkspace和CatalogWorkspace部门分支。
+页面入口为 `/users` 和 `/departments`。
 
-link:../../rbac-web/src/views/UserWorkspace.vue[UserWorkspace]、link:../../rbac-web/src/views/CatalogWorkspace.vue[CatalogWorkspace]（departmentForm/eligibility、departments重载及模板）。
+link:../../rbac-web/src/views/UserWorkspace.vue[UserWorkspace]、link:../../rbac-web/src/views/DepartmentsView.vue[DepartmentsView]。
 
 * [ ] 追踪用户筛选/数据库分页、创建前等待部门选项、资料编辑不夹带状态/部门、version及状态/迁移独立请求。
 * [ ] 选用户→当前真实部门准入→指派/回收；核对请求不伪造部门、assignment路径与刷新后的列表/有效权限。
-* [ ] 核对部门树、编辑/删除、准入替换：过滤当前系统展示仍保留其他系统roleIds，取消准入与共享角色权限分开。
+* [ ] 核对部门树、编辑、启停、删除和准入替换。启停与删除按钮使用独立 UI 权限，创建和用户迁入只提供启用部门。保存当前系统准入时保留其他系统 roleIds。
 * [ ] 核对目标系统变化、旧选择与详情刷新、加载/空结果/错误反馈；RecordForm使用点归B，机制归E，EffectivePermissions机制归D。
 
 测试与场景：user-workspace.spec中选项未返回/返回断言；console.spec中准入、指派、浏览器创建/编辑/状态、迁移与回收。补充分页、迁移回收、跨系统准入保留和请求失败；没有断言则记录待核对。

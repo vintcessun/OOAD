@@ -130,6 +130,10 @@ DDD JpaDirectoryRepositoryAdapter.saveUser 在首次 INSERT 之前直接生成�
 
 部门可指派集合只约束直接赋予角色；不把部门角色自动算作用户权限。管理范围是 actorPath/targetPath 的边界，提权上界是另一个边界；前端禁用按钮不替代任一检查。
 
+image::department-state.svg[部门状态与新接纳]
+
+指派流程先检查部门是否接受新指派。停用的非根叶部门保留已有成员及授权，关停新接纳，并从课程目录隐藏。用户恢复检查的是保留角色实际恢复的权限及身份标记。跨部门调动会清空该用户全部直接指派。
+
 === S03：查询也有规则
 
 image::S03-structured-sequence.svg[结构化权限]

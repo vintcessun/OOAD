@@ -131,6 +131,16 @@ public class DirectoryController {
                         .getFirst());
     }
 
+    @PutMapping("/departments/{id}/status")
+    public Object setDepartmentStatus(
+            @RequestHeader(value = "Authorization", required = false) String b,
+            @PathVariable @Positive long id,
+            @Valid @RequestBody RoleController.Status i) {
+        return RestSupport.ok(DirectoryViews.departments(
+                        List.of(directory.departmentStatus(rest.principal(b), id, i.status())))
+                .getFirst());
+    }
+
     @DeleteMapping("/departments/{id}")
     public Object deleteDepartment(
             @RequestHeader(value = "Authorization", required = false) String b,

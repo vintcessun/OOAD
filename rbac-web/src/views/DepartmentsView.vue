@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { NButton, NTree, type TreeOption, type TreeSelectOption } from 'naive-ui'
+import { NButton, NTree } from 'naive-ui'
 import { get, post, patch, del, put } from '@/api'
 import type { DepartmentVO, HierarchyVO, RoleVO } from '@/api/types'
 import PageHeader from '@/components/PageHeader.vue'
@@ -10,7 +10,7 @@ import ConfirmAction from '@/components/ConfirmAction.vue'
 import StatusTag from '@/components/StatusTag.vue'
 import TechText from '@/components/TechText.vue'
 import WorkspaceFeedback from '@/components/WorkspaceFeedback.vue'
-import { flatten, sameIds, text, useRead, useWorkspace } from './workspace'
+import { departmentOptions, flatten, sameIds, text, useRead, useWorkspace } from './workspace'
 
 const tree = useRead<DepartmentVO[]>(() => [])
 const approved = useRead<RoleVO[]>(() => [])
@@ -25,10 +25,15 @@ const dirty = computed(() => !sameIds(baseline.value, draft.value))
 const candidates = computed(() => [...new Map([...catalog.data.value, ...approved.data.value].map(role => [role.id, role])).values()]
   .filter(role => (role.name + ' ' + role.code).toLowerCase().includes(roleSearch.value.trim().toLowerCase())))
 const { auth, form, confirmation, error, message, stale, busy, allowed, confirm, mutate, refresh, reset } = useWorkspace(reload, () => `${currentId.value}:${auth.targetSystem}`)
-function toTree(nodes: DepartmentVO[]): (TreeOption & TreeSelectOption)[] {
-  return nodes.map(department => ({ key: department.id, label: department.name, children: toTree(department.children ?? []) }))
-}
-const treeOptions = computed(() => toTree(tree.data.value))
+const treeOptions = computed(() => departmentOptions(tree.data.value))
+const parentOptions = computed(() => departmentOptions(tree.data.value, true))
+const cannotDisable = computed(() => {
+  const department = current.value
+  if (department?.status !== 'ENABLED') return undefined
+  if (department.parentId === null) return '根部门必须保持启用。'
+  if (department.children?.length) return '该部门仍有子部门，无法停用。'
+  return undefined
+})
 function loadTree() {
   return tree.read(() => get<DepartmentVO[]>('/departments/tree'))
 }
@@ -57,15 +62,23 @@ function toggle(id: number, checked: boolean) {
   draft.value = checked ? [...draft.value, id] : draft.value.filter(value => value !== id)
 }
 function edit(department?: DepartmentVO) {
+  const parent = current.value?.status === 'ENABLED' ? current.value : undefined
   form.value = {
     title: department ? '编辑部门' : '创建部门',
-    initial: department ? { name: department.name } : current.value ? { parentId: current.value.id } : undefined,
+    initial: department ? { name: department.name } : parent ? { parentId: parent.id } : undefined,
     fields: department ? [text('name', '部门名称')] : [
       text('code', '部门编码'), text('name', '部门名称'),
-      { key: 'parentId', label: '上级部门', type: 'tree', tree: treeOptions.value, hint: '留空创建根部门' },
+      { key: 'parentId', label: '上级部门', type: 'tree', required: true, tree: parentOptions.value },
     ],
     submit: data => mutate(() => department ? patch(`/departments/${department.id}`, data) : post('/departments', data)),
   }
+}
+function changeStatus(department: DepartmentVO) {
+  const enable = department.status === 'DISABLED'
+  confirm(enable ? '启用部门' : '停用部门', enable
+    ? `启用「${department.name}」后，将恢复接纳新成员、新子部门和新增角色指派，并在课程目录中显示。`
+    : `停用「${department.name}」后，将暂停接纳新成员、新子部门和新增角色指派，并从课程目录隐藏。已有成员的账号状态和角色指派会保留。`,
+    () => put<DepartmentVO>(`/departments/${department.id}/status`, { status: enable ? 'ENABLED' : 'DISABLED' }))
 }
 function remove(department: DepartmentVO) {
   confirm('删除部门', `将删除「${department.name}」。该部门仍有成员或子部门时，系统将拒绝删除。`, () => del(`/departments/${department.id}`))
@@ -97,7 +110,7 @@ void reload()
 
 <template>
   <PageHeader title="部门准入" description="管理成员的唯一所属部门，以及各部门可以直接指派的角色。">
-    <template #actions><NButton v-if="allowed('createDepartment')" type="primary" @click="edit()">创建部门</NButton></template>
+    <template #actions><NButton v-if="allowed('createDepartment')" type="primary" :disabled="!parentOptions.length" @click="edit()">创建部门</NButton></template>
   </PageHeader>
   <WorkspaceFeedback :error="error" :message="message" :stale="stale" @retry="refresh" />
   <div class="split-grid">
@@ -108,7 +121,15 @@ void reload()
       <NTree v-if="treeOptions.length" :data="treeOptions" :pattern="pattern" :selected-keys="currentId ? [currentId] : []" selectable block-line default-expand-all @update:selected-keys="pick" />
     </section>
     <section v-if="current" class="surface padded">
-      <div class="section-heading"><div><h2>{{ current.name }}</h2><TechText :value="current.code" /></div><div class="row-actions"><StatusTag :value="current.status" /><NButton v-if="allowed('updateDepartment')" size="small" @click="edit(current)">编辑</NButton><NButton v-if="allowed('deleteDepartment')" size="small" @click="remove(current)">删除</NButton></div></div>
+      <div class="section-heading department-heading">
+        <div><h2>{{ current.name }}</h2><TechText :value="current.code" /></div>
+        <div class="row-actions">
+          <StatusTag :value="current.status" />
+          <NButton v-if="allowed('updateDepartment')" size="small" @click="edit(current)">编辑</NButton>
+          <NButton v-if="allowed('setDepartmentStatus')" size="small" :disabled="busy || Boolean(cannotDisable)" :title="cannotDisable" @click="changeStatus(current)">{{ current.status === 'ENABLED' ? '停用部门' : '启用部门' }}</NButton>
+          <NButton v-if="allowed('deleteDepartment')" size="small" @click="remove(current)">删除</NButton>
+        </div>
+      </div>
       <dl class="description-grid"><div><dt>上级部门</dt><dd>{{ all.find(department => department.id === current?.parentId)?.name ?? '根部门' }}</dd></div><div><dt>部门路径</dt><dd><code>{{ current.path }}</code></dd></div></dl>
       <div class="section-heading subsection"><h3>可指派角色</h3><TechText :value="auth.targetSystem" /></div>
       <p class="help-text">准入限制直接指派。角色自身的权限和继承关系在角色管理中维护。</p>
@@ -123,3 +144,10 @@ void reload()
   <RecordForm v-if="form" v-bind="form" @close="form = null" />
   <ConfirmAction v-if="confirmation" v-bind="confirmation" @close="confirmation = null" />
 </template>
+
+<style scoped>
+.department-heading,
+.department-heading .row-actions {
+  flex-wrap: wrap;
+}
+</style>

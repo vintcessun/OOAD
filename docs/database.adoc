@@ -14,9 +14,10 @@ link:schema-contract.adoc[冻结物理列合同]规定15张业务表的精确列
 |link:../rbac-contract/src/main/resources/db/migration/V2__rbac1_seed.sql[V2 RBAC1 seed] |总部/Finance/Engineering、两系统、六角色、准入、root占位哈希、UI/API目录、显式角色权限及UI↔API映射、全局授权版本行。
 |link:../rbac-contract/src/main/resources/db/migration/V3__role_status_permission.sql[V3 角色启停权限] |登记 `rbac:role:status`，改绑启停 API 并推进授权版本。原有直接授权仍有效的内置管理员延续启停权限，自定义角色需显式授予。
 |link:../rbac-contract/src/main/resources/db/migration/V4__course_identity_directory.sql[V4 课程身份目录与登录] |登记三个统一身份查询及课程 POST /login，移除退役课程操作和关联 UI 映射，并推进授权版本。
+|link:../rbac-contract/src/main/resources/db/migration/V5__department_lifecycle_permissions.sql[V5 部门启停和删除权限] |登记部门启停 API 和按钮，独立绑定删除权限，给内置 SUPER_ADMIN、RBAC_ADMIN 授予新权限并推进授权版本。
 |===
 
-RBAC0 的旧 V1–V4 保留在 Git 历史。当前 RBAC1 的 V1/V2 初始化空库，Flyway 在 RBAC1 库上按现有版本应用 V3 与 V4。
+RBAC0 的旧 V1–V4 保留在 Git 历史。当前 RBAC1 的 V1/V2 初始化空库，Flyway 按库的现有版本应用 V3–V5。V5 使用已有的 `sys_department.status` 列，现有部门状态保持原值。
 禁止将新基线连接生产或已有一期库、篡改其Flyway历史/checksum、clean生产、用baseline-on-migrate掩盖冲突。
 已有旧库应继续使用匹配的一期镜像/schema；需要升级时另行制定备份、兼容迁移与恢复方案，本轮不操作旧库。
 打包前clean构建，避免target/classes残留旧脚本进入jar。
@@ -49,6 +50,7 @@ MySQL不允许CHECK引用自增id，部门/UI树自指和长环必须在服务/�
 == 授权写事务与缓存
 
 授权事实变化先排他锁sys_grant_version(id=1)，再修改系统/角色/权限、继承/映射/指派/准入或用户状态/部门；最后version+1及SUCCESS审计与业务一起提交。
+部门实际启停使用同一事务推进授权版本并写入 `DEPARTMENT_STATUS_CHANGED`。停用保留成员和关联记录，删除空部门时一并清理其准入记录。
 跨部门调动锁定用户，校验原、新部门的管理范围，并清空本人的角色指派。替换部门准入时回收该部门不再符合准入的指派。任何路径都保护最后有效 SUPER_ADMIN。
 根实体version仅处理可选HTTP version冲突，不代替图写互斥；L1/L2缓存键必须包含system+user+权威version，事务内禁止回填。
 Redis故障可受限回源，MySQL不可用必须503，不能用旧缓存放行或让注销令牌复活。

@@ -72,6 +72,11 @@ public class ManagementController {
         @Valid @RequestBody DisplayName input) {
         return ok(management.renameDepartment(actor, id, name(input)));
     }
+    @PutMapping("/departments/{id}/status")
+    public Object setDepartmentStatus(@RequestAttribute Actor actor, @PathVariable @Positive Long id,
+        @Valid @RequestBody Inputs.EnabledState input) {
+        return ok(management.departmentStatus(actor, id, input.status()));
+    }
     @DeleteMapping("/departments/{id}")
     public Object deleteDepartment(@RequestAttribute Actor actor, @PathVariable @Positive Long id) {
         management.deleteDepartment(actor, id);

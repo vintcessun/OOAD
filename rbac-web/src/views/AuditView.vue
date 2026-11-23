@@ -13,7 +13,8 @@ import { useRead } from './workspace'
 
 const eventLabels: Record<string, string> = {
   API_OPERATION_SAVED: '保存 API 操作', AUTHZ_DENIED: '鉴权拒绝', DENIED: '请求拒绝', LOGIN_DENIED: '登录失败',
-  DEPARTMENT_CHANGED: '调动部门', DEPARTMENT_CREATED: '创建部门', DEPARTMENT_DELETED: '删除部门', DEPARTMENT_UPDATED: '更新部门',
+  DEPARTMENT_CHANGED: '调动部门', DEPARTMENT_CREATED: '创建部门', DEPARTMENT_DELETED: '删除部门',
+  DEPARTMENT_STATUS_CHANGED: '变更部门状态', DEPARTMENT_UPDATED: '更新部门',
   DEPARTMENT_ELIGIBILITY_CHANGED: '更新部门准入', DEPARTMENT_ROLES_REPLACED: '更新部门准入',
   LOGIN: '登录成功', LOGOUT: '退出登录', PASSWORD_CHANGED: '修改密码', PERMISSION_CREATED: '创建权限', PERMISSION_STATUS: '变更权限状态',
   RESOURCE_CHANGED: '更新资源', ROLE_ASSIGNED: '指派角色', ROLE_CREATED: '创建角色', ROLE_DELETED: '退役角色', ROLE_UPDATED: '更新角色',

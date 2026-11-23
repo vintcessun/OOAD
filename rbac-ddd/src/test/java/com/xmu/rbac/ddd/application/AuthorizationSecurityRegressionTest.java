@@ -542,6 +542,49 @@ class AuthorizationSecurityRegressionTest {
                 });
     }
 
+    @ParameterizedTest
+    @CsvSource({"permission,true,false", "identity,true,false", "identity,true,true", "permission,false,false"})
+    void userRecoveryChecksRetainedRolesBeforeSaving(
+            String grant, boolean systemEnabled, boolean actorHasRole) {
+        var principal = new TokenProvider.Principal("u7", "rbac-center", "jti", 0, null);
+        AuthorizationRepository grants = repository();
+        var authorization = managementAuthorization(grants, false);
+        var role = new Role(2L, "s", "viewer", "查看者", null, true, false,
+                "identity".equals(grant) ? "teacher" : null, 0,
+                "permission".equals(grant) ? Set.of(1L) : Set.of());
+        when(grants.role(2L)).thenReturn(role);
+        when(grants.systemEnabled("s")).thenReturn(systemEnabled);
+        when(grants.hierarchy("s")).thenReturn(new RoleHierarchy(List.of(role), Set.of()));
+        when(grants.assignments(7L, "s")).thenReturn(actorHasRole ? Set.of(2L) : Set.of());
+
+        var directory = mock(DirectoryRepository.class);
+        var audits = mock(AuditApplicationService.class);
+        when(directory.department(1L)).thenReturn(new DirectoryRepository.Department(
+                1L, null, "root", "总部", "/1/", "ENABLED", 0L));
+        when(directory.user(8L, true)).thenReturn(new DirectoryRepository.Profile(
+                8L, "u8", "u8", "用户", "8", null, 1L, "总部", "DISABLED", 0L, null, 2L));
+        when(directory.assignments(8L, null)).thenReturn(List.of(new DirectoryRepository.Assignment(
+                9L, 8L, 2L, "s", role.code(), role.name(), null, 1L)));
+        when(directory.saveUser(any())).thenAnswer(call -> call.getArgument(0));
+        var service = new DirectoryApplicationService(
+                directory, grants, authorization, audits, null, mock(GrantIntegrityService.class));
+
+        if (!systemEnabled || actorHasRole) {
+            assertThat(service.statusUser(principal, 8L, User.Status.ACTIVE).status()).isEqualTo("ACTIVE");
+            verify(grants).advanceVersion();
+        } else {
+            assertThatThrownBy(() -> service.statusUser(principal, 8L, User.Status.ACTIVE))
+                    .isInstanceOfSatisfying(DomainException.class, error -> {
+                        assertThat(error.status()).isEqualTo(403);
+                        assertThat(error.code()).isEqualTo("GRANT_EXCEEDS_ACTOR");
+                    });
+            verify(directory, never()).saveUser(any());
+            verify(grants, never()).advanceVersion();
+            verifyNoInteractions(audits);
+        }
+        verify(directory, never()).removeAssignment(anyLong());
+    }
+
     @Test
     void ordinaryAdministratorCannotChangeRoleGrantsInDisabledSystem() {
         AuthorizationRepository r = repository();
@@ -607,9 +650,10 @@ class AuthorizationSecurityRegressionTest {
         when(repository.systemEnabled("rbac-center")).thenReturn(true);
         var permissions = List.of(
                 new Permission(30L, "rbac-center", "rbac:role:edit", "编辑角色", Permission.Kind.API, true),
-                new Permission(31L, "rbac-center", "rbac:system:edit", "编辑系统", Permission.Kind.API, true));
+                new Permission(31L, "rbac-center", "rbac:system:edit", "编辑系统", Permission.Kind.API, true),
+                new Permission(32L, "rbac-center", "rbac:user:edit", "编辑用户", Permission.Kind.API, true));
         var role = new Role(4L, "rbac-center", superAdmin ? "SUPER_ADMIN" : "RBAC_ADMIN", "管理员",
-                null, true, superAdmin, null, 0, Set.of(30L, 31L));
+                null, true, superAdmin, null, 0, Set.of(30L, 31L, 32L));
         when(repository.hierarchy("rbac-center")).thenReturn(new RoleHierarchy(List.of(role), Set.of()));
         when(repository.permissions("rbac-center")).thenReturn(permissions);
         when(repository.assignments(7L, "rbac-center")).thenReturn(Set.of(role.id()));

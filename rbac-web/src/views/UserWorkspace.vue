@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { NButton, NSelect, NTreeSelect, type TreeSelectOption } from 'naive-ui'
+import { NButton, NSelect, NTreeSelect } from 'naive-ui'
 import { get, post, patch, put, del } from '@/api'
 import type { Page, UserVO, DepartmentVO, RoleVO, AssignmentVO, EffectiveVO } from '@/api/types'
 import RecordForm, { type Field } from '@/components/RecordForm.vue'
@@ -15,7 +15,7 @@ import StatusTag from '@/components/StatusTag.vue'
 import TechText from '@/components/TechText.vue'
 import WorkspaceFeedback from '@/components/WorkspaceFeedback.vue'
 import RowActions from '@/components/RowActions.vue'
-import { useWorkspace, useRead, text, choices, positiveId } from './workspace'
+import { useWorkspace, useRead, text, choices, positiveId, departmentOptions, flatten } from './workspace'
 
 const route = useRoute(), router = useRouter()
 const userId = computed(() => positiveId(route.query.userId))
@@ -33,13 +33,14 @@ const options = useRead<RoleVO[]>(() => [])
 const permissions = useRead<EffectiveVO | null>(() => null)
 const roleId = ref<number | null>(null)
 const { auth, error, message, stale, form, confirmation, busy, mutate, run, confirm, reset, refresh, allowed } = useWorkspace(reload, () => [auth.targetSystem, userId.value].join(':'))
-const canAssign = computed(() => allowed('createUserRoleAssignment'))
-function treeOptions(departments: DepartmentVO[]): TreeSelectOption[] {
-  return departments.map(department => ({ key: department.id, label: department.name, children: treeOptions(department.children ?? []) }))
-}
-const departments = computed(() => treeOptions(directory.data.value))
+const departments = computed(() => departmentOptions(directory.data.value))
+const enabledDepartments = computed(() => departmentOptions(directory.data.value, true))
+const allDepartments = computed(() => flatten(directory.data.value))
+const userDepartment = computed(() => allDepartments.value.find(department => department.id === detail.data.value?.departmentId))
+const hasAssignmentPermission = computed(() => allowed('createUserRoleAssignment'))
+const canAssign = computed(() => hasAssignmentPermission.value && detail.data.value?.status === 'ACTIVE' && userDepartment.value?.status !== 'DISABLED')
 const eligible = computed(() => options.data.value.filter(role => role.status === 'ENABLED' && !assignments.data.value.some(link => link.roleId === role.id)))
-const departmentField = (): Field => ({ key: 'departmentId', label: '所属部门', type: 'tree', required: true, tree: departments.value })
+const departmentField = (): Field => ({ key: 'departmentId', label: '所属部门', type: 'tree', required: true, tree: enabledDepartments.value })
 function loadDirectory() { return directory.read(() => get<DepartmentVO[]>('/departments/tree')) }
 function loadList() {
   return list.read(() => get<Page<UserVO>>('/users', {
@@ -83,11 +84,12 @@ async function loadDetail() {
   const loaded = await detail.read(() => get<UserVO>(`/users/${id}`))
   if (id !== userId.value || system !== auth.targetSystem) return true
   if (!loaded || !detail.data.value) return false
-  const results = await Promise.all([loadAssignments(id), loadPermissions(id), canAssign.value ? loadOptions() : true])
+  const loadRoleOptions = hasAssignmentPermission.value && detail.data.value.status === 'ACTIVE'
+  const results = await Promise.all([loadAssignments(id), loadPermissions(id), loadRoleOptions ? loadOptions() : true])
   return results.every(Boolean)
 }
 async function reload() {
-  const results = await Promise.all([loadList(), userId.value ? loadDetail() : true])
+  const results = await Promise.all([loadList(), loadDirectory(), userId.value ? loadDetail() : true])
   const lastPage = Math.max(1, Math.ceil(list.data.value.total / list.data.value.pageSize))
   if (results[0] && page.value > lastPage) results[0] = await changePage(lastPage)
   return results.every(Boolean)
@@ -118,9 +120,11 @@ function changeStatus(user: UserVO) {
   }
 }
 function move(user: UserVO) {
+  const current = allDepartments.value.find(department => department.id === user.departmentId)
   form.value = {
-    title: '调动所属部门', description: `调动 ${user.name} 后，系统将回收新部门不准入的角色指派。`,
-    initial: { departmentId: user.departmentId }, fields: [departmentField()],
+    title: '调动所属部门', description: `跨部门调动 ${user.name} 会清空该用户的全部直接角色指派。同部门提交保留指派。`,
+    initial: current?.status === 'ENABLED' ? { departmentId: current.id } : undefined,
+    fields: [departmentField()],
     submit: data => mutate(() => put(`/users/${user.id}/department`, { ...data, version: user.version })),
   }
 }
@@ -132,7 +136,7 @@ function actions(user: UserVO) {
   return [
     { key: 'edit', label: '编辑资料', show: allowed('updateUser') },
     { key: 'status', label: '变更状态', show: allowed('setUserStatus') },
-    { key: 'move', label: '调动部门', show: allowed('changeUserDepartment'), disabled: !departments.value.length },
+    { key: 'move', label: '调动部门', show: allowed('changeUserDepartment'), disabled: !enabledDepartments.value.length },
     { key: 'delete', label: '删除用户', show: allowed('deleteUser') },
   ].filter(action => action.show)
 }
@@ -158,12 +162,12 @@ watch([userId, () => auth.targetSystem], () => {
   roleId.value = null
   void loadDetail()
 }, { immediate: true })
-watch([canAssign, userId, () => auth.targetSystem], ([allowedNow, id, system], [allowedBefore, previousId, previousSystem]) => {
+watch([hasAssignmentPermission, userId, () => auth.targetSystem], ([allowedNow, id, system], [allowedBefore, previousId, previousSystem]) => {
   if (id !== previousId || system !== previousSystem) return
   if (!allowedNow) {
     options.reset()
     roleId.value = null
-  } else if (!allowedBefore && detail.data.value?.id === id && !detail.loading.value && !detail.error.value && !options.loading.value) {
+  } else if (!allowedBefore && canAssign.value && detail.data.value?.id === id && !detail.loading.value && !detail.error.value && !options.loading.value) {
     void loadOptions()
   }
 })
@@ -175,7 +179,7 @@ const user = detail.data, rows = list.data
   <WorkspaceFeedback :error="error" :message="message" :stale="stale" @retry="refresh" />
   <template v-if="!userId">
     <PageHeader title="用户管理" description="查找组织内的用户，维护资料与角色指派。">
-      <template #actions><NButton v-if="allowed('createUser')" type="primary" :disabled="!departments.length" @click="create">创建用户</NButton></template>
+      <template #actions><NButton v-if="allowed('createUser')" type="primary" :disabled="!enabledDepartments.length" @click="create">创建用户</NButton></template>
     </PageHeader>
     <section class="surface">
       <form class="toolbar" @submit.prevent="search">
@@ -211,12 +215,13 @@ const user = detail.data, rows = list.data
         </template>
         <template #assignments>
           <div class="section-heading"><h3>已指派角色</h3><TechText :value="auth.targetSystem" /></div>
-          <p class="help-text">角色选项由当前部门和目标系统的准入规则决定。</p>
-          <form v-if="canAssign && user.status !== 'DELETED'" class="toolbar assignment-form" @submit.prevent="assign">
+          <p v-if="userDepartment?.status === 'DISABLED'" class="help-text">所属部门已停用，暂停新增角色指派。</p>
+          <p v-else class="help-text">角色选项由当前部门和目标系统的准入规则决定。</p>
+          <form v-if="canAssign" class="toolbar assignment-form" @submit.prevent="assign">
             <div class="field wide"><label for="assign-role">可指派角色</label><NSelect id="assign-role" v-model:value="roleId" :options="eligible.map(role => ({ label: role.name + ' · ' + role.code, value: role.id }))" :loading="options.loading.value" aria-label="可指派角色" filterable placeholder="选择角色" /></div>
             <NButton type="primary" attr-type="submit" :loading="busy" :disabled="roleId === null || assignments.loading.value">指派角色</NButton>
           </form>
-          <ReadState v-if="options.error.value" :error="options.error.value" @retry="loadOptions()" />
+          <ReadState v-if="canAssign && options.error.value" :error="options.error.value" @retry="loadOptions()" />
           <ReadState :loading="assignments.loading.value" :error="assignments.error.value" :empty="!assignments.data.value.length" description="当前系统暂无直接角色指派" @retry="loadAssignments()" />
           <ul class="compact-list"><li v-for="link in assignments.data.value" :key="link.id"><span><strong>{{ link.roleName }}</strong><TechText :value="link.roleCode" /></span><NButton v-if="allowed('deleteUserRoleAssignment')" size="small" @click="revoke(link)">撤销指派</NButton></li></ul>
         </template>

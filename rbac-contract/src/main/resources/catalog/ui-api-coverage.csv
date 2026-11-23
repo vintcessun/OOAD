@@ -7,7 +7,8 @@ systemId,operationId,method,path,permissionCode,requiredRole,category,uiResource
 1,getDepartmentTree,GET,/api/v1/departments/tree,rbac:department:view,,中心管理,6,14
 1,createDepartment,POST,/api/v1/departments,rbac:department:edit,,中心管理,7,15
 1,updateDepartment,PATCH,/api/v1/departments/{id},rbac:department:edit,,中心管理,8,16
-1,deleteDepartment,DELETE,/api/v1/departments/{id},rbac:department:edit,,中心管理,9,17
+1,setDepartmentStatus,PUT,/api/v1/departments/{id}/status,rbac:department:status,,中心管理,,
+1,deleteDepartment,DELETE,/api/v1/departments/{id},rbac:department:delete,,中心管理,9,17
 1,getDepartmentAssignableRoles,GET,/api/v1/departments/{id}/assignable-roles,rbac:department:view,,中心管理,6,18
 1,replaceDepartmentAssignableRoles,PUT,/api/v1/departments/{id}/assignable-roles,rbac:department:edit,,中心管理,10,19
 1,listUsers,GET,/api/v1/users,rbac:user:view,,中心管理,11,20

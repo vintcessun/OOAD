@@ -2,8 +2,6 @@ package com.xmu.rbac.ddd.domain;
 
 import com.xmu.rbac.ddd.domain.port.DirectoryRepository;
 
-import java.util.*;
-
 /** 组织管理范围和部门树不变量，不参与业务对象数据授权。 */
 public final class OrganizationPolicy {
     public void requireManaged(String actorPath, DirectoryRepository.Department target) {
@@ -17,6 +15,16 @@ public final class OrganizationPolicy {
     public void requireDeletable(DirectoryRepository.Department department, boolean occupied) {
         DomainException.require(
                 department.parentId() != null && !occupied, 409, "DEPARTMENT_NOT_EMPTY");
+    }
+
+    public void requireDisableable(DirectoryRepository.Department department, boolean hasChildren) {
+        DomainException.require(
+                department.parentId() != null, 409, "ROOT_DEPARTMENT_DISABLE_FORBIDDEN");
+        DomainException.require(!hasChildren, 409, "DEPARTMENT_HAS_CHILDREN");
+    }
+
+    public void requireAccepting(DirectoryRepository.Department department) {
+        DomainException.require("ENABLED".equals(department.status()), 409, "DEPARTMENT_DISABLED");
     }
 
     public void requireVersion(Long expected, Long actual) {

@@ -24,9 +24,10 @@
 
 不会。`DepartmentAllowedRole` 是准入集合，`UserRole` 才是直接赋予事实。
 
-* 结构化 `ManagementService.assign` 顺序检查用户 ACTIVE、管理范围、角色/系统可用、部门准入、操作者授权上界，再创建 UserRole。
-* DDD `DirectoryApplicationService.assign` 加载并检查跨对象上下文，调用 `User.assign(role, eligibility)`；`DepartmentEligibility.requireEligible` 检查资格与角色启用。实际没有名为 RoleAssignment 的独立类，答辩不能指着不存在的类说它保护规则。
-* 调部门：DDD `User.transfer` 用目标资格集合交集保留角色；应用层删除被回收的持久化 assignment。结构化 `moveUser` 查询目标准入并删除不合法 UserRole。两者不能清空 RolePermission，那会影响所有人。
+* 结构化 `ManagementService.assign` 依次检查管理范围、部门接纳、用户 ACTIVE、角色和系统状态、部门准入及操作者授权上界，再创建 UserRole。
+* DDD `DirectoryApplicationService.assign` 检查范围、部门接纳、系统状态和授权上界，再调用 `User.assign(role, eligibility)`。`DepartmentEligibility.requireEligible` 校验资格与角色启用。
+* 跨部门调动会清空本人的全部直接指派，即使目标部门允许同一角色。提交当前部门时保留指派。共享角色权限与他人的指派保持原状。
+* 部门启停和删除各有独立权限。停用仅限非根叶部门，保留已有成员和指派，关闭新接纳及课程目录可见性。恢复停用用户时，两版检查保留角色在启用系统中的有效权限和身份标记。
 * GRASP：User 知道自己的状态/部门/直接角色；Eligibility 知道 allowedRoleIds；管理范围和授权上界是另一层跨对象规则，不挤进简单 DTO。
 
 == S03：菱形继承、停用中间角色、旧 token

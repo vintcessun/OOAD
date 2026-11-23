@@ -1,0 +1,26 @@
+@startuml
+skinparam defaultFontName Microsoft YaHei
+hide empty description
+left to right direction
+title 部门状态与新接纳
+[*] --> ENABLED : 创建部门
+ENABLED --> DISABLED : 停用 [非根部门且无子部门]
+DISABLED --> ENABLED : 启用
+note top of ENABLED
+  PUT /api/v1/departments/{id}/status
+  要求 rbac:department:status 和子树管理范围。
+  停用根部门 → 409 ROOT_DEPARTMENT_DISABLE_FORBIDDEN
+  停用有子部门的部门 → 409 DEPARTMENT_HAS_CHILDREN
+  重复提交当前状态 → 直接返回当前部门
+end note
+note bottom of DISABLED
+  保留已有成员、账号状态及角色指派。
+  课程目录隐藏，管理目录继续展示。
+  新建子部门、新建用户、跨部门迁入、新指派
+  → 409 DEPARTMENT_DISABLED
+end note
+legend bottom
+  状态实际改变时，在同一事务写入状态、授权版本和 DEPARTMENT_STATUS_CHANGED。
+  删除权限为 rbac:department:delete。根部门或有成员记录、子部门时拒绝删除。
+endlegend
+@enduml

@@ -156,12 +156,15 @@ public class JpaDirectoryRepositoryAdapter implements DirectoryRepository {
                                 .setParameter("d", id)
                                 .getSingleResult()
                         > 0
-                || em.createQuery(
-                                        "select count(*) from DepartmentEntity where parentId=:d",
-                                        Long.class)
-                                .setParameter("d", id)
-                                .getSingleResult()
-                        > 0;
+                || departmentHasChildren(id);
+    }
+
+    public boolean departmentHasChildren(long id) {
+        return !em.createQuery("select id from DepartmentEntity where parentId=:d", Long.class)
+                .setParameter("d", id)
+                .setMaxResults(1)
+                .getResultList()
+                .isEmpty();
     }
 
     public void deleteDepartment(long id) {

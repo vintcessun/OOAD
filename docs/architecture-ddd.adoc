@@ -50,7 +50,7 @@ BackendIsolationTest、DomainArchitectureTest包括生产类扫描及故意违�
 
 == 路由、缓存与安全配置
 
-OpenApiOperationContract读取中心67项OAS，RouteContractVerifier核对实际Controller及持久注册；受保护API元数据不能被管理入口弱化。
+OpenApiOperationContract 读取中心 68 项 OAS，RouteContractVerifier 核对实际 Controller 及持久注册。管理入口保护固定路由的 API 元数据。
 HttpSecurityConfiguration关闭会话、表单和Basic；Bearer与细粒度授权由接入层/应用统一验证，不能将框架permitAll理解成匿名业务开放。
 根/auth七操作与两个私有投影已有Controller；私有端点即使公开代理阻断仍需有效Bearer和服务密钥，身份查询还需TEC与admin，不能接收客户端subject/system指定目标权限上下文。
 

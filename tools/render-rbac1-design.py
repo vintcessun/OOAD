@@ -13,6 +13,7 @@ INDEX = {}; WARNINGS = []; FIGURES = []; REFS = []; CURRENT_FIGURE = None
 CALL_CHAINS = []; INPUTS = {}
 EXTRA_INPUTS = ['docs/final-acceptance.adoc', 'docs/acceptance/local-results.json', 'docs/acceptance/shared-http.json', 'tools/render-rbac1-design.test.py', 'rbac-contract/src/main/java/com/xmu/rbac/contract/ApiErrors.java', 'pom.xml', '.gitattributes', 'tools/render-rbac1-design.scenarios.py', 'rbac-contract/src/main/resources/db/migration/V1__rbac1_schema.sql', 'docker-compose.yml', 'deploy/full-stack.sh', 'rbac-web/nginx.conf', 'deploy/full-course-nginx.conf', 'deploy/deployment-evidence.json', 'course-integration/REAL-CENTERS-VERIFICATION.md']
 EXTRA_INPUTS.append('docs/design/swarm-deployment-current.puml')
+EXTRA_INPUTS.append('rbac-contract/src/main/resources/db/migration/V5__department_lifecycle_permissions.sql')
 
 def run(args):
     p = subprocess.run([str(a) for a in args], capture_output=True, text=True, encoding='utf-8', errors='replace')
@@ -113,7 +114,10 @@ def verify_call_chains():
       ('S01','ddd','RoleApplicationService','link',['repository.lockGrants()','authorization.require(','repository.role(senior)','repository.role(junior)','authorization.requireRoleManagement(actor,role)','authorization.requireRoleManagement(actor,other)','repository.hierarchy(','graph.link(','requireAffectedGrants(','repository.saveEdges(','complete(']),
       ('S01/S06','ddd','RoleApplicationService','requireAffectedGrants',['graph.affectedBy(','authorization.requireGraphGrant(','authorization.upperBound(','policy.calculate(']),
       ('S01/S06','ddd','RoleApplicationService','complete',['integrity.requireAdministrator()','repository.advanceVersion()','audits.local(']),
-      ('S02','ddd','DirectoryApplicationService','assign',['grants.lockGrants()','actor(','directory.user(id,true)','managed(','grants.role(roleId)','authorization.upperBound(','aggregate(profile).assign(','directory.assign(','done(']),
+      ('S02','ddd','DirectoryApplicationService','assign',['grants.lockGrants()','actor(','directory.user(id,true)','policy.requireAccepting(managed(','grants.role(roleId)','grants.systemEnabled(','requireRoleWithin(','aggregate(profile).assign(','directory.assign(','done(']),
+      ('S02','ddd','DirectoryApplicationService','requireRoleWithin',['authorization.upperBound(','calculate(','grants.hierarchy(','grants.permissions(']),
+      ('B','ddd','DirectoryApplicationService','statusUser',['grants.lockGrants()','actor(','managed(','aggregate(old)','grants.systemEnabled(','requireRoleWithin(','user.changeStatus(','save(','done(']),
+      ('B','ddd','DirectoryApplicationService','departmentStatus',['grants.lockGrants()','actor(','managed(','returnold','policy.requireDisableable(','directory.saveDepartment(','done(']),
       ('S02','ddd','DirectoryApplicationService','done',['integrity.requireAdministrator()','grants.advanceVersion()','audits.local(']),
       ('SIM','ddd','AuthorizationController','check',['rest.principal(','authorization.require(','directory.user(','authorization.simulate(','result.put("allowed"','result.put("reason"','result.put("trace"']),
       ('SIM','ddd','AuthorizationApplicationService','unavailableReason',['repository.systemEnabled(system)','repository.identity(userId)','DomainException.require(target!=null','return"USER_DISABLED"','returnenabled?null:"SYSTEM_DISABLED"']),
@@ -132,7 +136,8 @@ def verify_call_chains():
       ('S01/S02/S06','structured','ManagementService','begin',['az.lock()','az.center(','az.root(','az.captureUpper(']),
       ('S01/S02/S06','structured','ManagementService','finish',['db.flush()','az.preserveAdministrator()','g.version++','audit.success(']),
       ('S01','structured','ManagementService','inherit',['begin(','az.protectRole(a,s)','az.protectRole(a,j)','db.one(','reachable(junior,senior)','db.save(edge)','changedUpper(','finish(']),
-      ('S02','structured','ManagementService','assign',['begin(','az.scope(','db.one(','az.upper(','db.save(ur)','finish(']),
+      ('S02','structured','ManagementService','assign',['begin(','az.scope(','requireAccepting(','db.one(','az.upper(','db.save(ur)','finish(']),
+      ('B','structured','ManagementService','departmentStatus',['begin(','az.scope(','returndepartment(d)','ROOT_DEPARTMENT_DISABLE_FORBIDDEN','departmentHasChildren(','DEPARTMENT_HAS_CHILDREN','d.status=status','finish(']),
       ('S03','structured','ManagementService','effectiveUser',['az.center(a,"rbac:user:view")','az.system(system)','az.require(User.class,user)','az.scope(','targetSystem.status','return az.effective(new AuthorizationService.Snapshot(','return az.effective(az.snapshot(user,system),system)']),
       ('S03','structured','AuthorizationService','snapshot',['TransactionSynchronizationManager.isActualTransactionActive()','activeSystem(userId,code)','calculate(direct(','for(intattempt=0','version()','activeSystem(userId,code)','namespace+":authz:"','l1.get(','redis.opsForValue().get(','calculate(','if(version!=version())','l1.put(','redis.opsForValue().set(','if(version==version())','returnresult']),
       ('S03','structured','AuthorizationService','activeSystem',['require(User.class,userId)','system(code)','active(u,s)']),
@@ -206,6 +211,7 @@ def class_diagram(name,mode,nodes,edges,*,node_modes=None):
     positions={'C':(0,0),'L':(-1000,0),'R':(1000,0),'T':(0,360),'B':(0,-360),'LB':(-1000,-360),'RB':(1000,-360),'RT':(1000,360),'LT':(-1000,360),'LTC':(-870,180)}
     current_s04=name.startswith('S04-') and name.endswith('-current-class')
     aligned_style=name=='SIM-ddd-class' or current_s04
+    align_multiline=aligned_style or name.startswith('S02-')
     node_modes=node_modes or {}
     symbols={alias:diagram_class(short,node_modes.get(alias,mode)) for alias,(short,_,_) in nodes.items()}
     rows=[]
@@ -240,8 +246,8 @@ def class_diagram(name,mode,nodes,edges,*,node_modes=None):
             line_alignment=' BALIGN="LEFT"' if left_align_lines else ''
             return '<TR><TD ALIGN="LEFT"'+line_alignment+' BGCOLOR="'+bg+'">'+'<BR ALIGN="LEFT"/>'.join(html.escape(l) for l in wrapped)+'</TD></TR>'
         stereotype='«interface» ' if re.search(r'public\s+interface\s+'+re.escape(short.rsplit('.',1)[-1])+r'\b',src) else ''
-        fields=cell(field_lines or [' '],'#ffffff',left_align_lines=aligned_style or (name=='S03-ddd-class' and alias=='svc'))
-        operations=cell(sigs,'#ffffff',left_align_lines=aligned_style)
+        fields=cell(field_lines or [' '],'#ffffff',left_align_lines=align_multiline or (name=='S03-ddd-class' and alias=='svc'))
+        operations=cell(sigs,'#ffffff',left_align_lines=align_multiline)
         table='<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="10">'+cell([stereotype+short],'#dcecff')+'<HR/>'+fields+'<HR/>'+operations+'</TABLE>'
         x,y=positions[slot]; rows.append(f'"{alias}" [pos="{x},{y}!",label=<{table}>];')
     for a,b,kind,role in edges:
@@ -374,14 +380,14 @@ def s04_current_classes():
 def classes():
     d='ddd';s='structured'
     class_diagram('S01-ddd-class',d,{'svc':('RoleApplicationService','C',['link','complete']),'repo':('AuthorizationRepository','L',['lockGrants','hierarchy','saveEdges']),'model':('RoleHierarchy','R',['link','unlink','requireGrantable']),'adapter':('JpaAuthorizationRepositoryAdapter','LB',['hierarchy','saveEdges']),'ctl':('RoleController','T',['link']),'auth':('AuthorizationApplicationService','B',['requireRoleManagement','requireGraphGrant','upperBound']),'role':('Role','RB',['superAdministratorCapability','requireManageable'])},[('ctl','svc','association','roles'),('svc','repo','association','repository'),('svc','model','dependency',''),('adapter','repo','implementation',''),('svc','auth','association','authorization'),('model','role','association','roles')])
-    class_diagram('S02-ddd-class',d,{'svc':('DirectoryApplicationService','C',['assign','transfer']),'repo':('DirectoryRepository','L',['assign','user']),'model':('User','R',['assign','transfer','changeStatus']),'adapter':('JpaDirectoryRepositoryAdapter','LB',['assign']),'elig':('DepartmentEligibility','RB',['requireEligible']),'auth':('AuthorizationApplicationService','B',['upperBound'])},[('svc','repo','association','directory'),('svc','model','dependency',''),('model','elig','dependency',''),('adapter','repo','implementation',''),('svc','auth','association','authorization')])
+    class_diagram('S02-ddd-class',d,{'svc':('DirectoryApplicationService','C',['assign','transfer','statusUser','departmentStatus']),'repo':('DirectoryRepository','L',['assign','user','departmentHasChildren']),'model':('User','R',['assign','transfer','changeStatus']),'adapter':('JpaDirectoryRepositoryAdapter','LB',['assign']),'elig':('DepartmentEligibility','RB',['requireEligible']),'auth':('AuthorizationApplicationService','B',['upperBound']),'organization':('OrganizationPolicy','T',['requireManaged','requireAccepting','requireDisableable'])},[('svc','repo','association','directory'),('svc','model','dependency',''),('model','elig','dependency',''),('adapter','repo','implementation',''),('svc','auth','association','authorization'),('svc','organization','association','policy')])
     class_diagram('S03-ddd-class',d,{'svc':('AuthorizationApplicationService','C',['effective','stableEffective','api','stableApi']),'repo':('AuthorizationRepository','L',['version','freshenRead','hierarchy']),'model':('AuthorizationPolicy','R',['calculate','allows','requireWithin']),'adapter':('JpaAuthorizationRepositoryAdapter','LB',['freshenRead','version','hierarchy']),'graph':('RoleHierarchy','RB',['paths']),'reads':('AuthorizationReadTransaction','T',['fresh']),'cache':('EffectiveCache','B',['get','put'])},[('svc','repo','association','repository'),('svc','model','association','policy'),('model','graph','dependency',''),('adapter','repo','implementation',''),('svc','reads','association','reads'),('svc','cache','association','cache')])
     class_diagram('S06-ddd-class',d,{'svc':('RoleApplicationService','C',['status','complete']),'repo':('AuthorizationRepository','L',['lockGrants','saveRole','advanceVersion']),'role':('Role','R',['changeStatus','requireManageable']),'ctl':('RoleController','T',['status']),'adapter':('JpaAuthorizationRepositoryAdapter','LB',['saveRole','advanceVersion']),'integrity':('GrantIntegrityService','B',['requireAdministrator']),'audit':('AuditApplicationService','RB',['local','denied'])},[('ctl','svc','association','roles'),('svc','repo','association','repository'),('adapter','repo','implementation',''),('svc','role','dependency',''),('svc','integrity','association','integrity'),('svc','audit','association','audits')])
     class_diagram('SIM-ddd-class',d,{'svc':('AuthorizationApplicationService','C',['simulate','stableSimulation','unavailableReason','stableEffective','stableApi']),'repo':('AuthorizationRepository','L',['version','systemEnabled','identity']),'policy':('AuthorizationPolicy','R',['calculate','allows']),'ctl':('AuthorizationController','T',['explain','check']),'adapter':('JpaAuthorizationRepositoryAdapter','LB',['version','systemEnabled','identity'])},[('ctl','svc','association','authorization'),('svc','repo','association','repository'),('svc','policy','association','policy'),('adapter','repo','implementation','')])
     class_diagram('LOGIN-ddd-class',d,{'svc':('LoginAttemptApplicationService','C',['attempt']),'repo':('AuthorizationRepository','L',['lockLogin','saveLoginState']),'policy':('LoginAttemptPolicy','R',['locked','evaluate']),'ctl':('IdentityApplicationService','T',['login']),'adapter':('JpaAuthorizationRepositoryAdapter','LB',['lockLogin','saveLoginState']),'audit':('AuditApplicationService','B',['local'])},[('ctl','svc','association','loginAttempts'),('svc','repo','association','repository'),('adapter','repo','implementation',''),('svc','policy','association','policy'),('svc','audit','association','audits')])
     for n in ['S05']:
         class_diagram(n+'-ddd-class',d,{'svc':('AuditApplicationService','C',['external','local','denied']),'repo':('AuditRepository','L',['find','append']),'model':('AuditFact','R',['requireReplay']),'adapter':('JpaAuditRepositoryAdapter','LB',['find','append']),'ctl':(('IdentityController' if n=='S05' else 'RoleApplicationService'),'T',(['audit'] if n=='S05' else ['status','complete']))},[('svc','repo','association','repository'),('svc','model','dependency',''),('adapter','repo','implementation',''),('ctl','svc','association','audits')])
-    for n,methods,model,modelmethods in [('S01',['inherit','reachable'],'RoleHierarchy',[]),('S02',['assign','moveUser'],'UserRole',[]),('S06',['roleStatus','finish'],'Role',[])]:
+    for n,methods,model,modelmethods in [('S01',['inherit','reachable'],'RoleHierarchy',[]),('S02',['assign','moveUser','userStatus','departmentStatus'],'UserRole',[]),('S06',['roleStatus','finish'],'Role',[])]:
         class_diagram(n+'-structured-class',s,{'svc':('ManagementService','C',methods),'repo':('Store','L',['save','where','lock']),'model':(model,'R',modelmethods),'ctl':('ManagementController','T',([handler(s,'inherit')] if n=='S01' else [handler(s,'assign')] if n=='S02' else [handler(s,'roleStatus')])),'audit':('AuditService','B',['success','denied'])},[('ctl','svc','association','management'),('svc','repo','association','db'),('svc','model','dependency',''),('svc','audit','association','audit')])
     class_diagram('S03-structured-class',s,{'svc':('AuthorizationService','C',['snapshot','calculate','walk']),'repo':('Store','L',['where','all']),'model':('Role','R',[]),'ctl':('ManagementService','T',['effectiveUser'])},[('svc','repo','association','db'),('svc','model','dependency',''),('ctl','svc','association','az')])
     class_diagram('S05-structured-class',s,{'svc':('AuditService','C',['external','same','success','denied']),'repo':('Store','L',['one','save','flush']),'model':('AuditLog','R',[]),'ctl':('AuthController','T',['write'])},[('svc','repo','association','db'),('svc','model','dependency',''),('ctl','svc','association','audit')])
@@ -627,6 +633,34 @@ def runtime_evidence_note(snapshot):
         'Current source/class signatures and method order are checked separately.',
         'No new live probe, current business/final acceptance, external server or CI runtime claim.'])
 
+def department_state():
+    write('department-state','puml','''@startuml
+skinparam defaultFontName Microsoft YaHei
+hide empty description
+left to right direction
+title 部门状态与新接纳
+[*] --> ENABLED : 创建部门
+ENABLED --> DISABLED : 停用 [非根部门且无子部门]
+DISABLED --> ENABLED : 启用
+note top of ENABLED
+  PUT /api/v1/departments/{id}/status
+  要求 rbac:department:status 和子树管理范围。
+  停用根部门 → 409 ROOT_DEPARTMENT_DISABLE_FORBIDDEN
+  停用有子部门的部门 → 409 DEPARTMENT_HAS_CHILDREN
+  重复提交当前状态 → 直接返回当前部门
+end note
+note bottom of DISABLED
+  保留已有成员、账号状态及角色指派。
+  课程目录隐藏，管理目录继续展示。
+  新建子部门、新建用户、跨部门迁入、新指派
+  → 409 DEPARTMENT_DISABLED
+end note
+legend bottom
+  状态实际改变时，在同一事务写入状态、授权版本和 DEPARTMENT_STATUS_CHANGED。
+  删除权限为 rbac:department:delete。根部门或有成员记录、子部门时拒绝删除。
+endlegend
+@enduml''')
+
 def ancillary(runtime_evidence='current'):
     global CURRENT_FIGURE
     CURRENT_FIGURE='role-state'
@@ -654,6 +688,7 @@ finish → preserveAdministrator prevents last admin loss.
 No fictitious RoleStatusChangedEvent.
 end note
 @enduml''')
+    department_state()
     # The deployment diagram describes the recorded Swarm topology.
     # deployment_snapshot validates its services against the archived evidence.
     evidence=json.loads(INPUTS['deploy/deployment-evidence.json']['source'])
@@ -741,6 +776,7 @@ def main():
     index={'runtimeEvidenceMode':args.runtime_evidence,'currentRuntimeVerified':False,'artifactsMatchCurrentBuild':args.runtime_evidence=='current','hashRules':HASH_RULES,'generatorSha256':sha(Path(__file__)),'artifacts':{p.name:sha(p) for f in sorted(set(FIGURES)) for p in [OUT/(f+'.svg'),OUT/(f+'.png')]},'generatedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'strictCompiled':args.strict_compiled,'status':'SOURCE_ONLY_PENDING_COMPILE' if WARNINGS else ('STRICT_COMPILED_CHECKED' if args.strict_compiled else 'SIGNATURE_CHECKED'),'warnings':WARNINGS,'tool':tool,'sources':sources,'references':REFS,'callChains':CALL_CHAINS,'figures':sorted(set(FIGURES)),'checks':{'classBoxes':'PASS','classEdgesThirdPartyBoxes':'PASS','symbols':'PASS','orderedSourceCallChains':'PASS','sourceHashesStable':'PASS','sequenceActivationBalance':'PASS','plantumlSyntax':'PASS','pngVisualInspection':'MANUAL_REQUIRED','tests':'NOT_RUN','deployment':'ARCHIVED_LOCAL_FINAL_CHECKED_NO_NEW_LIVE_PROBE'}}
     write('source-index','json',json.dumps(index,ensure_ascii=False,indent=2));write('generation-status','json',json.dumps({k:index[k] for k in ['generatedAt','runtimeEvidenceMode','currentRuntimeVerified','artifactsMatchCurrentBuild','hashRules','strictCompiled','status','warnings','checks']},ensure_ascii=False,indent=2))
     figure_captions={
+        'department-state':'部门启停的授权、范围、接纳和事务规则。',
         'S04-structured-class':'独立网关历史类图。当前默认部署见 link:S04-structured-current-class.svg[Structured 当前类图]。',
         'S04-ddd-class':'独立网关历史类图。当前默认部署见 link:S04-ddd-current-class.svg[DDD 当前类图]。',
         'S04-structured-current-class':'当前默认部署。过滤器持有 `Authorize`。`CourseProxyConfiguration` 创建过滤器时传入实现，调用 `TokenService` 和 `AuthorizationService`。',

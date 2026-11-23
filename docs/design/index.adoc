@@ -6,6 +6,8 @@
 
 S04 的 `current-class` 类图和主顺序图对应 Compose 默认的内嵌课程代理。两张独立网关类图保留在各自的历史条目下。
 
+2026-11-23 更新两版 S02 类图、顺序图及部门状态图。编译符号、调用顺序和图稿摘要见 link:../oral-review/B-diagrams-verification.json[B 图稿核验]。
+
 旧全量生成归档见 link:source-index.json[源码和图哈希]、link:generation-status.json[生成状态] 和 link:visual-review.json[目视摘要]。本次局部复核见 link:visual-review.adoc[图稿复核记录]。文本 SHA-256 仅归一化 CRLF→LF，class/jar/png 等二进制逐字节计算。STRICT_COMPILED_CHECKED / SIGNATURE_CHECKED 仅表示当次编译产物、符号及受检查源码调用顺序对齐。
 
 == LOGIN-ddd-class
@@ -213,6 +215,12 @@ link:ddd-packages.png[PNG] / link:ddd-packages.dot[DOT]
 image::role-senior-junior-dag.svg[role-senior-junior-dag]
 
 link:role-senior-junior-dag.png[PNG] / link:role-senior-junior-dag.dot[DOT]
+
+== department-state
+
+image::department-state.svg[部门状态与新接纳]
+
+link:department-state.png[PNG] / link:department-state.puml[PlantUML]
 
 == role-state
 

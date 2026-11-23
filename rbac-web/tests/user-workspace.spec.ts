@@ -1,8 +1,9 @@
 import { it, expect, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
-import { NSelect } from 'naive-ui'
 import { createPinia, setActivePinia } from 'pinia'
 import { createMemoryHistory, createRouter } from 'vue-router'
+import { NSelect, NTree, NTreeSelect } from 'naive-ui'
+import DepartmentsView from '@/views/DepartmentsView.vue'
 import UserWorkspace from '@/views/UserWorkspace.vue'
 import RoleWorkspace from '@/views/RoleWorkspace.vue'
 import ConfirmAction from '@/components/ConfirmAction.vue'
@@ -10,8 +11,8 @@ import Pager from '@/components/Pager.vue'
 import RecordForm from '@/components/RecordForm.vue'
 import RowActions from '@/components/RowActions.vue'
 import { useAuthStore } from '@/stores/auth'
-import { authApi, del, get } from '@/api'
-import type { DepartmentVO, EffectiveVO, RoleVO, UiResourceVO, UserVO } from '@/api/types'
+import { authApi, del, get, put } from '@/api'
+import type { AssignmentVO, DepartmentVO, EffectiveVO, RoleVO, UiResourceVO, UserVO } from '@/api/types'
 vi.mock('@/api', () => ({
   get: vi.fn(), post: vi.fn(), patch: vi.fn(), put: vi.fn(), del: vi.fn(),
   authApi: { me: vi.fn(), profile: vi.fn(), menus: vi.fn(), canCall: vi.fn() },
@@ -24,11 +25,20 @@ function enabledButton(code: string): UiResourceVO {
   }
 }
 
-it('部门选项加载前禁止打开创建表单，返回后使用真实部门树', async () => {
+const enabledRoot: DepartmentVO = { id: 77, name: '虚构部门', code: 'TEST', parentId: null, children: [], path: '/77/', status: 'ENABLED' }
+const disabledLeaf: DepartmentVO = { id: 78, name: '停用部门', code: 'CLOSED', parentId: 77, children: [], path: '/77/78/', status: 'DISABLED' }
+
+function allowButtons(...operations: string[]) {
   setActivePinia(createPinia())
   const auth = useAuthStore()
-  auth.identity = { subject: 'fictional', name: '', no: '', roles: ['admin'], permissions: ['rbac:ui:createUser'] }
-  auth.menus = [enabledButton('rbac:ui:createUser')]
+  const permissions = operations.map(operation => `rbac:ui:${operation}`)
+  auth.identity = { subject: 'fictional', name: '', no: '', roles: ['admin'], permissions }
+  auth.menus = permissions.map((code, index) => ({ ...enabledButton(code), id: index + 1, sortOrder: index }))
+  return auth
+}
+
+it('创建用户只可选择启用部门，筛选可选择停用部门', async () => {
+  allowButtons('createUser')
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/users', component: UserWorkspace }] })
   await router.push('/users')
   let resolveDepartments!: (value: DepartmentVO[]) => void
@@ -38,11 +48,52 @@ it('部门选项加载前禁止打开创建表单，返回后使用真实部门�
   await flushPromises()
   const create = wrapper.findAll('button').find(button => button.text() === '创建用户')!
   expect((create.element as HTMLButtonElement).disabled).toBe(true)
-  resolveDepartments([{ id: 77, name: '虚构部门', code: 'TEST', parentId: null, children: [], path: '/77/', status: 'ENABLED' }])
+  resolveDepartments([{ ...enabledRoot, children: [disabledLeaf] }])
   await flushPromises()
   expect((create.element as HTMLButtonElement).disabled).toBe(false)
+  expect(wrapper.getComponent(NTreeSelect).props('options')).toEqual([{ key: 77, label: '虚构部门', children: [{ key: 78, label: '停用部门', children: [] }] }])
   await create.trigger('click')
   expect(wrapper.getComponent(RecordForm).props('fields').find(field => field.key === 'departmentId')?.tree).toEqual([{ key: 77, label: '虚构部门', children: [] }])
+  wrapper.unmount()
+})
+
+it('部门启停使用独立按钮，根部门不可停用，停用部门不可选为上级', async () => {
+  const auth = allowButtons('createDepartment', 'setDepartmentStatus')
+  vi.spyOn(auth, 'refresh').mockResolvedValue(undefined)
+  let leaf: DepartmentVO = { ...disabledLeaf, status: 'ENABLED' }
+  vi.mocked(get).mockImplementation(async url => {
+    if (url === '/departments/tree') return [{ ...enabledRoot, children: [leaf] }]
+    if (url.endsWith('/role-hierarchy')) return { roles: [] }
+    return []
+  })
+  vi.mocked(put).mockImplementationOnce(async () => {
+    leaf = disabledLeaf
+    return leaf
+  })
+  const wrapper = mount(DepartmentsView)
+  const button = (name: string) => wrapper.findAll('button').find(item => item.text() === name)
+  await flushPromises()
+  expect(button('停用部门')?.attributes('disabled')).toBeDefined()
+  expect(button('删除')).toBeUndefined()
+
+  wrapper.getComponent(NTree).vm.$emit('update:selectedKeys', [leaf.id])
+  await flushPromises()
+  expect(button('停用部门')?.attributes('disabled')).toBeUndefined()
+  await button('停用部门')!.trigger('click')
+  const dialog = wrapper.getComponent(ConfirmAction)
+  expect(dialog.props('description')).toContain('账号状态和角色指派会保留')
+  await dialog.props('submit')()
+  dialog.vm.$emit('close')
+  await flushPromises()
+  expect(put).toHaveBeenCalledWith('/departments/78/status', { status: 'DISABLED' })
+  expect(button('启用部门')).toBeDefined()
+
+  await button('创建部门')!.trigger('click')
+  const form = wrapper.getComponent(RecordForm)
+  expect(form.props('initial')).toBeUndefined()
+  expect(form.props('fields').find(field => field.key === 'parentId')).toMatchObject({
+    required: true, tree: [{ key: 77, label: '虚构部门', children: [] }],
+  })
   wrapper.unmount()
 })
 
@@ -174,6 +225,36 @@ it.each([true, false])('从详情退役角色后仅在成功时返回列表（%s
   wrapper.unmount()
 })
 
+it('停用部门成员可查看和撤销原指派，并迁往启用部门', async () => {
+  allowButtons('createUserRoleAssignment', 'deleteUserRoleAssignment', 'changeUserDepartment')
+  const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/users', component: UserWorkspace }] })
+  await router.push('/users?userId=7&tab=assignments')
+  vi.mocked(get).mockImplementation(async endpoint => {
+    if (endpoint === '/departments/tree') return [{ ...enabledRoot, children: [disabledLeaf] }]
+    if (endpoint === '/users/7') return { ...user, departmentId: 78, departmentName: '停用部门' }
+    if (endpoint.endsWith('/role-assignments')) return [{
+      id: 9, userId: 7, roleId: role.id, systemCode: role.systemCode, roleCode: role.code, roleName: role.name,
+      assignedAt: '2026-11-23T00:00:00Z', assignedBy: 1,
+    } satisfies AssignmentVO]
+    if (endpoint === '/users') return { page: 1, pageSize: 20, total: 0, items: [] }
+    if (endpoint.endsWith('/permissions')) return { directRoles: [role], effectiveRoles: [role], permissions: [], sources: [] }
+    return [role]
+  })
+  const wrapper = mount(UserWorkspace, { global: { plugins: [router] } })
+  await flushPromises()
+  expect(wrapper.find('.assignment-form').exists()).toBe(false)
+  expect(wrapper.text()).toContain('测试角色')
+  expect(wrapper.findAll('button').some(button => button.text() === '撤销指派')).toBe(true)
+
+  wrapper.getComponent(RowActions).vm.$emit('select', 'move')
+  await flushPromises()
+  const form = wrapper.getComponent(RecordForm)
+  expect(form.props('description')).toContain('全部直接角色指派')
+  expect(form.props('initial')).toBeUndefined()
+  expect(form.props('fields')[0].tree).toEqual([{ key: 77, label: '虚构部门', children: [] }])
+  wrapper.unmount()
+})
+
 it.each([
   {
     title: '用户详情',
@@ -198,11 +279,7 @@ it.each([
 ])('$title刷新失败时隐藏原有权限，重试成功后展示新权限', async ({
   component, path, url, profile, canEdit, effectivePath, rejectProfile,
 }) => {
-  setActivePinia(createPinia())
-  const auth = useAuthStore()
-  const editPermission = `rbac:ui:${canEdit}`
-  auth.identity = { subject: 'fictional', name: '', no: '', roles: ['admin'], permissions: [editPermission] }
-  auth.menus = [enabledButton(editPermission)]
+  const auth = allowButtons(canEdit)
   vi.spyOn(auth, 'refresh').mockResolvedValue(undefined)
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path, component }] })
   await router.push(url)

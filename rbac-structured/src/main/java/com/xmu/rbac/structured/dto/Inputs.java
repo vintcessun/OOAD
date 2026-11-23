@@ -33,6 +33,7 @@ public final class Inputs {
     public record Name(@NotBlank @Size(max = 128) String name) {}
     public record
         State(@NotBlank @Pattern(regexp = "ENABLED|DISABLED|ACTIVE|DELETED") String status) {}
+    public record EnabledState(@NotBlank @Pattern(regexp = "ENABLED|DISABLED") String status) {}
     /** 部门父节点经服务解析后赋值。 */
     @CopyTo(Department.class)
     public record DepartmentCreate(

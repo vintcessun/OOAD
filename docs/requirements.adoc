@@ -5,7 +5,7 @@
 
 完整输入为link:sources/requirements-final.md[需求文档-final]与link:sources/phase1-feedback.md[阶段反馈]；用户明确*重构优先于迁移、兼容*。
 现行精确协议/物理列以link:implementation-contract.adoc[实施合同]、link:schema-contract.adoc[数据库合同]、link:course-integration-contract.adoc[课程集成补充合同]为准；历史起点见link:migration-baseline.adoc[实施基线]。
-管理与提供方唯一机器合同为link:../rbac-contract/src/main/resources/openapi/rbac-api.yaml[67操作OAS]，15表由 V1/V2 初始化，V3 拆分角色启停的 API 权限，V4 更新教师目录与课程登录登记。
+管理与提供方唯一机器合同为link:../rbac-contract/src/main/resources/openapi/rbac-api.yaml[68 操作 OAS]，15 表由 V1/V2 初始化。V3 拆分角色启停权限，V4 更新教师目录与课程登录登记，V5 拆分部门启停和删除权限。
 
 结构化和DDD均已存在RBAC1业务代码；不能再称“当前仍是一期”或“DDD只有骨架”。十个 /auth 操作及两个私有身份投影也已有Controller/应用实现。
 此前版本的本地证据包括后端188项JUnit、两侧25+25真实HTTP及T21比较、同前端PC/手机4例、教师原440项和真实双中心课程12例。桌面改版验收见link:acceptance/frontend-redesign.adoc[桌面前端验收]。
@@ -17,7 +17,8 @@
 
 * 单组织、用户唯一所属部门；没有公司模型。部门用于组织管理子树与直接角色准入，不提供业务数据范围。
 * 角色归属系统，senior→junior同系统DAG支持多父、传递、菱形去重与来源路径；停用节点切断。写事务持授权锁防并发成环。
-* 移部门只回收不合资格的本人指派，不清空共享角色权限；超级管理员也必须满足目标部门准入。授权上界包括目标系统有效权限及identityRole，不能经共享定义影响管理范围外人员。
+* 跨部门调动清空该用户的全部直接角色指派，在新部门重新指派时校验准入。提交原部门保留指派。共享角色权限与其他用户的指派保持原状。授权上界包括目标系统有效权限及 `identityRole`。
+* 创建、改名和维护准入使用部门编辑权限。启停和删除拥有独立权限。停用的非根叶部门保留成员和既有指派，停止接收新成员、子部门和指派，并从课程目录隐藏。
 * UI菜单/按钮与API权限分种类；API目录独立登记、UI↔API显式映射只追踪、不赋权；未知操作默认拒绝。
 * JWT无角色权限claim、稳定sub/单aud，状态/撤销先于超级管理员旁路；MySQL为授权版本与jti撤销事实源，缓存故障不得用旧许可放行。
 * 权限中心保存统一身份和集中审计，不保存课程业务副本；教师Service保留对象授权，copyCourse全局teacher不等于非组长拥有CC。
