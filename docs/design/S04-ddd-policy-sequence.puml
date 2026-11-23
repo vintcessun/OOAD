@@ -1,11 +1,12 @@
 @startuml
+!pragma teoz true
 hide footbox
 skinparam defaultFontName Microsoft YaHei
 skinparam defaultFontSize 14
-skinparam ParticipantPadding 24
+skinparam ParticipantPadding 124
 skinparam BoxPadding 12
 skinparam sequenceMessageAlign left
-skinparam maxMessageSize 100
+skinparam maxMessageSize 275
 title S04-ddd-policy-sequence — source snapshot (not a runtime trace)
 participant "obj: 调用者" as obj
 participant "auth: AuthorizationApplicationService" as auth
@@ -15,63 +16,79 @@ participant "policy: AuthorizationPolicy" as policy
 activate obj
 obj -> auth: 1. api(userId, system, operationId)
 activate auth
-alt actual outer transaction is read-only
+alt outer read-only
 auth -> reads: 2. fresh(query callback)
 activate reads
+note right of reads
+REQUIRES_NEW, READ_COMMITTED, readOnly.
+Clear the JPA context at the start of each attempt.
+end note
 reads -> auth: 3. stableApi(userId, system, operationId)
 activate auth
+ref over auth,policy: Run the stableApi retry loop shown below
+auth -->> reads: allowed
 deactivate auth
-note over reads,repo
-callback within REQUIRES_NEW READ_COMMITTED readOnly;
-freshenRead clears JPA context per attempt; same bracket as below.
-end note
+reads -->> auth: allowed
 deactivate reads
-else normal invocation
+||12||
+else direct call
 auth -> auth: 4. stableApi(userId, system, operationId)
 activate auth
-loop at most 3 attempts
+loop up to 3 tries
 auth -> repo: 5. version()
 activate repo
+repo -->> auth: initial version
 deactivate repo
 auth -> repo: 6. operation(system, operationId)
 activate repo
+repo -->> auth: registered operation or null
 deactivate repo
-note over auth
-unknown operation → 404 API_OPERATION_NOT_FOUND;
-public/authenticated policy never bypasses target identity status.
-end note
+break missing
+auth -->> obj: DomainException 404 API_OPERATION_NOT_FOUND
+||12||
+end
 auth -> repo: 7. identity(userId)
 activate repo
+repo -->> auth: target identity
 deactivate repo
-opt ACTIVE target
+note right of auth
+allowed starts false.
+end note
+opt target active
 auth -> auth: 8. effective(userId, system)
 activate auth
+auth -->> auth: effective permissions
 deactivate auth
 auth -> repo: 9. identity(userId)
 activate repo
+repo -->> auth: current target identity
 deactivate repo
-opt target still ACTIVE
+opt still active
 auth -> policy: 10. allows(operation, effective)
 activate policy
+policy -->> auth: allowed
 deactivate policy
+||12||
 end
 end
 auth -> repo: 11. version()
 activate repo
+repo -->> auth: final version
 deactivate repo
-note over auth
-unchanged version → return allowed; changed → retry
+note right of auth
+Stop when the version matches.
+Retry when the version changes.
 end note
+||12||
 end
-alt all attempts unstable
-auth --> obj: DomainException 503 AUTHORIZATION_UNSTABLE
-else stable result
-note over auth
-inactive/missing target → allowed=false
-end note
+break unstable
+auth -->> obj: DomainException 503 AUTHORIZATION_UNSTABLE
+||12||
 end
 deactivate auth
+||12||
 end
+auth -->> obj: allowed
 deactivate auth
 deactivate obj
 @enduml

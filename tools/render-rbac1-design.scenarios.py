@@ -385,17 +385,51 @@ def structured_effective_sequence():
     q.finish(close_entry=False)
 
 def build_policy_detail():
-    p={'auth':'AuthorizationApplicationService','reads':'AuthorizationReadTransaction','repo':'AuthorizationRepository','policy':'AuthorizationPolicy'}
-    q=Sequence('S04-ddd-policy-sequence','ddd',p,'auth','api','userId, system, operationId')
-    q.raw('alt actual outer transaction is read-only');q.open('auth','reads','fresh','query callback');q.call('reads','auth','stableApi','userId, system, operationId')
-    q.raw('note over reads,repo: callback within REQUIRES_NEW READ_COMMITTED readOnly;\nfreshenRead clears JPA context per attempt; same bracket as below.')
-    q.close('reads','auth');q.raw('else normal invocation');q.open('auth','auth','stableApi','userId, system, operationId')
-    q.raw('loop at most 3 attempts');q.call('auth','repo','version');q.call('auth','repo','operation','system, operationId')
-    q.raw('note over auth: unknown operation → 404 API_OPERATION_NOT_FOUND;\npublic/authenticated policy never bypasses target identity status.')
-    q.call('auth','repo','identity','userId');q.raw('opt ACTIVE target');q.call('auth','auth','effective','userId, system');q.call('auth','repo','identity','userId')
-    q.raw('opt target still ACTIVE');q.call('auth','policy','allows','operation, effective');q.raw('end\nend');q.call('auth','repo','version')
-    q.raw('note over auth: unchanged version → return allowed; changed → retry\nend\nalt all attempts unstable\nauth --> obj: DomainException 503 AUTHORIZATION_UNSTABLE\nelse stable result\nnote over auth: inactive/missing target → allowed=false\nend')
-    q.close('auth','auth');q.raw('end');q.finish()
+    participants = {
+        'auth': 'AuthorizationApplicationService',
+        'reads': 'AuthorizationReadTransaction',
+        'repo': 'AuthorizationRepository',
+        'policy': 'AuthorizationPolicy',
+    }
+    q = Sequence('S04-ddd-policy-sequence', 'ddd', participants, 'auth', 'api',
+                 'userId, system, operationId', reply_arrow='-->>')
+    q.lines.insert(1, '!pragma teoz true')
+    # Leave room for fragment guards before the caller's execution bar.
+    q.lines[q.lines.index('skinparam ParticipantPadding 24')] = 'skinparam ParticipantPadding 124'
+    q.lines[q.lines.index('skinparam maxMessageSize 100')] = 'skinparam maxMessageSize 275'
+    q.raw('alt outer read-only')
+    q.open('auth', 'reads', 'fresh', 'query callback')
+    q.raw('note right of reads: REQUIRES_NEW, READ_COMMITTED, readOnly.\nClear the JPA context at the start of each attempt.')
+    q.open('reads', 'auth', 'stableApi', 'userId, system, operationId')
+    q.raw('ref over auth,policy: Run the stableApi retry loop shown below')
+    q.close('auth', 'reads', 'allowed')
+    q.close('reads', 'auth', 'allowed')
+    q.raw('||12||\nelse direct call')
+    q.open('auth', 'auth', 'stableApi', 'userId, system, operationId')
+    q.raw('loop up to 3 tries')
+    q.call('auth', 'repo', 'version', reply='initial version')
+    q.call('auth', 'repo', 'operation', 'system, operationId', 'registered operation or null')
+    q.raw('break missing')
+    q.reply('auth', 'obj', 'DomainException 404 API_OPERATION_NOT_FOUND')
+    q.raw('||12||\nend')
+    q.call('auth', 'repo', 'identity', 'userId', 'target identity')
+    q.raw('note right of auth: allowed starts false.')
+    q.raw('opt target active')
+    q.call('auth', 'auth', 'effective', 'userId, system', 'effective permissions')
+    q.call('auth', 'repo', 'identity', 'userId', 'current target identity')
+    q.raw('opt still active')
+    q.call('auth', 'policy', 'allows', 'operation, effective', 'allowed')
+    q.raw('||12||\nend\nend')
+    q.call('auth', 'repo', 'version', reply='final version')
+    q.raw('note right of auth: Stop when the version matches.\nRetry when the version changes.')
+    q.raw('||12||\nend')
+    q.raw('break unstable')
+    q.reply('auth', 'obj', 'DomainException 503 AUTHORIZATION_UNSTABLE')
+    q.raw('||12||\nend')
+    q.close('auth', 'auth')
+    q.raw('||12||\nend')
+    q.reply('auth', 'obj', 'allowed')
+    q.finish()
 
 def build_login_detail():
     p={'identity':'IdentityApplicationService','attempts':'LoginAttemptApplicationService','repo':'AuthorizationRepository','policy':'LoginAttemptPolicy','encoder':'CredentialEncoder','tokens':'TokenProvider','audit':'AuditApplicationService'}

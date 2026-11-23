@@ -60,6 +60,12 @@ S04 补齐当前默认部署的两张类图。两版以 `CourseProxyFilter` 为�
 
 重绘两版 S02 类图、顺序图及部门状态图。打开 PNG 核对类框、关联、拒绝分支与事务审计，使用 JDK 21 编译符号和源码调用点复核图中接口。版本与图稿摘要见 link:../oral-review/B-diagrams-verification.json[B 图稿核验]。
 
+== S04 DDD 策略细图定向重绘
+
+按课程 `uml-class-sequence-diagrams` skill 更新生成脚本中的 `build_policy_detail()`，再用 PlantUML 1.2025.2 定向生成这一张图的 PUML、SVG 和 PNG。操作未登记时从仍在执行的授权服务返回 `404 API_OPERATION_NOT_FOUND`。三轮重试耗尽返回 `503 AUTHORIZATION_UNSTABLE`。稳定时通过共同出口返回 `allowed`。普通回复与异常均使用虚线空心箭头。
+
+已打开 PNG 检查版面，并用 SVG 坐标核对第 1–11 步的箭头与接收执行条顶边同高、循环内短执行条的位置，以及片段文字和执行条的间距。绘图器现有 23 项测试通过。全量源码索引记录先前生成批次，此处记录本次单图复核。link:S04-ddd-policy-sequence.puml[PlantUML] · link:S04-ddd-policy-sequence.svg[SVG] · link:S04-ddd-policy-sequence.png[PNG]
+
 == 自动与人工证明的边界
 
 自动通过的项目是类/方法及实现关系存在、类框/穿框几何、执行条平衡、PlantUML 语法、25 组指定方法体的调用点词法顺序、源码/class 哈希稳定；不证明全程序调用图、所有异常分支或业务等价性。运行结果见 link:verification.adoc[本轮核验]。
