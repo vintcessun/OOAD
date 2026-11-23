@@ -1,11 +1,11 @@
 {
   "generatedOn": "2026-11-19",
-  "commit": "560ed0d32aca4765b1a936a711bfdf0a8ad559b7",
+  "commit": "57deb4a1cf91da197f3f30687839afca8bf7b815",
   "scope": "静态阅读与提取；不代表本轮执行了业务测试或部署",
   "sources": [
     {
       "path": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "sha256": "52093d95db7a1d70848ab80b79bb694d37203c2d6e24dd96ab5594a974dc0944"
+      "sha256": "2270b29abe1db27a798b574ced15cba1e28078fa7bfc441e33e9511643e0b34d"
     },
     {
       "path": "rbac-contract/src/main/resources/catalog/course-openapi.source.yaml",
@@ -16,8 +16,12 @@
       "sha256": "b05195002bfb1bab73fa10e05f3e0977094baa5837c30ab9ac6515afd51ab2b9"
     },
     {
+      "path": "rbac-contract/src/main/resources/db/migration/V7__drop_role_identity_marker.sql",
+      "sha256": "cc2477c407e065a889a0904901e955d5eb38cf937982f50eca10cb82cdb8be04"
+    },
+    {
       "path": "docker-compose.yml",
-      "sha256": "4c0b5f87c822154569f6ee7735ec65ef7188d99267aa69c9561081e87b88eefd"
+      "sha256": "1c78e2e1b0b95a285fadb7f42ae68dbca45d12b5818a3bb2799f4a1ea818996d"
     },
     {
       "path": "rbac-web/nginx.conf",
@@ -25,11 +29,11 @@
     },
     {
       "path": "deploy/full-course-nginx.conf",
-      "sha256": "59bf6d756305219f0dfeec50ac3891849e765f1a5f7ef386b495c698dfe38d73"
+      "sha256": "8f39617a040847f05fb353645a0a401f6ed4f274865afc6e07b4193c4e5fa698"
     },
     {
       "path": "course-integration/UPSTREAM.lock",
-      "sha256": "176efba947d79997009bb155066319fdbe8b764e8966a20be2bdd480370e5b7d"
+      "sha256": "ef61ae11e015c9fc73af681ff186e5adef54f506e900dcce036a0c26823ca18c"
     },
     {
       "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/AuthController.java",
@@ -37,7 +41,7 @@
     },
     {
       "path": "rbac-structured/src/main/java/com/xmu/rbac/structured/service/ManagementService.java",
-      "sha256": "e3a3fa735a7b2f833e8af8423bfde62c76002311feeeaafa528352fcdb9b01fe"
+      "sha256": "ede37085668755503d01365433a1debd6f1b1c1e0fdc720d108dbe6de8eabcaf"
     },
     {
       "path": "rbac-ddd/src/main/java/com/xmu/rbac/ddd/domain/RoleHierarchy.java",
@@ -45,7 +49,7 @@
     },
     {
       "path": "rbac-ddd/src/main/java/com/xmu/rbac/ddd/domain/AuthorizationPolicy.java",
-      "sha256": "7f8a1128e3410e8b552dadee99dc83713c98362d820d839c9188d87b483e46eb"
+      "sha256": "616f5892bcb5c9ae6c095b762818ed0e0a57ada09ce9364c9dfc94aa08829d99"
     },
     {
       "path": "rbac-gateway/src/main/java/com/xmu/rbac/gateway/GatewayController.java",

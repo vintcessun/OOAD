@@ -13,6 +13,5 @@ public record RoleView(
         String description,
         String status,
         Boolean builtin,
-        String identityRole,
         Long version) {
 }

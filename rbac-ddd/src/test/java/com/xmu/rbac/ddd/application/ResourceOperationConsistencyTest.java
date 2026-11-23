@@ -72,7 +72,7 @@ class ResourceOperationConsistencyTest {
     void savesAnUnchangedCenterRegistrationWithItsRequiredIdentityRole() {
         when(resources.operationSystem(CENTER)).thenReturn(new OperationSystem(1, CENTER, true));
         when(resources.operation(9L)).thenReturn(DIRECTORY);
-        Role root = new Role(1, CENTER, "SUPER_ADMIN", "超管", null, true, true, null, 0, Set.of());
+        Role root = new Role(1, CENTER, "SUPER_ADMIN", "超管", null, true, true, 0, Set.of());
         when(authorization.effective(7L, CENTER)).thenReturn(
                 new AuthorizationPolicy.Effective(List.of(root), List.of(root), List.of(), List.of()));
         when(resources.saveOperation(DIRECTORY, 1, null)).thenReturn(DIRECTORY);
@@ -112,7 +112,7 @@ class ResourceOperationConsistencyTest {
         when(resources.operationSystem(COURSE)).thenReturn(new OperationSystem(2, COURSE, true));
         when(resources.apiPermissionId(2, "course:view")).thenReturn(80L);
         when(resources.apiPermissionId(2, "course:edit")).thenReturn(81L);
-        Role teacher = new Role(4, COURSE, "TEACHER", "教师", null, true, false, "teacher", 0, Set.of(80L));
+        Role teacher = new Role(4, COURSE, "teacher", "教师", null, true, false, 0, Set.of(80L));
         Permission view = new Permission(80, COURSE, "course:view", "查看", Permission.Kind.API, true);
         when(authorization.effective(7L, COURSE)).thenReturn(
                 new AuthorizationPolicy.Effective(List.of(teacher), List.of(teacher), List.of(view), List.of()));

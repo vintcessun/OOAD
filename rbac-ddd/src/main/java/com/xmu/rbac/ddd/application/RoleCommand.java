@@ -6,7 +6,6 @@ public class RoleCommand {
     private String code;
     private String name;
     private String description;
-    private String identityRole;
 
     public String getSystemCode() {
         return systemCode;
@@ -40,11 +39,4 @@ public class RoleCommand {
         description = value;
     }
 
-    public String getIdentityRole() {
-        return identityRole;
-    }
-
-    public void setIdentityRole(String value) {
-        identityRole = value;
-    }
 }

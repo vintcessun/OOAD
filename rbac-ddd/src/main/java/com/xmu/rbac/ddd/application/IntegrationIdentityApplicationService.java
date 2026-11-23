@@ -20,7 +20,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.List;
 import java.util.TreeSet;
 
-/** 通过领域仓储端口执行课程目录查询和私有身份投影。 */
+/** 通过领域仓储端口执行课程目录查询和私有能力查询。 */
 @Service
 @Transactional(readOnly = true)
 public class IntegrationIdentityApplicationService {
@@ -71,7 +71,7 @@ public class IntegrationIdentityApplicationService {
         effective.permissions().stream()
                 .filter(permission -> permission.kind() == Permission.Kind.API)
                 .forEach(permission -> values.add(permission.code()));
-        effective.identities().forEach(identity -> values.add("ROLE_" + identity));
+        effective.courseRoleCodes().forEach(identity -> values.add("ROLE_" + identity));
         return new AuthoritiesResult(List.copyOf(values));
     }
 
@@ -116,7 +116,7 @@ public class IntegrationIdentityApplicationService {
         AuthorizationRepository.Identity actor = authorization.validate(principal);
         DomainException.require("course-project-management".equals(principal.systemCode()), 403, "FORBIDDEN");
         AuthorizationPolicy.Effective effective = authorization.effective(actor.id(), principal.systemCode());
-        DomainException.require(effective.identities().contains("admin")
+        DomainException.require(effective.courseRoleCodes().contains("admin")
                 && effective.has("TEC", Permission.Kind.API), 403, "FORBIDDEN");
     }
 

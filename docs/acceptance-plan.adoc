@@ -55,18 +55,18 @@ npm run acceptance -- --module=both
 |===
 |需求/旧安全回归 |真实验收内容
 |SETUP、ID-02/03 |root 首次改密，内部包装，部门/角色/UI/API/用户全经 HTTP 建夹具，用户首次改密
-|EXT-01、API-C01～03、NFR-02 |裸 login/me 精确字段，UI-only permissions，identityRole 枚举，JWKS 验 RS256，aud/iss/iat/exp/jti/tokenVersion/kid，无 roles/permissions claim
+|EXT-01、API-C01～03、NFR-02 |裸 login/me 精确字段，UI-only permissions，当前系统有效课程角色码，JWKS 验 RS256，aud/iss/iat/exp/jti/tokenVersion/kid，无 roles/permissions claim
 |ID-07、API-C02/13 |错误凭据、输入长度/未知字段、多 systems；合法测试密钥重签错误 aud/iss/iat/exp/缺 claim/未知 kid、伪造 signature 拒绝
 |ID-01/06、SELF-03 |课程用户和 root 课程 aud 均不能管理中心；停用课程系统拒绝，中心角色/权限不串系统
 |ROLE-02/03/04、DAG-01～11 |空图/单边/传递/多父菱形去重/来源字段；重复、自环、环、跨系统；停用中间切断与备用路径；删边剩余路径/最后路径；两个并发反向边仅一个成功并查 DB
 |ROLE-05、ORG-02 |即使 root 也必须满足部门准入；伪造 departmentId 无法绕过；普通 PATCH 禁 status/department，角色 PATCH 禁 status
 |ID-05、ORG-05 |迁部门只回收目标用户指派，旧 token 立即无权；同角色另一用户保留权限，直接 RolePermission 不变
 |ROLE-06、ORG-03/04 |非根部门管理员不能改系统共享角色、不能编辑或迁移兄弟部门用户
-|ROLE-06、H-10 |根部门非超级管理员仍受目标系统授权上界，不能通过直接权限/identityRole/继承/启用角色提升
+|ROLE-06、H-10 |根部门非超级管理员仍受目标系统授权上界，不能通过直接权限/受保护角色/继承/启用角色提升
 |RES-02/03/04、SELF-01 |UI-only 用户没有 API 和审计权限；未知 API 默认拒绝；UI/API kind 不互用，跨系统 permission/mapping 拒绝，显式映射不赋权
 |EXT-03、课程OAS |按教师快照的六类真实operationId/method/path/requiredRole/permissionCode逐项查注册表；copyCourse只要求teacher＋course:access、不误用CC；student即便有course:access仍拒绝
 |NFR-03、DAG-14 |两个 JVM 重复暖 UI/API 权限缓存并确认专属namespace有Redis条目；撤 UI/API 权限后两个实例下一访问均 false；恢复授权立即生效
-|AUD-01、AUD-T09/10 |GET/POST 均验证可信服务 key；无 key/错 key 403，无 bearer401；UUID、四 type、对象前缀与类型、target500/501、敏感 JSON、伪造 actor 拒绝；返回精确 VO/actor/identityRole
+|AUD-01、AUD-T09/10 |GET/POST 均验证可信服务 key；无 key/错 key 403，无 bearer401；UUID、四 type、对象前缀与类型、target500/501、敏感 JSON、伪造 actor 拒绝；返回精确 VO/actor/课程角色码
 |AUD-01、AUD-T01～03 |同键同体201同ID，异体400 AUDIT_DUPLICATE_CONFLICT，同键异主体拒绝；20并发全部201同ID，DB一行；检查 sourceSystem/origin/actor_roles_json
 |AUD-02、AUD-T11 |审计分页不重叠且 at/id 倒序；actor/actorId/target/from/to 联合筛选，时间相等边界和 +1ms；无效分页/时间400；跨系统同键冲突且查询不可见
 |AUD-05、AUD-T04/08 |自有库 BEFORE INSERT 审计 trigger SIGNAL；角色 PATCH503，角色 name/version、全局授权 version、SUCCESS审计数都未变；finally 删除 trigger

@@ -12,10 +12,10 @@ import org.springframework.transaction.PlatformTransactionManager;
 
 import java.util.*;
 
-/** 审计角色是在写入时确定的不可变身份投影，不在读取历史时重算。 */
+/** 审计角色是在写入时确定的不可变课程角色快照，不在读取历史时重算。 */
 class AuditRoleSnapshotTest {
     @Test
-    void successAndDenialCaptureIdentityRoleAndNeverChangeAfterRevocation() {
+    void successAndDenialCaptureCourseRoleAndNeverChangeAfterRevocation() {
         AuthorizationRepository grants = mock(AuthorizationRepository.class);
         AuditRepository repository = mock(AuditRepository.class);
         when(repository.append(any())).thenAnswer(i -> i.getArgument(0));
@@ -23,12 +23,11 @@ class AuditRoleSnapshotTest {
                 new Role(
                         4,
                         "course-project-management",
-                        "internal-teacher-code",
+                        "teacher",
                         "教师",
                         null,
                         true,
                         false,
-                        "teacher",
                         0,
                         Set.of());
         when(grants.systemEnabled("course-project-management")).thenReturn(true);
@@ -58,7 +57,6 @@ class AuditRoleSnapshotTest {
         teacher.changeStatus(false);
         assertThat(success.actorRoles()).containsExactly("teacher");
         assertThat(denied.actorRoles()).containsExactly("teacher");
-        assertThat(success.actorRoles()).doesNotContain("internal-teacher-code");
         assertThat(
                         audits.local(
                                         actor,

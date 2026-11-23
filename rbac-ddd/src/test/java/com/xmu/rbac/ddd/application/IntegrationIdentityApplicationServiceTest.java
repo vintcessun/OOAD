@@ -36,12 +36,11 @@ class IntegrationIdentityApplicationServiceTest {
                 new Role(
                         1,
                         "course-project-management",
-                        "INTERNAL_NOT_AN_AUTHORITY",
+                        identity == null ? "INTERNAL_NOT_AN_AUTHORITY" : identity,
                         "角色",
                         null,
                         true,
                         false,
-                        identity,
                         0,
                         Set.of());
         List<Permission> permissions = new ArrayList<>();

@@ -1,14 +1,14 @@
 {
-  "status": "static-generated",
+  "status": "static-and-browser-verified",
   "counts": {
-    "centerOperations": 67,
+    "centerOperations": 68,
     "courseOperations": 80,
     "teacherProviderOperations": 10,
-    "centerPaths": 49,
+    "centerPaths": 50,
     "schemas": 63,
     "tables": 15,
     "foreignKeys": 20,
-    "columns": 107
+    "columns": 106
   },
   "controllerExceptions": [
     {
@@ -30,7 +30,7 @@
   ],
   "checks": [
     {
-      "name": "中心67操作",
+      "name": "中心68操作",
       "ok": true
     },
     {
@@ -54,7 +54,7 @@
       "ok": true
     },
     {
-      "name": "中心普通内部52操作及两个Actuator端点",
+      "name": "中心普通内部53操作及两个Actuator端点",
       "ok": true
     },
     {
@@ -65,5 +65,112 @@
       "name": "跨系统 operationId 唯一",
       "ok": true
     }
-  ]
+  ],
+  "browser": {
+    "engine": "local Microsoft Edge / Chromium",
+    "viewport": [
+      1500,
+      1050
+    ],
+    "mobile": [
+      390,
+      844
+    ],
+    "checks": [
+      {
+        "name": "usecase-center：文本位于画布内",
+        "ok": true
+      },
+      {
+        "name": "usecase-course：文本位于画布内",
+        "ok": true
+      },
+      {
+        "name": "er-overview：文本位于画布内",
+        "ok": true
+      },
+      {
+        "name": "architecture-runtime：文本位于画布内",
+        "ok": true
+      },
+      {
+        "name": "architecture-modules：文本位于画布内",
+        "ok": true
+      },
+      {
+        "name": "总览默认可见",
+        "ok": true
+      },
+      {
+        "name": "接口页签切换",
+        "ok": true
+      },
+      {
+        "name": "中心默认显示68操作",
+        "ok": true
+      },
+      {
+        "name": "operationId检索",
+        "ok": true
+      },
+      {
+        "name": "请求模型展开",
+        "ok": true
+      },
+      {
+        "name": "课程业务80操作",
+        "ok": true
+      },
+      {
+        "name": "HTTP方法筛选",
+        "ok": true
+      },
+      {
+        "name": "合计148个操作",
+        "ok": true
+      },
+      {
+        "name": "功能分组筛选",
+        "ok": true
+      },
+      {
+        "name": "完整十五表字典",
+        "ok": true
+      },
+      {
+        "name": "角色字典包含角色码",
+        "ok": true
+      },
+      {
+        "name": "角色字典反映 V7",
+        "ok": true
+      },
+      {
+        "name": "图形缩放",
+        "ok": true
+      },
+      {
+        "name": "桌面无横向页面溢出",
+        "ok": true
+      },
+      {
+        "name": "所有图可加载",
+        "ok": true
+      },
+      {
+        "name": "本地链接目标存在",
+        "ok": true
+      },
+      {
+        "name": "手机无横向页面溢出",
+        "ok": true
+      },
+      {
+        "name": "无页面脚本错误",
+        "ok": true
+      }
+    ],
+    "errors": [],
+    "note": "仅验证图册、提取一致性与浏览器交互；未执行产品业务测试。"
+  }
 }

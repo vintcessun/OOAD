@@ -1,6 +1,6 @@
 # ER 图与数据字典
 
-> 阅读基线：2026-11-19；Git HEAD：`560ed0d32aca4765b1a936a711bfdf0a8ad559b7`。本文来自当前源码、固定教师 API 和数据库迁移的静态分析。本次未运行业务测试或部署，接口存在不等于本轮验收通过。
+> 阅读基线：2026-11-19；Git HEAD：`57deb4a1cf91da197f3f30687839afca8bf7b815`。本文来自当前源码、固定教师 API 和数据库迁移的静态分析。本次未运行业务测试或部署，接口存在不等于本轮验收通过。
 
 ![物理 ER 总览](assets/er-overview.svg)
 
@@ -80,12 +80,10 @@
 | description | VARCHAR(500) | 是 | — | `description VARCHAR(500) NULL` |
 | status | VARCHAR(16) | 否 | — | `status VARCHAR(16) NOT NULL` |
 | builtin | BOOLEAN | 否 | — | `builtin BOOLEAN NOT NULL DEFAULT false` |
-| identity_role | VARCHAR(16) | 是 | — | `identity_role VARCHAR(16) NULL` |
 | version | BIGINT | 否 | — | `version BIGINT NOT NULL DEFAULT 0` |
 
 - `UNIQUE(system_id,code)`
 - `CHECK(status IN ('ENABLED','DISABLED'))`
-- `CHECK(identity_role IS NULL OR identity_role IN ('student','teacher','admin'))`
 
 ## sys_permission · 权限定义
 

@@ -7,8 +7,8 @@ const course = 'https://127.0.0.1:9443';
 const runtime = '/runtime';
 const system = 'course-project-management';
 const accounts = [
-  {role: 'teacher', code: 'CLOUD_TEACHER', no: 'CLOUD-T1', name: 'Cloud Test Teacher'},
-  {role: 'student', code: 'CLOUD_STUDENT', no: 'CLOUD-S1', name: 'Cloud Test Student'},
+  {role: 'teacher', no: 'CLOUD-T1', name: 'Cloud Test Teacher'},
+  {role: 'student', no: 'CLOUD-S1', name: 'Cloud Test Student'},
 ];
 const bootstrap = (await readFile(runtime + '/bootstrap-password', 'utf8')).trim();
 const fixturePassword = 'CloudFixture!A1' + bootstrap.slice(-24);
@@ -72,19 +72,11 @@ async function provision() {
   const department = existing ?? await manage('POST', '/departments', {
     parentId: root.id, code, name: 'Cloud integration smoke test',
   });
-  const page = await manage('GET', '/permissions?' + new URLSearchParams({
-    systemCode: system, kind: 'API', keyword: 'course:access', pageSize: '100',
-  }));
-  const access = page.items.find(item => item.code === 'course:access');
-  assert(access, 'The course:access permission is required');
-  const rolePage = await manage('GET', '/roles?' + new URLSearchParams({systemCode: system, pageSize: '100'}));
+  const graph = await manage('GET', '/systems/' + system + '/role-hierarchy');
   for (const account of accounts) {
-    const role = rolePage.items.find(item => item.code === account.code) ??
-      await manage('POST', '/roles', {
-        systemCode: system, code: account.code, name: account.name, identityRole: account.role,
-      });
+    const role = graph.roles.find(item => item.code === account.role);
+    assert(role, 'Course role is required: ' + account.role);
     account.roleId = role.id;
-    await manage('PUT', '/roles/' + role.id + '/permissions', {permissionIds: [access.id]});
   }
   await manage('PUT', '/departments/' + department.id + '/assignable-roles', {
     roleIds: accounts.map(account => account.roleId),

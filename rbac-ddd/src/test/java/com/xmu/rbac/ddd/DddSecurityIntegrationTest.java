@@ -406,6 +406,29 @@ class DddSecurityIntegrationTest extends DddHttpTestSupport {
     }
 
     @Test
+    void defaultTeacherHasCourseAccessWithoutInheritance() {
+        String course = "course-project-management";
+        String root = login("root", "rbac-center");
+        String username = code();
+        long teacher = jdbc.queryForObject(
+                "select id from sys_role where system_id=2 and code='teacher'", Long.class);
+        long teacherUser = user(root, username, 2);
+        successful(HttpMethod.POST, "/api/v1/users/" + teacherUser + "/role-assignments",
+                root, values("roleId", teacher));
+        String token = login(username, course);
+
+        var me = call(HttpMethod.GET, "/auth/me", token, null);
+        assertThat(me.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(me.getBody().path("roles").toString()).isEqualTo("[\"teacher\"]");
+        var decision = call(HttpMethod.GET, "/auth/api-permissions/createCourse", token, null);
+        assertThat(decision.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(decision.getBody().path("allowed").asBoolean()).isTrue();
+        assertThat(jdbc.queryForObject(
+                "select count(*) from sys_role_hierarchy where senior_role_id=?", Long.class, teacher))
+                .isZero();
+    }
+
+    @Test
     void internalSuccessAndDeniedKeepOriginalIdentityRolesAfterRevocation() throws Exception {
         String root = login("root", "rbac-center");
         String username = code();

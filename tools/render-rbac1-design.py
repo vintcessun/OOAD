@@ -14,6 +14,8 @@ CALL_CHAINS = []; INPUTS = {}
 EXTRA_INPUTS = ['docs/final-acceptance.adoc', 'docs/acceptance/local-results.json', 'docs/acceptance/shared-http.json', 'tools/render-rbac1-design.test.py', 'rbac-contract/src/main/java/com/xmu/rbac/contract/ApiErrors.java', 'pom.xml', '.gitattributes', 'tools/render-rbac1-design.scenarios.py', 'rbac-contract/src/main/resources/db/migration/V1__rbac1_schema.sql', 'docker-compose.yml', 'deploy/full-stack.sh', 'rbac-web/nginx.conf', 'deploy/full-course-nginx.conf', 'deploy/deployment-evidence.json', 'course-integration/REAL-CENTERS-VERIFICATION.md']
 EXTRA_INPUTS.append('docs/design/swarm-deployment-current.puml')
 EXTRA_INPUTS.append('rbac-contract/src/main/resources/db/migration/V5__department_lifecycle_permissions.sql')
+ROLE_MARKER_MIGRATION = 'rbac-contract/src/main/resources/db/migration/V7__drop_role_identity_marker.sql'
+EXTRA_INPUTS.append(ROLE_MARKER_MIGRATION)
 
 def run(args):
     p = subprocess.run([str(a) for a in args], capture_output=True, text=True, encoding='utf-8', errors='replace')
@@ -446,7 +448,7 @@ ER_ROUTES = {
     ('sys_user', 'department_id'): (((172,488), (172,400)), (247,444)),
     ('sys_role', 'system_id'): (((1920,402), (1990,402), (1990,245), (2090,245)), (2064,338)),
     ('sys_permission', 'system_id'): (((2300,824), (2300,312)), (2368,548)),
-    ('sys_role_permission', 'role_id'): (((1546,678), (1546,570)), (1604,625)),
+    ('sys_role_permission', 'role_id'): (((1546,678), (1546,551)), (1604,625)),
     ('sys_role_permission', 'permission_id'): (((1920,729), (1970,729), (1970,893), (2090,893)), (2034,880)),
     ('sys_user_role', 'user_id'): (((730,548), (560,548)), (645,535)),
     ('sys_user_role', 'role_id'): (((1240,541), (1320,541), (1320,492), (1410,492)), (1363,479)),
@@ -526,7 +528,14 @@ def er_relation(table, field, target, pk, nullable):
             f'lp="{er_position(label)}",arrowhead={parent}];')
 
 def er():
-    sqlpath=ROOT/'rbac-contract/src/main/resources/db/migration/V1__rbac1_schema.sql';sql=sqlpath.read_text(encoding='utf-8');tables=re.findall(r'CREATE TABLE (\w+)\s*\((.*?)\) ENGINE=',sql,re.S)
+    sqlpath = ROOT/'rbac-contract/src/main/resources/db/migration/V1__rbac1_schema.sql'
+    migration = ROOT/ROLE_MARKER_MIGRATION
+    sql = sqlpath.read_text(encoding='utf-8')
+    tables = re.findall(r'CREATE TABLE (\w+)\s*\((.*?)\) ENGINE=', sql, re.S)
+    if 'DROP COLUMN identity_role' not in migration.read_text(encoding='utf-8'):
+        raise ValueError('Physical ER must reflect the role marker migration')
+    tables = [(name, re.sub(r'\n  identity_role [^\n]*|,\n  CHECK\(identity_role[^\n]*', '', body)
+               if name == 'sys_role' else body) for name, body in tables]
     if {name for name, _ in tables} != ER_TABLES.keys():
         raise ValueError('Physical ER table layout differs from V1 DDL')
     nodes, edges, unique_keys = [], [], []
@@ -547,7 +556,7 @@ def er():
         raise ValueError('Physical ER relationship layout differs from V1 DDL')
     notes = [
         er_annotation('title', 50, 20, 1100, 'RBAC1 权限管理系统 · 数据库 ER 图',
-                      (f'MySQL 8.0  |  {len(tables)} 张表 · {len(edges)} 条外键  |  Flyway V1  |  鸟脚记法',), 30),
+                      (f'MySQL 8.0  |  {len(tables)} 张表 · {len(edges)} 条外键  |  Flyway V1–V7  |  鸟脚记法',), 30),
         er_annotation('organization', 50, 130, 510, '组织与用户'),
         er_annotation('authorization', 1410, 130, 510, '角色与授权'),
         er_annotation('resources', 2090, 130, 510, '系统与资源'),
@@ -577,7 +586,7 @@ def er():
         *notes, *nodes, *edges, '}',
     ]
     dot_render('schema-15-er', '\n'.join(graph) + '\n', 'neato')
-    write('schema-constraints','json',json.dumps({name:{'columns':body.strip().splitlines(),'ddlSha256':sha(sqlpath)} for name,body in tables},ensure_ascii=False,indent=2))
+    write('schema-constraints','json',json.dumps({name:{'columns':body.strip().splitlines(),'ddlSha256':sha(sqlpath), **({'migrationSha256':sha(migration)} if name == 'sys_role' else {})} for name,body in tables},ensure_ascii=False,indent=2))
     dot_render('role-senior-junior-dag','digraph G {rankdir=TB;node [shape=box];graph [label="Semantic example, NOT database snapshot: senior inherits junior; multiple juniors/parents legal"];A [label="A senior: p1"];B [label="B: p2"];C [label="C: p3"];D [label="D junior: p4"]; A->B;A->C;B->D;C->D; note [shape=note,label="A effective = {p1,p2,p3,p4}\\nD contributes once, sources retain both paths\\nDisabled B cuts A→B→D, not A→C→D\\nD→A rejected by link/reachable"]; }')
 
 def deployment_snapshot(evidence, local, shared, runtime_evidence='current', root=None, configuration_sha=None, evidence_sha=None):

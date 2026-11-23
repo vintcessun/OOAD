@@ -28,9 +28,9 @@ class CloneBoundaryTest {
     @Test
     void resultToVo() {
         RoleResult result = new RoleResult(7L, "course", "teacher", "安全角色",
-                null, "ENABLED", false, "teacher", 3L);
+                null, "ENABLED", false, 3L);
         RoleView view = CloneFactory.copy(
-                new RoleView(null, null, null, null, null, null, null, null, null), result);
+                new RoleView(null, null, null, null, null, null, null, null), result);
         assertThat(view.id()).isEqualTo(7L);
         assertThat(view.name()).isEqualTo("安全角色");
         assertThat(view.builtin()).isFalse();
@@ -46,7 +46,7 @@ class CloneBoundaryTest {
         entity.setStatus("ENABLED");
         entity.setBuiltin(true);
         entity.setName("更新名称");
-        RoleState state = CloneFactory.copy(new RoleState(null, null, null, null, null, null), entity);
+        RoleState state = CloneFactory.copy(new RoleState(null, null, null, null, null), entity);
         assertThat(state.name()).isEqualTo("更新名称");
         assertThat(state.code()).isEqualTo("teacher");
         entity.setName("旧名称");

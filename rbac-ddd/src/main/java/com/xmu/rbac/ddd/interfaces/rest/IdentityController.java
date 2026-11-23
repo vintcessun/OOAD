@@ -99,7 +99,7 @@ public class IdentityController {
                 "subject",
                 user.subject(),
                 "roles",
-                e.identities(),
+                e.courseRoleCodes(),
                 "permissions",
                 e.permissions().stream()
                         .filter(p -> p.kind() == Permission.Kind.UI)
@@ -191,7 +191,7 @@ public class IdentityController {
                         new ArrayList<>(
                                 authorization
                                         .effective(actor.id(), principal.systemCode())
-                                        .identities()),
+                                        .courseRoleCodes()),
                         input.requestId(),
                         input.type(),
                         input.objectType(),

@@ -54,6 +54,8 @@ public interface AuthorizationRepository {
 
     ApiOperation operation(String systemCode, String operationId);
 
+    Set<String> requiredRoleCodes(String systemCode);
+
     boolean revoked(String jti);
 
     void revoke(String jti, String subject, java.time.Instant expires);

@@ -31,7 +31,7 @@ const browserPath=process.env.BROWSER_PATH || 'C:/Program Files (x86)/Microsoft/
     await page.screenshot({path:path.join(out,'assets/preview-desktop.png'),fullPage:true});
     await page.locator('nav a[href="#api"]').click();
     check('接口页签切换',await page.locator('#api').isVisible());
-    check('中心默认显示67操作',await page.locator('.endpoint:visible').count()===67);
+    check('中心默认显示68操作',await page.locator('.endpoint:visible').count()===68);
     await page.locator('#api-search').fill('addRoleInheritance');
     check('operationId检索',await page.locator('.endpoint:visible').count()===1);
     await page.locator('.endpoint:visible > summary').click();
@@ -43,12 +43,15 @@ const browserPath=process.env.BROWSER_PATH || 'C:/Program Files (x86)/Microsoft/
     check('HTTP方法筛选',await page.locator('.endpoint:visible').count()>0 && await page.locator('.endpoint:visible:not([data-method="POST"])').count()===0);
     await page.locator('#api-method').selectOption('all');
     await page.locator('#api-scope').selectOption('all');
-    check('合计147个操作',await page.locator('.endpoint:visible').count()===147);
+    check('合计148个操作',await page.locator('.endpoint:visible').count()===148);
     await page.locator('#api-group').selectOption('角色、直接权限与继承');
     check('功能分组筛选',await page.locator('.endpoint:visible').count()===12);
     await page.screenshot({path:path.join(out,'assets/preview-api.png'),fullPage:false});
     await page.locator('nav a[href="#data"]').click();
     check('完整十五表字典',await page.locator('.dictionary').count()===15);
+    const roleTable=page.locator('.dictionary').filter({has:page.locator('summary code', {hasText:/^sys_role$/})});
+    check('角色字典包含角色码',await roleTable.locator('td code').filter({hasText:/^code$/}).count()===1);
+    check('角色字典反映 V7',await roleTable.locator('td code').filter({hasText:/^identity_role$/}).count()===0);
     await page.locator('#data [data-zoom="+"]').click();
     check('图形缩放',await page.locator('#data .zoom-value').textContent()==='125%');
     await page.locator('#data [data-zoom="reset"]').click();

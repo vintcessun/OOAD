@@ -3,7 +3,6 @@ package com.xmu.rbac.ddd.interfaces.rest.dto;
 import cn.edu.xmu.clonefactory.CopyTo;
 import com.xmu.rbac.ddd.application.RoleCommand;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 /** 验证角色创建请求并导出允许进入应用层的业务字段。 */
@@ -19,7 +18,5 @@ public record CreateRoleRequest(
         @Size(max = 128)
         String name,
         @Size(max = 500)
-        String description,
-        @Pattern(regexp = "student|teacher|admin")
-        String identityRole) {
+        String description) {
 }

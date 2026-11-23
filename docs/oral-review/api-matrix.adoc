@@ -4,7 +4,7 @@
 link:README.adoc[总览] / link:source-map.adoc[源码与共享方法] / link:coverage.json[机器清单]。
 
 直接从link:../../rbac-contract/src/main/resources/openapi/rbac-api.yaml[现行中心OAS]读取方法、路径和operationId；不依赖页面图册的旧快照。每项只设一名主责，协作人按接口衔接复核，全部初始NOT_STARTED。
-五身份鉴权分布于A/D、两审计归F；私有投影E、管理资源E、有效权限读取D。健康/info由E汇总运行边界、A说明装配，不据UP声称业务通过。
+五身份鉴权分布于A/D、两审计归F；私有服务接口E、管理资源E、有效权限读取D。健康/info由E汇总运行边界、A说明装配，不据UP声称业务通过。
 
 == A（7操作）
 

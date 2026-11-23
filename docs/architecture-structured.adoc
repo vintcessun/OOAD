@@ -20,9 +20,9 @@ entity：表记录；dto：输入/身份/输出边界；config：装配、trace�
 [cols="1,3"]
 |===
 |层及实际类型 |职责
-|controller |AuthController提供教师七操作/JWKS；ManagementController提供/api/v1管理；IntegrationIdentityController提供两个私有投影。PermissionInterceptor取服务端匹配路由、验证Bearer并控制中心管理入口；GlobalExceptionHandler输出裸字符串错误码。
+|controller |AuthController提供教师七操作/JWKS；ManagementController提供/api/v1管理；IntegrationIdentityController提供两个私有服务接口。PermissionInterceptor取服务端匹配路由、验证Bearer并控制中心管理入口；GlobalExceptionHandler输出裸字符串错误码。
 |身份Service |AuthenticationService处理登录、持久注销、改密及本人投影；TokenService负责RS256/JWKS/共享密钥和声明校验；BootstrapService只引导UNINITIALIZED口令并核验中心注册数据。
-|授权Service |AuthorizationService以过程计算同系统DAG闭包、去重和来源路径；身份投影、中心入口、组织子树、根部门、授权上界及最后管理员保护均在服务过程内实现。
+|授权Service |AuthorizationService以过程计算同系统DAG闭包、去重和来源路径；角色码匹配、中心入口、组织子树、根部门、授权上界及最后管理员保护均在服务过程内实现。
 |管理Service |ManagementService处理系统/部门/用户/角色、准入、指派、加删继承及权限；ResourceService处理MENU/BUTTON树、API目录、显式映射与判定解释。移部门与状态是独立操作。
 |审计/集成Service |AuditService负责可信服务密钥、安全JSON、同步幂等、查询隔离及审计投影；IntegrationIdentityService只投影当前aud的真实API能力/ROLE_身份，身份查询还要求TEC和admin。
 |mapper |Store封装EntityManager查询/稳定数据库分页；UserMapper、GrantVersionMapper提供排他锁，其他Mapper为Spring Data JPA接口。此处Mapper不是MyBatis，不承载业务规则。
@@ -37,7 +37,7 @@ CloneFactory 0.0.2 通过 record 访问器将五个创建 DTO 的同名同型字
 
 . RouteRegistry 读取 68 项 OAS，WebConfig 与 MVC 路由双向核对，BootstrapService 与中心 sys_api_operation 核对。未登记默认拒绝，固定受保护操作保持 OAS 规定的授权要求。
 . TokenService验证RS256、kid/issuer/单aud、sub/iat/exp/jti/tokenVersion；实时读取用户/系统状态和MySQL撤销，先于超级管理员处理。JWT不携带角色或权限claim。
-. AuthorizationService先取当前系统启用直接角色，再遍历senior→junior；停用节点切断路径，权限去重、来源可多条；identityRole仅投影student/teacher/admin。
+. AuthorizationService先取当前系统启用直接角色，再遍历senior→junior；停用节点切断路径，权限去重、来源可多条；网关按有效角色码检查 requiredRole，课程接口返回协议定义的课程角色码。
 . 中心管理同时要求中心API权限、当前组织管理子树及授权上界；系统共享定义写还要求根部门。部门只控制组织管理与直接准入，不是旧业务数据范围；SUPER_ADMIN也不能绕过目标用户部门准入。
 . ResourceService仅按UI权限投影MENU/BUTTON；父菜单不授予子按钮。UI↔API映射仅追踪覆盖，不隐式赋权。
 . 真实课程端/网关独立于本模块：可信method/path确定operationId；全局准入之后还保留课程Service对象规则。copyCourse的teacher资格不能代替非组长CC；私有authorities端点提供真实API能力，公开Nginx拒绝私有根路径。

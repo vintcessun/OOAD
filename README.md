@@ -40,7 +40,7 @@ tools/             合同生成、CloneFactory、共享真库验收和设计核�
 ```
 
 权限中心均为 Java21 / Spring Boot3.3.5 / JPA / MySQL8 / Redis7。教师工程保留其固定版本和 MIT 许可，不伪装为我方重新实现的课程业务。
-共享契约目前为 **68 个中心操作、80 个课程操作、15 张表**。两个私有身份投影仅供受信服务调用。
+共享契约目前为 **68 个中心操作、80 个课程操作、15 张表**。两个私有服务接口仅供受信服务调用。
 
 非RBAC导论实验已迁入独立私有仓库 [vintcessun/intro-spec-coding](https://github.com/vintcessun/intro-spec-coding)。原四条历史及1176个文件的初始 tree `29c24ee631060a8d208350ad65ac2b294b25ce95` 已与远端核验；后续提交 `381e498` 修正独立说明和凭据忽略规则。原目录退出主仓库，被忽略的私有资产保全在仓库外。
 
@@ -48,7 +48,7 @@ tools/             合同生成、CloneFactory、共享真库验收和设计核�
 
 要求 **显式 JDK21**、Node22+、Python3、Docker；wrapper提供 Maven3.9.9。绘图另需 Graphviz。
 
-**下列命令使用专用 loopback 测试实例。Flyway 会将 RBAC1 空库初始化到 V4，并按顺序升级已应用本项目较早迁移的库。**
+**下列命令使用专用 loopback 测试实例。Flyway 会将 RBAC1 空库初始化到 V7，并按顺序升级已应用本项目较早迁移的库。**
 先检查13306/16379及容器名称没有被其它用途占用；下列命令不用于重建已有实例：
 
 ```bash

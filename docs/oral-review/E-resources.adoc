@@ -7,7 +7,7 @@ link:README.adoc[总览] / link:common.adoc[全员共同任务] / link:cross-rev
 
 ID-01、RES-01–06、EXT-03–07、UI-01–06与NFR-05/07；只全面审查我方权限资源和接入边界，课程业务不纳入全面审查。
 
-系统、权限目录、菜单/按钮、API操作、显式映射、路由覆盖和私有投影；网关/前端/部署只做辅助深度并汇总演示。
+系统、权限目录、菜单/按钮、API操作、显式映射、路由覆盖和私有服务接口；网关/前端/部署只做辅助深度并汇总演示。
 
 == 两版源码阅读入口
 
@@ -42,7 +42,7 @@ ID-01、RES-01–06、EXT-03–07、UI-01–06与NFR-05/07；只全面审查我�
 
 入口覆盖：OAS → RouteRegistry/OperationContract → MVC路由/DB目录核验；网关可信method/path → operationId → D的中心决定 → 原课程Service对象规则。
 
-课程私有投影：可信Bearer + 服务密钥 → API-only/ROLE_受控身份；lookup再验TEC/admin；公开边缘阻断私有路径。
+课程私有服务接口：可信Bearer + 服务密钥 → API-only/ROLE_受控身份；lookup再验TEC/admin；公开边缘阻断私有路径。
 
 == 主审检查项
 
@@ -71,7 +71,7 @@ E汇总API、页面和部署证据，不代替其他成员读自己接口或页�
 |link:../../rbac-ddd/src/test/java/com/xmu/rbac/ddd/UiPatchBoundaryTest.java[UiPatchBoundaryTest.java] |省略/显式null、真正生成的copy、安全ID
 |link:../../rbac-ddd/src/test/java/com/xmu/rbac/ddd/application/IntegrationIdentityApplicationServiceTest.java[IntegrationIdentityApplicationServiceTest.java] |API-only、服务密钥、TEC/admin、最小身份、缺失/删除
 |link:../../rbac-gateway/src/test/java/com/xmu/rbac/gateway/GatewayHttpTest.java[GatewayHttpTest.java] |真实HTTP边界：身份错误、非200、超时、头/路由伪造；不当真实课程业务证据
-|link:../../tools/acceptance/suite.mjs[suite.mjs] |RES-03、EXT-03、私有投影、跨aud和停用系统
+|link:../../tools/acceptance/suite.mjs[suite.mjs] |RES-03、EXT-03、私有服务接口、跨aud和停用系统
 |link:../../rbac-web/e2e/console.spec.ts[console.spec.ts] |真实页面J01/J02，PC/手机×双实现；看已加载内容断言
 |link:../../deploy/full-config-test.py[full-config-test.py] |配置/隔离/门槛静态与脚本测试；不当Swarm运行证明
 |===

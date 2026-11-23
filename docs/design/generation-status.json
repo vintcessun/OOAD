@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-11-14T20:06:34.141275+00:00",
-  "runtimeEvidenceMode": "current",
+  "generatedAt": "2026-11-23T11:06:32.888570+00:00",
+  "runtimeEvidenceMode": "archived",
   "currentRuntimeVerified": false,
-  "artifactsMatchCurrentBuild": true,
+  "artifactsMatchCurrentBuild": false,
   "hashRules": {
     "algorithm": "SHA-256",
     "textNormalization": "CRLF bytes (0D 0A) -> LF (0A) ONLY; no stripping, decoding, BOM removal, standalone CR or whitespace normalization",

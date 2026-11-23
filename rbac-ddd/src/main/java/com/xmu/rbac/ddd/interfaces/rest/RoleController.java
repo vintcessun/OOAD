@@ -31,8 +31,7 @@ public class RoleController {
             @NotBlank @Size(max = 64) String systemCode,
             @NotBlank @Size(max = 64) String code,
             @NotBlank @Size(max = 128) String name,
-            @Size(max = 500) String description,
-            @Pattern(regexp = "student|teacher|admin") String identityRole) {}
+            @Size(max = 500) String description) {}
 
     public record Patch(
             @Size(min = 1, max = 128) String name,

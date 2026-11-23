@@ -19,7 +19,7 @@ public final class Views {
     /** 执行role操作，保持服务到持久化层的单向依赖。 */
     public static Map<String, Object> role(Role r, String system) {
         return map("id", r.id, "systemCode", system, "code", r.code, "name", r.name, "description",
-            r.description, "status", r.status, "builtin", r.builtin, "identityRole", r.identityRole,
+            r.description, "status", r.status, "builtin", r.builtin,
             "version", r.version);
     }
     /** 执行permission操作，保持服务到持久化层的单向依赖。 */

@@ -49,7 +49,7 @@ public class RestSupport {
     public static com.xmu.rbac.ddd.interfaces.rest.dto.RoleView role(Role r) {
         return cn.edu.xmu.clonefactory.util.CloneFactory.copy(
                 new com.xmu.rbac.ddd.interfaces.rest.dto.RoleView(null, null, null, null,
-                        null, null, null, null, null),
+                        null, null, null, null),
                 com.xmu.rbac.ddd.application.RoleResult.from(r));
     }
 

@@ -69,14 +69,13 @@ public class RoleApplicationService {
         String code = command.getCode();
         String name = command.getName();
         String description = command.getDescription();
-        String identityRole = command.getIdentityRole();
         repository.lockGrants();
         AuthorizationRepository.Identity actor =
                 authorization.require(principal, "rbac:role:edit", true);
         authorization.requireRoleGrantSystem(actor, system);
         Role role =
                 new Role(
-                        0, system, code, name, description, true, false, identityRole, 0, Set.of());
+                        0, system, code, name, description, true, false, 0, Set.of());
         RoleHierarchy graph = new RoleHierarchy(List.of(role), Set.of());
         authorization.upperBound(
                 actor, system, policy.calculate(system, Set.of(0L), graph, List.of()));

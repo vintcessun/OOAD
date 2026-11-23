@@ -6,7 +6,7 @@ import java.util.List;
 public final class IntegrationViews {
     private IntegrationViews() { }
 
-    /** 当前目标系统的真实API能力及受控身份投影。 */
+    /** 当前目标系统的真实API能力及课程角色码。 */
     public record AuthoritiesVO(List<String> authorities) { }
 
     /** 部门目录仅公开层级导航需要的字段。 */

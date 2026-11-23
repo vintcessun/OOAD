@@ -103,7 +103,7 @@ const user: UserVO = {
 }
 const role: RoleVO = {
   id: 7, systemCode: 'rbac-center', code: 'demo', name: '测试角色', description: null,
-  status: 'ENABLED', builtin: false, identityRole: null, version: 1,
+  status: 'ENABLED', builtin: false, version: 1,
 }
 
 it('权限刷新开放指派表单时为当前用户加载准入角色', async () => {

@@ -124,9 +124,7 @@ public final class Inputs {
         @Size(max = 128)
         String name,
         @Size(max = 500)
-        String description,
-        @Pattern(regexp = "student|teacher|admin")
-        String identityRole) {
+        String description) {
     }
     public static class RolePatch {
         private final java.util.Set<String> present = new java.util.HashSet<>();

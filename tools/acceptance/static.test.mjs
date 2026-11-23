@@ -31,7 +31,7 @@ function registry(offset=0) {
   const userA={id:ids.userA,username:'fixture_A',subject:`generated-subject-A-${offset}`,departmentId:ids.departmentA,version:3};
   const userB={id:ids.userB,username:'fixture_B',subject:`generated-subject-B-${offset}`,departmentId:ids.departmentB,version:3};
   n.observeResponse(n.observeRequest('GET','/api/v1/departments/tree'),{data:[departmentA,departmentB]});
-  n.observeResponse(n.observeRequest('GET','/api/v1/roles?systemCode=course'),{data:{items:[{id:ids.roleA,systemCode:'course',code:'A',identityRole:null},{id:ids.roleB,systemCode:'course',code:'B',identityRole:null}]}});
+  n.observeResponse(n.observeRequest('GET','/api/v1/roles?systemCode=course'),{data:{items:[{id:ids.roleA,systemCode:'course',code:'A',builtin:false},{id:ids.roleB,systemCode:'course',code:'B',builtin:false}]}});
   n.observeResponse(n.observeRequest('GET','/api/v1/users'),{data:{items:[userA,userB]}});
   n.observeResponse(n.observeRequest('GET','/api/v1/permissions?systemCode=course'),{data:{items:[{id:ids.permission,systemCode:'course',code:'read',kind:'API'}]}});
   return {n,ids,userA,userB,departmentA,departmentB};

@@ -208,7 +208,7 @@ def oas():
     'SystemVO':obj({'id':ID,'code':string(64),'name':string(128),'status':STATUS}),
     'DepartmentVO':obj({'id':ID,'parentId':nullable(ID),'code':string(64),'name':string(128),'path':string(1024),'status':STATUS,'children':arr('DepartmentVO')}),
     'UserVO':obj({'id':ID,'subject':string(128),'username':string(128),'name':string(128),'no':nullable(string(64)),'phone':nullable(string(32)),'departmentId':ID,'departmentName':string(128),'status':USERSTATUS,'version':{'type':'integer','format':'int64','minimum':0}}),
-    'RoleVO':obj({'id':ID,'systemCode':string(64),'code':string(64),'name':string(128),'description':nullable(string(500)),'status':STATUS,'builtin':BOOL,'identityRole':nullable(enum('student','teacher','admin')),'version':{'type':'integer','format':'int64','minimum':0}}),
+    'RoleVO':obj({'id':ID,'systemCode':string(64),'code':string(64),'name':string(128),'description':nullable(string(500)),'status':STATUS,'builtin':BOOL,'version':{'type':'integer','format':'int64','minimum':0}}),
     'PermissionVO':obj({'id':ID,'systemCode':string(64),'code':string(128),'name':string(128),'kind':enum('UI','API'),'status':STATUS}),
     'AssignmentVO':obj({'id':ID,'userId':ID,'roleId':ID,'systemCode':string(64),'roleCode':string(64),'roleName':string(128),'assignedAt':DATE,'assignedBy':nullable(ID)}),
     'EffectiveVO':obj({'directRoles':arr('RoleVO'),'effectiveRoles':arr('RoleVO'),'permissions':arr('PermissionVO'),'sources':arr(obj({'permissionCode':string(128),'permissionKind':enum('UI','API'),'roleCode':string(64),'inherited':BOOL,'path':arr(string())}))}),
@@ -285,7 +285,7 @@ def oas():
     'UserCreateInput':obj({'username':string(128,minLength=1),'name':string(128,minLength=1),'no':nullable(string(64)),'phone':nullable(string(32)),'departmentId':ID,'password':string(256,minLength=8,pattern=r'\S',format='password',writeOnly=True)},['username','name','departmentId','password']),
     'UserUpdateInput':obj({'name':string(128,minLength=1),'no':nullable(string(64)),'phone':nullable(string(32)),'version':version},[]),
     'DepartmentChangeInput':obj({'departmentId':ID,'version':version},['departmentId']),
-    'RoleCreateInput':obj({'systemCode':string(64,minLength=1),'code':string(64,minLength=1),'name':string(128,minLength=1),'description':nullable(string(500)),'identityRole':nullable(enum('student','teacher','admin'))},['systemCode','code','name']),
+    'RoleCreateInput':obj({'systemCode':string(64,minLength=1),'code':string(64,minLength=1),'name':string(128,minLength=1),'description':nullable(string(500))},['systemCode','code','name']),
     'RoleUpdateInput':obj({'name':string(128,minLength=1,pattern=r'\S'),'description':nullable(string(500)),'version':version},[]),
     'AssignmentInput':obj({'roleId':ID}),
     'PermissionCreateInput':obj({'systemCode':string(64,minLength=1),'code':string(128,minLength=1),'name':string(128,minLength=1),'kind':enum('UI','API')}),
@@ -334,7 +334,7 @@ def oas():
         'deleteUser': '逻辑删除管理范围内的指定用户，撤销其角色指派，并使此前签发的令牌失效。',
         'changeUserDepartment': '跨部门调动会在更新部门的同一事务中清空该用户的角色指派。提交当前部门时保留原指派。',
         'listRoles': '按必填的 `systemCode` 查询角色目录，支持按关键字和角色状态筛选并分页返回。',
-        'createRole': '在指定系统下创建默认启用的角色。可配置 `identityRole`，供统一身份接口投影为学生、教师或管理员身份。',
+        'createRole': '在指定系统下创建默认启用的角色。',
         'getRole': '按角色 ID 查询角色的所属系统、编码、显示信息、启停状态和版本。',
         'updateRole': '更新角色名称或描述。省略的字段保留原值，`description` 显式传 `null` 可清空描述。支持通过 `version` 检查并发更新。',
         'setRoleStatus': '启用或停用指定角色。停用的角色在运行时失效并中断经过该角色的继承路径，重新启用时校验受影响角色的授权。',
@@ -676,7 +676,7 @@ def validate(document):
             assert path.startswith('/api/v1/') or path.startswith('/auth/') or path in {'/.well-known/jwks.json','/integration/authorities','/identity/users/{userId}'}
             params=methods.get('parameters',[])+op.get('parameters',[])
             assert set(re.findall(r'\{([^}]+)\}',path))=={p['name'] for p in params if p.get('in')=='path'}
-    assert document['components']['schemas']['RoleVO']['properties']['identityRole']['enum']==['student','teacher','admin']
+    assert 'identityRole' not in document['components']['schemas']['RoleVO']['properties']
     return count
 
 def split_department_permissions(document):
@@ -729,6 +729,29 @@ UPDATE sys_grant_version SET version=version+1 WHERE id=1;
 COMMIT;
 """)
 
+def replace_identity_projection():
+    emit('db/migration/V6__use_effective_role_codes.sql', """-- Preserve built-in role IDs, codes, grants and assignments.
+-- A reserved code without the corresponding old marker must not gain its qualification.
+START TRANSACTION;
+
+UPDATE sys_role r
+LEFT JOIN sys_role alias
+    ON alias.system_id = r.system_id AND alias.code = CONCAT('legacy-role-', r.id)
+SET r.code = CASE
+        WHEN alias.id IS NULL THEN CONCAT('legacy-role-', r.id)
+        ELSE CONCAT('legacy-role-', r.id, '-', REPLACE(UUID(), '-', ''))
+    END,
+    r.version = r.version + 1
+WHERE CAST(r.code AS BINARY) IN ('teacher', 'student', 'admin')
+  AND NOT (CAST(r.identity_role AS BINARY) <=> CAST(r.code AS BINARY));
+
+UPDATE sys_grant_version SET version = version + 1 WHERE id = 1;
+COMMIT;
+""")
+
+    emit('db/migration/V7__drop_role_identity_marker.sql',
+         "ALTER TABLE sys_role DROP CHECK sys_role_chk_2, DROP COLUMN identity_role;\n")
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--check',action='store_true');args=parser.parse_args()
     ddl()
@@ -751,6 +774,7 @@ def main():
     split_role_status_permission(document)
     update_course_identity()
     split_department_permissions(document)
+    replace_identity_projection()
     old=list((RES/'db/migration').glob('V*.sql'))
     expected={p for p in OUTPUTS if p.suffix=='.sql'}
     if args.check:

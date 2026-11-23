@@ -1,6 +1,6 @@
 # 架构总览与目录地图
 
-> 阅读基线：2026-11-19；Git HEAD：`560ed0d32aca4765b1a936a711bfdf0a8ad559b7`。本文来自当前源码、固定教师 API 和数据库迁移的静态分析。本次未运行业务测试或部署，接口存在不等于本轮验收通过。
+> 阅读基线：2026-11-19；Git HEAD：`57deb4a1cf91da197f3f30687839afca8bf7b815`。本文来自当前源码、固定教师 API 和数据库迁移的静态分析。本次未运行业务测试或部署，接口存在不等于本轮验收通过。
 
 ![运行时架构](assets/architecture-runtime.svg)
 
@@ -17,7 +17,7 @@
 - 单 aud 的身份 JWT 不携带角色权限；权限变更由权威数据和授权版本控制，不能等 JWT 过期才撤权。
 - 两后端各自实现 L1/L2 缓存；读取 MySQL 授权版本，TTL 只负责旧键回收；Redis 失败可回源，权威数据库失败不凭旧缓存放行。
 - 本地敏感变更、授权版本和 SUCCESS 审计同事务；拒绝记录独立事务。课程数据库与中心审计之间没有分布式原子事务。
-- Nginx 公开边缘拒绝私有投影并清除服务密钥头；课程后端私下调用时仍须用户 Bearer 和服务密钥。
+- Nginx 公开边缘拒绝私有服务接口并清除服务密钥头；课程后端私下调用时仍须用户 Bearer 和服务密钥。
 
 ## 目录职责
 
@@ -66,6 +66,7 @@
 - [rbac-contract/src/main/resources/openapi/rbac-api.yaml](../../rbac-contract/src/main/resources/openapi/rbac-api.yaml)
 - [rbac-contract/src/main/resources/catalog/course-openapi.source.yaml](../../rbac-contract/src/main/resources/catalog/course-openapi.source.yaml)
 - [rbac-contract/src/main/resources/db/migration/V1__rbac1_schema.sql](../../rbac-contract/src/main/resources/db/migration/V1__rbac1_schema.sql)
+- [rbac-contract/src/main/resources/db/migration/V7__drop_role_identity_marker.sql](../../rbac-contract/src/main/resources/db/migration/V7__drop_role_identity_marker.sql)
 - [docker-compose.yml](../../docker-compose.yml)
 - [rbac-web/nginx.conf](../../rbac-web/nginx.conf)
 - [deploy/full-course-nginx.conf](../../deploy/full-course-nginx.conf)

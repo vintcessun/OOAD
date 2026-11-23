@@ -61,9 +61,6 @@ public class VersionedEffectiveCache implements EffectiveCache {
                                         : r.path("description").asText(),
                                 true,
                                 r.path("builtin").asBoolean(),
-                                r.path("identityRole").isNull()
-                                        ? null
-                                        : r.path("identityRole").asText(),
                                 r.path("version").asLong(),
                                 permissions);
                 roles.add(role);
@@ -120,7 +117,6 @@ public class VersionedEffectiveCache implements EffectiveCache {
                 entry.put("name", r.name());
                 entry.put("description", r.description());
                 entry.put("builtin", r.builtin());
-                entry.put("identityRole", r.identityRole());
                 entry.put("version", r.version());
                 entry.put("permissionIds", r.permissionIds());
                 entry.put("direct", direct.contains(r.id()));

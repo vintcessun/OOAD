@@ -24,7 +24,7 @@ function edit(row?: ApiOperationVO) {
   const fields: Field[] = [
     text('operationId', '操作标识'), choices('method', 'HTTP 方法', ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']),
     text('pathTemplate', '路径模板'), choices('accessPolicy', '访问策略', ['PUBLIC', 'AUTHENTICATED', 'PROTECTED']),
-    text('permissionCode', 'API 权限码', false), text('requiredRole', '所需身份角色', false), { key: 'enabled', label: '启用操作', type: 'checkbox' },
+    text('permissionCode', 'API 权限码', false), text('requiredRole', '所需角色码', false), { key: 'enabled', label: '启用操作', type: 'checkbox' },
   ]
   form.value = {
     title: row ? '编辑 API 操作' : '登记 API 操作', fields,

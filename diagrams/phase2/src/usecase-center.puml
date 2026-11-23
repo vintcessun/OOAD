@@ -17,7 +17,7 @@ usecase "维护 UI / API 映射" as mapping
 usecase "检查权限并解释授权来源" as explain
 usecase "查询管理操作审计" as audit
 usecase "查询身份及 UI / API 准入" as external
-usecase "写入 / 查询课程审计及私有投影" as integration
+usecase "写入 / 查询课程审计及私有服务接口" as integration
 }
 U -- session
 U -- me

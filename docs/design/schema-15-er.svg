@@ -59,13 +59,13 @@
 <!-- sys_role_permission&#45;&gt;sys_role -->
 <g id="edge5" class="edge">
 <title>sys_role_permission&#45;&gt;sys_role</title>
-<path fill="none" stroke="#52697e" stroke-dasharray="5,2" d="M1496,-671C1496,-671 1496,-753 1496,-753"/>
+<path fill="none" stroke="#52697e" stroke-dasharray="5,2" d="M1496,-671C1496,-671 1496,-772 1496,-772"/>
 <polygon fill="#52697e" stroke="#52697e" points="1496,-663 1499.6,-655 1496,-659 1496,-655 1496,-655 1496,-655 1496,-659 1492.4,-655 1496,-663 1496,-663"/>
 <ellipse fill="none" stroke="#52697e" cx="1496" cy="-666.2" rx="3.2" ry="3.2"/>
-<polygon fill="#52697e" stroke="#52697e" points="1500,-762.2 1492,-762.2 1492,-760.6 1500,-760.6 1500,-762.2"/>
-<polyline fill="none" stroke="#52697e" points="1496,-763 1496,-759 "/>
-<polygon fill="#52697e" stroke="#52697e" points="1500,-758.2 1492,-758.2 1492,-756.6 1500,-756.6 1500,-758.2"/>
-<polyline fill="none" stroke="#52697e" points="1496,-759 1496,-755 "/>
+<polygon fill="#52697e" stroke="#52697e" points="1500,-781.2 1492,-781.2 1492,-779.6 1500,-779.6 1500,-781.2"/>
+<polyline fill="none" stroke="#52697e" points="1496,-782 1496,-778 "/>
+<polygon fill="#52697e" stroke="#52697e" points="1500,-777.2 1492,-777.2 1492,-775.6 1500,-775.6 1500,-777.2"/>
+<polyline fill="none" stroke="#52697e" points="1496,-778 1496,-774 "/>
 <text text-anchor="middle" x="1554" y="-705.5" font-family="DejaVu Sans Mono,Consolas,monospace" font-size="10.00" fill="#314b66">role_id → id</text>
 </g>
 <!-- sys_role_permission&#45;&gt;sys_permission -->
@@ -248,7 +248,7 @@
 <g id="node1" class="node">
 <title>title</title>
 <text text-anchor="start" x="3" y="-1283.5" font-family="Noto Sans CJK SC,Microsoft YaHei,sans-serif" font-weight="bold" font-size="30.00" fill="#1e354d">RBAC1 权限管理系统 · 数据库 ER 图</text>
-<text text-anchor="start" x="3" y="-1257.1" font-family="Noto Sans CJK SC,Microsoft YaHei,sans-serif" font-size="13.00" fill="#1e354d">MySQL 8.0 &#160;| &#160;15 张表 · 20 条外键 &#160;| &#160;Flyway V1 &#160;| &#160;鸟脚记法</text>
+<text text-anchor="start" x="3" y="-1257.1" font-family="Noto Sans CJK SC,Microsoft YaHei,sans-serif" font-size="13.00" fill="#1e354d">MySQL 8.0 &#160;| &#160;15 张表 · 20 条外键 &#160;| &#160;Flyway V1–V7 &#160;| &#160;鸟脚记法</text>
 </g>
 <!-- organization -->
 <g id="node2" class="node">
@@ -469,56 +469,51 @@
 <!-- sys_role -->
 <g id="node12" class="node">
 <title>sys_role</title>
-<polygon fill="#eaf5ed" stroke="transparent" points="1360,-763 1360,-966 1870,-966 1870,-763 1360,-763"/>
-<polygon fill="#deefe4" stroke="transparent" points="1361,-934.5 1361,-964.5 1869,-964.5 1869,-934.5 1361,-934.5"/>
-<text text-anchor="start" x="1550.5" y="-946.7" font-family="Noto Sans CJK SC,Microsoft YaHei,sans-serif" font-weight="bold" font-size="16.00" fill="#1e354d">角色（sys_role）</text>
-<text text-anchor="start" x="1364" y="-922.5" font-family="DejaVu Sans Mono,Consolas,monospace" font-size="10.00" fill="#1e354d">PK</text>
-<text text-anchor="start" x="1416" y="-922.2" font-family="DejaVu Sans Mono,Consolas,monospace" font-size="11.00" fill="#1e354d">id</text>
-<text text-anchor="start" x="1558" y="-922.5" font-family="DejaVu Sans Mono,Consolas,monospace" font-size="10.00" fill="#1e354d">BIGINT AUTO_INCREMENT PRIMARY KEY</text>
-<text text-anchor="start" x="1364" y="-903.5" font-family="DejaVu Sans Mono,Consolas,monospace" font-size="10.00" fill="#1e354d">FK</text>
-<text text-anchor="start" x="1416" y="-903.2" font-family="DejaVu Sans Mono,Consolas,monospace" font-size="11.00" fill="#1e354d">system_id</text>
-<text text-anchor="start" x="1558" y="-903.5" font-family="DejaVu Sans Mono,Consolas,monospace" font-size="10.00" fill="#1e354d">BIGINT NOT NULL</text>
-<text text-anchor="start" x="1364" y="-884.5" font-family="DejaVu Sans Mono,Consolas,monospace" font-size="10.00" fill="#1e354d"> </text>
-<text text-anchor="start" x="1416" y="-884.2" font-family="DejaVu Sans Mono,Consolas,monospace" font-size="11.00" fill="#1e354d">code</text>
-<text text-anchor="start" x="1558" y="-884.5" font-family="DejaVu Sans Mono,Consolas,monospace" font-size="10.00" fill="#1e354d">VARCHAR(64) NOT NULL</text>
-<text text-anchor="start" x="1364" y="-865.5" font-family="DejaVu Sans Mono,Consolas,monospace" font-size="10.00" fill="#1e354d"> </text>
-<text text-anchor="start" x="1416" y="-865.2" font-family="DejaVu Sans Mono,Consolas,monospace" font-size="11.00" fill="#1e354d">name</text>
-<text text-anchor="start" x="1558" y="-865.5" font-family="DejaVu Sans Mono,Consolas,monospace" font-size="10.00" fill="#1e354d">VARCHAR(128) NOT NULL</text>
-<text text-anchor="start" x="1364" y="-846.5" font-family="DejaVu Sans Mono,Consolas,monospace" font-size="10.00" fill="#1e354d">N</text>
-<text text-anchor="start" x="1416" y="-846.2" font-family="DejaVu Sans Mono,Consolas,monospace" font-size="11.00" fill="#1e354d">description</text>
-<text text-anchor="start" x="1558" y="-846.5" font-family="DejaVu Sans Mono,Consolas,monospace" font-size="10.00" fill="#1e354d">VARCHAR(500) NULL</text>
-<text text-anchor="start" x="1364" y="-827.5" font-family="DejaVu Sans Mono,Consolas,monospace" font-size="10.00" fill="#1e354d"> </text>
-<text text-anchor="start" x="1416" y="-827.2" font-family="DejaVu Sans Mono,Consolas,monospace" font-size="11.00" fill="#1e354d">status</text>
-<text text-anchor="start" x="1558" y="-827.5" font-family="DejaVu Sans Mono,Consolas,monospace" font-size="10.00" fill="#1e354d">VARCHAR(16) NOT NULL</text>
-<text text-anchor="start" x="1364" y="-808.5" font-family="DejaVu Sans Mono,Consolas,monospace" font-size="10.00" fill="#1e354d"> </text>
-<text text-anchor="start" x="1416" y="-808.2" font-family="DejaVu Sans Mono,Consolas,monospace" font-size="11.00" fill="#1e354d">builtin</text>
-<text text-anchor="start" x="1558" y="-808.5" font-family="DejaVu Sans Mono,Consolas,monospace" font-size="10.00" fill="#1e354d">BOOLEAN NOT NULL DEFAULT false</text>
-<text text-anchor="start" x="1364" y="-789.5" font-family="DejaVu Sans Mono,Consolas,monospace" font-size="10.00" fill="#1e354d">N</text>
-<text text-anchor="start" x="1416" y="-789.2" font-family="DejaVu Sans Mono,Consolas,monospace" font-size="11.00" fill="#1e354d">identity_role</text>
-<text text-anchor="start" x="1558" y="-789.5" font-family="DejaVu Sans Mono,Consolas,monospace" font-size="10.00" fill="#1e354d">VARCHAR(16) NULL</text>
-<text text-anchor="start" x="1364" y="-770.5" font-family="DejaVu Sans Mono,Consolas,monospace" font-size="10.00" fill="#1e354d"> </text>
-<text text-anchor="start" x="1416" y="-770.2" font-family="DejaVu Sans Mono,Consolas,monospace" font-size="11.00" fill="#1e354d">version</text>
-<text text-anchor="start" x="1558" y="-770.5" font-family="DejaVu Sans Mono,Consolas,monospace" font-size="10.00" fill="#1e354d">BIGINT NOT NULL DEFAULT 0</text>
-<polygon fill="#536779" stroke="#536779" points="1360,-934.5 1360,-934.5 1870,-934.5 1870,-934.5 1360,-934.5"/>
-<polygon fill="#536779" stroke="#536779" points="1413,-915.5 1413,-934.5 1413,-934.5 1413,-915.5 1413,-915.5"/>
-<polygon fill="#536779" stroke="#536779" points="1555,-915.5 1555,-934.5 1555,-934.5 1555,-915.5 1555,-915.5"/>
-<polygon fill="#536779" stroke="#536779" points="1413,-896.5 1413,-915.5 1413,-915.5 1413,-896.5 1413,-896.5"/>
-<polygon fill="#536779" stroke="#536779" points="1555,-896.5 1555,-915.5 1555,-915.5 1555,-896.5 1555,-896.5"/>
-<polygon fill="#536779" stroke="#536779" points="1413,-877.5 1413,-896.5 1413,-896.5 1413,-877.5 1413,-877.5"/>
-<polygon fill="#536779" stroke="#536779" points="1555,-877.5 1555,-896.5 1555,-896.5 1555,-877.5 1555,-877.5"/>
-<polygon fill="#536779" stroke="#536779" points="1413,-858.5 1413,-877.5 1413,-877.5 1413,-858.5 1413,-858.5"/>
-<polygon fill="#536779" stroke="#536779" points="1555,-858.5 1555,-877.5 1555,-877.5 1555,-858.5 1555,-858.5"/>
-<polygon fill="#536779" stroke="#536779" points="1413,-839.5 1413,-858.5 1413,-858.5 1413,-839.5 1413,-839.5"/>
-<polygon fill="#536779" stroke="#536779" points="1555,-839.5 1555,-858.5 1555,-858.5 1555,-839.5 1555,-839.5"/>
-<polygon fill="#536779" stroke="#536779" points="1413,-820.5 1413,-839.5 1413,-839.5 1413,-820.5 1413,-820.5"/>
-<polygon fill="#536779" stroke="#536779" points="1555,-820.5 1555,-839.5 1555,-839.5 1555,-820.5 1555,-820.5"/>
-<polygon fill="#536779" stroke="#536779" points="1413,-801.5 1413,-820.5 1413,-820.5 1413,-801.5 1413,-801.5"/>
-<polygon fill="#536779" stroke="#536779" points="1555,-801.5 1555,-820.5 1555,-820.5 1555,-801.5 1555,-801.5"/>
-<polygon fill="#536779" stroke="#536779" points="1413,-782.5 1413,-801.5 1413,-801.5 1413,-782.5 1413,-782.5"/>
-<polygon fill="#536779" stroke="#536779" points="1555,-782.5 1555,-801.5 1555,-801.5 1555,-782.5 1555,-782.5"/>
-<polygon fill="#536779" stroke="#536779" points="1413,-762.5 1413,-782.5 1413,-782.5 1413,-762.5 1413,-762.5"/>
-<polygon fill="#536779" stroke="#536779" points="1555,-762.5 1555,-782.5 1555,-782.5 1555,-762.5 1555,-762.5"/>
-<polygon fill="none" stroke="#536779" points="1360,-763 1360,-966 1870,-966 1870,-763 1360,-763"/>
+<polygon fill="#eaf5ed" stroke="transparent" points="1360,-782 1360,-966 1870,-966 1870,-782 1360,-782"/>
+<polygon fill="#deefe4" stroke="transparent" points="1361,-935 1361,-965 1869,-965 1869,-935 1361,-935"/>
+<text text-anchor="start" x="1550.5" y="-947.2" font-family="Noto Sans CJK SC,Microsoft YaHei,sans-serif" font-weight="bold" font-size="16.00" fill="#1e354d">角色（sys_role）</text>
+<text text-anchor="start" x="1364" y="-923" font-family="DejaVu Sans Mono,Consolas,monospace" font-size="10.00" fill="#1e354d">PK</text>
+<text text-anchor="start" x="1416" y="-922.7" font-family="DejaVu Sans Mono,Consolas,monospace" font-size="11.00" fill="#1e354d">id</text>
+<text text-anchor="start" x="1558" y="-923" font-family="DejaVu Sans Mono,Consolas,monospace" font-size="10.00" fill="#1e354d">BIGINT AUTO_INCREMENT PRIMARY KEY</text>
+<text text-anchor="start" x="1364" y="-904" font-family="DejaVu Sans Mono,Consolas,monospace" font-size="10.00" fill="#1e354d">FK</text>
+<text text-anchor="start" x="1416" y="-903.7" font-family="DejaVu Sans Mono,Consolas,monospace" font-size="11.00" fill="#1e354d">system_id</text>
+<text text-anchor="start" x="1558" y="-904" font-family="DejaVu Sans Mono,Consolas,monospace" font-size="10.00" fill="#1e354d">BIGINT NOT NULL</text>
+<text text-anchor="start" x="1364" y="-885" font-family="DejaVu Sans Mono,Consolas,monospace" font-size="10.00" fill="#1e354d"> </text>
+<text text-anchor="start" x="1416" y="-884.7" font-family="DejaVu Sans Mono,Consolas,monospace" font-size="11.00" fill="#1e354d">code</text>
+<text text-anchor="start" x="1558" y="-885" font-family="DejaVu Sans Mono,Consolas,monospace" font-size="10.00" fill="#1e354d">VARCHAR(64) NOT NULL</text>
+<text text-anchor="start" x="1364" y="-866" font-family="DejaVu Sans Mono,Consolas,monospace" font-size="10.00" fill="#1e354d"> </text>
+<text text-anchor="start" x="1416" y="-865.7" font-family="DejaVu Sans Mono,Consolas,monospace" font-size="11.00" fill="#1e354d">name</text>
+<text text-anchor="start" x="1558" y="-866" font-family="DejaVu Sans Mono,Consolas,monospace" font-size="10.00" fill="#1e354d">VARCHAR(128) NOT NULL</text>
+<text text-anchor="start" x="1364" y="-847" font-family="DejaVu Sans Mono,Consolas,monospace" font-size="10.00" fill="#1e354d">N</text>
+<text text-anchor="start" x="1416" y="-846.7" font-family="DejaVu Sans Mono,Consolas,monospace" font-size="11.00" fill="#1e354d">description</text>
+<text text-anchor="start" x="1558" y="-847" font-family="DejaVu Sans Mono,Consolas,monospace" font-size="10.00" fill="#1e354d">VARCHAR(500) NULL</text>
+<text text-anchor="start" x="1364" y="-828" font-family="DejaVu Sans Mono,Consolas,monospace" font-size="10.00" fill="#1e354d"> </text>
+<text text-anchor="start" x="1416" y="-827.7" font-family="DejaVu Sans Mono,Consolas,monospace" font-size="11.00" fill="#1e354d">status</text>
+<text text-anchor="start" x="1558" y="-828" font-family="DejaVu Sans Mono,Consolas,monospace" font-size="10.00" fill="#1e354d">VARCHAR(16) NOT NULL</text>
+<text text-anchor="start" x="1364" y="-809" font-family="DejaVu Sans Mono,Consolas,monospace" font-size="10.00" fill="#1e354d"> </text>
+<text text-anchor="start" x="1416" y="-808.7" font-family="DejaVu Sans Mono,Consolas,monospace" font-size="11.00" fill="#1e354d">builtin</text>
+<text text-anchor="start" x="1558" y="-809" font-family="DejaVu Sans Mono,Consolas,monospace" font-size="10.00" fill="#1e354d">BOOLEAN NOT NULL DEFAULT false</text>
+<text text-anchor="start" x="1364" y="-790" font-family="DejaVu Sans Mono,Consolas,monospace" font-size="10.00" fill="#1e354d"> </text>
+<text text-anchor="start" x="1416" y="-789.7" font-family="DejaVu Sans Mono,Consolas,monospace" font-size="11.00" fill="#1e354d">version</text>
+<text text-anchor="start" x="1558" y="-790" font-family="DejaVu Sans Mono,Consolas,monospace" font-size="10.00" fill="#1e354d">BIGINT NOT NULL DEFAULT 0</text>
+<polygon fill="#536779" stroke="#536779" points="1360,-935 1360,-935 1870,-935 1870,-935 1360,-935"/>
+<polygon fill="#536779" stroke="#536779" points="1413,-916 1413,-935 1413,-935 1413,-916 1413,-916"/>
+<polygon fill="#536779" stroke="#536779" points="1555,-916 1555,-935 1555,-935 1555,-916 1555,-916"/>
+<polygon fill="#536779" stroke="#536779" points="1413,-897 1413,-916 1413,-916 1413,-897 1413,-897"/>
+<polygon fill="#536779" stroke="#536779" points="1555,-897 1555,-916 1555,-916 1555,-897 1555,-897"/>
+<polygon fill="#536779" stroke="#536779" points="1413,-878 1413,-897 1413,-897 1413,-878 1413,-878"/>
+<polygon fill="#536779" stroke="#536779" points="1555,-878 1555,-897 1555,-897 1555,-878 1555,-878"/>
+<polygon fill="#536779" stroke="#536779" points="1413,-859 1413,-878 1413,-878 1413,-859 1413,-859"/>
+<polygon fill="#536779" stroke="#536779" points="1555,-859 1555,-878 1555,-878 1555,-859 1555,-859"/>
+<polygon fill="#536779" stroke="#536779" points="1413,-840 1413,-859 1413,-859 1413,-840 1413,-840"/>
+<polygon fill="#536779" stroke="#536779" points="1555,-840 1555,-859 1555,-859 1555,-840 1555,-840"/>
+<polygon fill="#536779" stroke="#536779" points="1413,-821 1413,-840 1413,-840 1413,-821 1413,-821"/>
+<polygon fill="#536779" stroke="#536779" points="1555,-821 1555,-840 1555,-840 1555,-821 1555,-821"/>
+<polygon fill="#536779" stroke="#536779" points="1413,-802 1413,-821 1413,-821 1413,-802 1413,-802"/>
+<polygon fill="#536779" stroke="#536779" points="1555,-802 1555,-821 1555,-821 1555,-802 1555,-802"/>
+<polygon fill="#536779" stroke="#536779" points="1413,-782 1413,-802 1413,-802 1413,-782 1413,-782"/>
+<polygon fill="#536779" stroke="#536779" points="1555,-782 1555,-802 1555,-802 1555,-782 1555,-782"/>
+<polygon fill="none" stroke="#536779" points="1360,-782 1360,-966 1870,-966 1870,-782 1360,-782"/>
 </g>
 <!-- sys_permission -->
 <g id="node13" class="node">

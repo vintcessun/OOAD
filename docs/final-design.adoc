@@ -13,7 +13,7 @@
 * 手工目视记录：link:design/visual-review.adoc[PNG 检查及限制]。渲染退出码不代替目视验收。
 * 口试：link:defense.adoc[六个案例与追问]；本轮实际命令、编译记录与 19 项绘图器回归：link:design/verification.adoc[核验记录]。
 
-本轮不修改业务类、现行其他文档、父 POM 或前端；不提交、不推送。最终 push 由主代理在完成代码、编译、重生成和校正之后执行。本文件不填造 Git 历史，源码哈希只代表当前快照，不冒充历史 commit。
+源码哈希对应图索引中记录的编译与文档快照。部署验收沿用归档记录。
 
 == 可重复生成与失效规则
 
@@ -22,10 +22,10 @@
 # 在仓库根目录；JDK 21 的 javap/java 在 PATH，或设置 JAVA_HOME
 python tools/render-rbac1-design.py
 # 业务代码稳定并编译三模块之后，要求编译产物不旧于源码
-python tools/render-rbac1-design.py --strict-compiled
+python tools/render-rbac1-design.py --strict-compiled --runtime-evidence archived
 # 发布前检测源码/DDL/部署定义与图快照是否一致
-python tools/render-rbac1-design.py --check
-# 绘图器自身19项回归（原7项 + 证据模式12项），不是业务测试
+python tools/render-rbac1-design.py --check --runtime-evidence archived
+# 绘图器回归测试
 python tools/render-rbac1-design.test.py
 ----
 
@@ -67,7 +67,7 @@ image::ddd-packages.svg[DDD 包图]
 
 image::schema-15-er.svg[当前十五表]
 
-ER 从共享 `rbac-contract/src/main/resources/db/migration/V1__rbac1_schema.sql` 生成，恰为十五表。列、唯一键、CHECK、索引及完整 DDL 行见 link:design/schema-constraints.json[约束索引]。
+ER 从共享 Flyway V1–V7 迁移生成，包含十五张业务表。列、唯一键、CHECK、索引及完整 DDL 行见 link:design/schema-constraints.json[约束索引]。
 
 * `sys_system`、`sys_department`、`sys_user`：单公司、单一部门归属，部门 parent 自引用；部门允许角色不是角色权限。
 * `sys_role`、`sys_permission`、`sys_role_permission`：角色属于系统，权限按 UI/API 区分；桥表唯一键避免重复。
@@ -188,7 +188,7 @@ LayerLoggingAspect 的层级、耗时、异常类型属于技术运行日志；�
 
 image::role-state.svg[真实 Role 状态图]
 
-`Role.changeStatus(boolean)` 当前是状态赋值，允许同状态重复设置；不捏造“已启用禁止再启用”规则。Role 构造保护 system/code/name 非 null 和受控 identityRole；rename 不允许空白 name；replacePermissions 拒绝跨系统权限。`Role.superAdministratorCapability` 以 rbac-center / SUPER_ADMIN 判断特殊能力，`requireManageable` 要求 actor 具超级管理员资格才可管理它；该能力不因当前停用或权限集合为空就变成普通角色。`RoleHierarchy.requireGrantable` 检查向该能力的可达性时不切断停用节点，防止预埋继承路径；AuthorizationPolicy.requireWithin 同时拒绝非特权 actor 的直接/有效 SUPER_ADMIN 能力。系统启停、最后超级管理员和启用后的授权上界仍是应用/跨对象规则，不虚称 Role 单独保护全部规则。
+`Role.changeStatus(boolean)` 当前是状态赋值，允许同状态重复设置；不捏造“已启用禁止再启用”规则。Role 构造保护 system/code/name 非 null；rename 不允许空白 name；replacePermissions 拒绝跨系统权限。`Role.superAdministratorCapability` 以 rbac-center / SUPER_ADMIN 判断特殊能力，`requireManageable` 要求 actor 具超级管理员资格才可管理它；该能力不因当前停用或权限集合为空就变成普通角色。`RoleHierarchy.requireGrantable` 检查向该能力的可达性时不切断停用节点，防止预埋继承路径；AuthorizationPolicy.requireWithin 同时拒绝非特权 actor 的直接/有效 SUPER_ADMIN 能力。系统启停、最后超级管理员和启用后的授权上界仍是应用/跨对象规则，不虚称 Role 单独保护全部规则。
 `RoleHierarchy.link` 保护同系统、无环、不重复；`User.assign` 保护 ACTIVE、部门一致、资格和重复；`DepartmentEligibility.retained` 做集合交集；`AuditFact` 保护 requestId/target、快照不可变及重放一致性。
 
 == DTO、VO、CloneFactory 的真实边界

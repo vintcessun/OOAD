@@ -12,6 +12,5 @@ public class Role {
     public String description;
     public String status;
     public Boolean builtin;
-    public String identityRole;
     @Version public Long version;
 }

@@ -46,7 +46,7 @@ DDD：IdentityController.login → IdentityApplicationService.login → LoginAtt
 * [ ] 逐项解释sub/aud/iss/kid/iat/exp/jti/tokenVersion，不能从JWT角色声明推导当前权限。
 * [ ] 追踪5次失败、锁到期、成功清零、并发失败和不存在账号；读事务边界，不能仅背策略常量。
 * [ ] 退出204无body；Redis丢失后MySQL撤销仍有效；改密及停用恢复不能复活旧token。
-* [ ] 核对本人输出只返回当前aud的受控identityRole/UI权限，密码哈希不出VO。
+* [ ] 核对本人输出只返回当前aud的有效课程角色码和 UI 权限，密码哈希不出VO。
 * [ ] 选择一次页面动作，指出两版API/应用/基础设施日志与事务提交的差别；代理自调用不虚称必被AOP捕获。
 * [ ] 核对生产配置、bootstrap、错误映射与密钥轮换，注意两实现阈值和编码的差异。
 

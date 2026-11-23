@@ -10,7 +10,7 @@ import java.util.*;
 /** 状态、资格、权限上界和不可变审计事实的纯 JDK 测试。 */
 class DomainRulesTest {
     private Role role(long id, String identity, Set<Long> permissions) {
-        return new Role(id, "s", "R" + id, "角色", null, true, false, identity, 0, permissions);
+        return new Role(id, "s", identity == null ? "R" + id : identity, "角色", null, true, false, 0, permissions);
     }
 
     private Permission permission(long id) {
@@ -26,12 +26,6 @@ class DomainRulesTest {
                                 .collect(java.util.stream.Collectors.toSet()),
                         new RoleHierarchy(List.of(roles), Set.of()),
                         List.of(permission(1), permission(2)));
-    }
-
-    @Test
-    void roleRejectsUnknownIdentity() {
-        assertThatThrownBy(() -> role(1, "course_leader", Set.of()))
-                .hasMessageContaining("INVALID_IDENTITY_ROLE");
     }
 
     @Test
@@ -59,7 +53,7 @@ class DomainRulesTest {
         assertThat(effective(r).has("p1", Permission.Kind.API)).isTrue();
         r.changeStatus(false);
         assertThat(effective(r).permissions()).isEmpty();
-        assertThat(effective(r).identities()).isEmpty();
+        assertThat(effective(r).roleCodes()).isEmpty();
     }
 
     @Test
@@ -70,7 +64,7 @@ class DomainRulesTest {
                                 p.requireWithin(
                                         effective(role(1, null, Set.of(1L))),
                                         effective(role(2, null, Set.of(2L))),
-                                        false))
+                                        false, Set.of("teacher", "student", "admin")))
                 .hasMessageContaining("GRANT_EXCEEDS_ACTOR");
     }
 
@@ -82,14 +76,14 @@ class DomainRulesTest {
                                 p.requireWithin(
                                         effective(role(1, "student", Set.of(1L))),
                                         effective(role(2, "teacher", Set.of(1L))),
-                                        false))
+                                        false, Set.of("teacher", "student", "admin")))
                 .hasMessageContaining("GRANT_EXCEEDS_ACTOR");
     }
 
     @Test
     void superAdminCanGrantBeyondOwnTargetSystem() {
         new AuthorizationPolicy()
-                .requireWithin(effective(), effective(role(2, "teacher", Set.of(2L))), true);
+                .requireWithin(effective(), effective(role(2, "teacher", Set.of(2L))), true, Set.of("teacher", "student", "admin"));
     }
 
     @Test
@@ -98,7 +92,7 @@ class DomainRulesTest {
                 .requireWithin(
                         effective(role(1, "teacher", Set.of(1L, 2L))),
                         effective(role(2, "teacher", Set.of(1L))),
-                        false);
+                        false, Set.of("teacher", "student", "admin"));
     }
 
     @Test

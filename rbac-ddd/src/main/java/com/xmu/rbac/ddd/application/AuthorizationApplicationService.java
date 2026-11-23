@@ -1,6 +1,7 @@
 package com.xmu.rbac.ddd.application;
 
 import com.xmu.rbac.contract.DashboardAccess;
+import com.xmu.rbac.contract.CourseRoleCodes;
 import com.xmu.rbac.ddd.domain.*;
 import com.xmu.rbac.ddd.domain.port.*;
 
@@ -220,7 +221,8 @@ public class AuthorizationApplicationService {
         for (Role role : proposed.directRoles()) direct.add(role.id());
         repository.hierarchy(system).requireGrantable(direct, privileged);
         if (!privileged)
-            policy.requireWithin(effective(actor.id(), system), proposed, false);
+            policy.requireWithin(effective(actor.id(), system), proposed, false,
+                    protectedRoleCodes(system));
     }
 
     /** 停用系统没有可委派的有效授权，中心超级管理员仍可维护其角色配置。 */
@@ -242,7 +244,14 @@ public class AuthorizationApplicationService {
         var before = new AuthorizationPolicy.Effective(
                 java.util.List.of(), java.util.List.of(), java.util.List.of(), java.util.List.of());
         policy.requireWithin(
-                before, policy.calculate(system, roleIds, graph, repository.permissions(system)), false);
+                before, policy.calculate(system, roleIds, graph, repository.permissions(system)),
+                false, protectedRoleCodes(system));
+    }
+
+    private java.util.Set<String> protectedRoleCodes(String system) {
+        var codes = new java.util.HashSet<>(CourseRoleCodes.ALL);
+        codes.addAll(repository.requiredRoleCodes(system));
+        return codes;
     }
 
     /** 已登记业务路由仍受数据库当前启停状态约束，超级管理员不能绕过停用操作。 */

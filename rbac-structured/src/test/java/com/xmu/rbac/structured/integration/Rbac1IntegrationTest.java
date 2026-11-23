@@ -215,7 +215,7 @@ class Rbac1IntegrationTest {
         edge(a, b);
         assertThat(call("POST", "/api/v1/roles/" + a + "/inherits/" + b, root, null).status)
             .isEqualTo(409);
-        assertThat(count("sys_role_hierarchy")).isEqualTo(1);
+        assertThat(jdbc.queryForObject("select count(*) from sys_role_hierarchy where senior_role_id=?", Long.class, a)).isEqualTo(1);
     }
     @Test
     void dag06SelfCycle() throws Exception {
@@ -223,7 +223,7 @@ class Rbac1IntegrationTest {
         Response r = call("POST", "/api/v1/roles/" + a + "/inherits/" + a, root, null);
         assertThat(r.status).isEqualTo(409);
         assertThat(r.body.path("code").asText()).isEqualTo("ROLE_CYCLE");
-        assertThat(count("sys_role_hierarchy")).isZero();
+        assertThat(jdbc.queryForObject("select count(*) from sys_role_hierarchy where senior_role_id=?", Long.class, a)).isZero();
     }
     @Test
     void dag07CycleRollsBack() throws Exception {
@@ -232,7 +232,7 @@ class Rbac1IntegrationTest {
         edge(b, c);
         assertThat(call("POST", "/api/v1/roles/" + c + "/inherits/" + a, root, null).status)
             .isEqualTo(409);
-        assertThat(count("sys_role_hierarchy")).isEqualTo(2);
+        assertThat(jdbc.queryForObject("select count(*) from sys_role_hierarchy where senior_role_id in (?,?,?)", Long.class, a, b, c)).isEqualTo(2);
         assertThat(
             jdbc.queryForObject(
                 "select count(*) from sys_audit_log where result='DENIED' and reason='ROLE_CYCLE'",
@@ -286,7 +286,7 @@ class Rbac1IntegrationTest {
             List<Integer> status = new ArrayList<>();
             for (Future<Integer> result : results) status.add(result.get(30, TimeUnit.SECONDS));
             assertThat(status).containsExactlyInAnyOrder(200, 409);
-            assertThat(count("sys_role_hierarchy")).isEqualTo(1);
+            assertThat(jdbc.queryForObject("select count(*) from sys_role_hierarchy where senior_role_id in (?,?)", Long.class, a, b)).isEqualTo(1);
         } finally {
             pool.shutdownNow();
         }
@@ -317,7 +317,7 @@ class Rbac1IntegrationTest {
         assertThat(jdbc.queryForObject(
                        "select count(*) from sys_user_role where role_id=?", Long.class, a))
             .isZero();
-        assertThat(count("sys_role_hierarchy")).isZero();
+        assertThat(jdbc.queryForObject("select count(*) from sys_role_hierarchy where senior_role_id=? or junior_role_id=?", Long.class, a, a)).isZero();
         assertThat(count("sys_audit_log")).isGreaterThan(logs);
         assertThat(call("PUT", "/api/v1/users/1/status", root, Map.of("status", "DISABLED")).status)
             .isEqualTo(409);
@@ -537,7 +537,7 @@ class Rbac1IntegrationTest {
         long roles = count("sys_role"), logs = count("sys_audit_log"), version = az.version();
         assertThatThrownBy(() -> new TransactionTemplate(manager).executeWithoutResult(status -> {
             management.createRole(
-                actor, new Inputs.RoleCreate(COURSE, "ROLLBACK", "rollback", null, null));
+                actor, new Inputs.RoleCreate(COURSE, "ROLLBACK", "rollback", null));
             throw new IllegalStateException("注入失败");
         })).isInstanceOf(IllegalStateException.class);
         assertThat(count("sys_role")).isEqualTo(roles);
@@ -816,7 +816,7 @@ class Rbac1IntegrationTest {
         assertThat(
             call("POST", "/api/v1/roles/" + target + "/inherits/" + high, hqToken, null).status)
             .isEqualTo(403);
-        assertThat(count("sys_role_hierarchy")).isZero();
+        assertThat(jdbc.queryForObject("select count(*) from sys_role_hierarchy where senior_role_id=?", Long.class, target)).isZero();
         assertThat(call("GET", "/api/v1/users/" + outside, hqToken, null).status).isEqualTo(200);
     }
 
@@ -985,14 +985,15 @@ class Rbac1IntegrationTest {
     @Test
     void copyCourseRequiresTeacherWithoutMakingCcGloballyMandatory() throws Exception {
         long role = ok("POST", "/roles",
-            Map.of("systemCode", COURSE, "code", "TEACHER_PROJECTION", "name", "教师投影",
-                "identityRole", "teacher"))
+            Map.of("systemCode", COURSE, "code", "LAB_TEACHER", "name", "实验课教师"))
                         .path("id")
                         .asLong();
         long courseAccess = jdbc.queryForObject("select id from sys_permission where system_id=2 "
                 + "and kind='API' and code='course:access'",
             Long.class);
         grants(role, courseAccess);
+        jdbc.update("insert into sys_role_hierarchy(senior_role_id,junior_role_id) "
+                + "select ?, id from sys_role where system_id=2 and code='teacher'", role);
         long u = user("projectedteacher", 2);
         allow(2, role);
         assign(u, role);
