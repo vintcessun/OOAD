@@ -65,8 +65,9 @@ export async function runSuite(f, record) {
     const role = await ok('POST','/roles',{systemCode:system,code,name:code});
     if (baseCode) {
       const graph = await ok('GET', `/systems/${system}/role-hierarchy`);
-      const base = graph.roles.find(item => item.code === baseCode) ??
-        await makeRole(baseCode, system);
+      const base = graph.roles.find(item => item.code === baseCode);
+      assert.ok(base, `Required base role ${system}/${baseCode} is missing`);
+      if (system === C) assert.equal(base.builtin, true, `${baseCode} must be built in`);
       status(await edge(role, base), 200);
     }
     return role;
@@ -110,7 +111,16 @@ export async function runSuite(f, record) {
     sibling=await ok('POST','/departments',{parentId:hq.id,code:'FX_SIBLING',name:'Fixture sibling'});
     // The independent acceptance database uses custom permission combinations.
     const {roles: courseRoles}=await ok('GET','/systems/'+C+'/role-hierarchy');
-    for (const role of courseRoles.filter(r=>['teacher','student'].includes(r.code))) await grant(role,[]);
+    for (const code of ['teacher', 'student', 'admin']) {
+      const base = courseRoles.find(item => item.code === code);
+      assert.ok(base, `Built-in course role ${code} is missing`);
+      assert.equal(base.builtin, true);
+      assert.equal(base.status, 'ENABLED');
+      assert.ok(!('identityRole' in base));
+      const permissions = await ok('GET', `/roles/${base.id}/permissions`);
+      assert.ok(permissions.some(p => p.kind === 'API' && p.code === 'course:access'));
+      if (code !== 'admin') await grant(base, []);
+    }
     role=await makeRole('FX_TEACHER',C,'teacher');ui=await makePermission('fixture:button','UI');apiPermission=await makePermission('fixture:api');
     const ar=await makePermission('audit:read'),aw=await makePermission('audit:write');
     await grant(role,[ui,apiPermission,ar,aw]);await eligible(department,[role]);
@@ -122,6 +132,9 @@ export async function runSuite(f, record) {
     assert.equal(head.alg,'RS256');assert.equal(head.kid,f.keys.kid);assert.equal(claims.iss,f.keys.issuer);assert.deepEqual(Array.isArray(claims.aud)?claims.aud:[claims.aud],[C]);assert.equal(claims.sub,user.subject);assert.ok(claims.iat<=Date.now()/1000);assert.ok(claims.exp>claims.iat);assert.ok(claims.jti);assert.ok(Number.isInteger(claims.tokenVersion));assert.ok(!('roles'in claims));assert.ok(!('permissions'in claims));
     const jwks=status(await request('GET','/.well-known/jwks.json',undefined,null),200);const jwk=jwks.keys.find(k=>k.kid===head.kid);assert.equal(jwk.kty,'RSA');assert.ok(!jwk.d);assert.ok(verify('RSA-SHA256',Buffer.from(`${h}.${p}`),createPublicKey({key:jwk,format:'jwk'}),Buffer.from(s,'base64url')));
     const me=status(await request('GET','/auth/me',undefined,token),200);keys(me,['subject','roles','permissions','name','no']);identity(me.roles);assert.deepEqual(me.roles,['teacher']);assert.ok(me.permissions.includes(ui.code));assert.ok(!me.permissions.includes(apiPermission.code));
+    const inherited = await effective(role);
+    assert.deepEqual(inherited.directRoles.map(item => item.code), [role.code]);
+    assert.deepEqual(inherited.effectiveRoles.map(item => item.code).sort(), [role.code, 'teacher'].sort());
     assert.equal(await allowed(token),true);const decision=status(await request('GET','/auth/api-permissions/fixtureOperation',undefined,token),200);keys(decision,['operationId','allowed']);assert.deepEqual(decision,{operationId:'fixtureOperation',allowed:true});return me;
   });
   await scenario('EXT-01 login input boundaries and invalid credentials',async()=>{
@@ -406,7 +419,7 @@ export async function runSuite(f, record) {
     assert.equal((await createUser('fixture_lifecycle_reopened', leaf)).departmentId, leaf.id);
     assert.equal((await createDepartment(leaf.id, 'FX_LIFECYCLE_REOPENED_CHILD')).parentId, leaf.id);
   });
-  await scenario('ID-04 user restoration checks retained role permissions and identity marks independently', async () => {
+  await scenario('ID-04 user restoration checks retained permissions and inherited course roles independently', async () => {
     const home = await createDepartment(department.parentId, 'FX_RESTORATION_HOME');
     const operatorRole = await makeRole('FX_RESTORATION_OPERATOR', B);
     await grant(operatorRole, [await makePermission('rbac:user:edit', 'API', B)]);
@@ -571,7 +584,9 @@ export async function runSuite(f, record) {
     const page=status(await request('GET',url,undefined,token,0,auditHeaders),200);keys(page,['page','pageSize','total','items']);assert.equal(page.total,1);assert.equal(page.items[0].id,created.id);assert.equal(page.page,1);assert.equal(page.pageSize,1);
     const after=status(await request('GET','/auth/audit-logs?'+new URLSearchParams({target:b.target,from:new Date(Date.parse(created.at)+1).toISOString()}),undefined,token,0,auditHeaders),200);assert.equal(after.total,0);
     for(const q of ['page=0','pageSize=0','from=invalid','from=2030-01-01T00:00:00Z&to=2020-01-01T00:00:00Z']) status(await request('GET','/auth/audit-logs?'+q,undefined,token,0,auditHeaders),400);
-    const other=await ok('POST','/systems',{code:'fixture-other',name:'fixture other'});assert.equal(other.code,'fixture-other');const rr=await makeRole('OTHER_AUDIT','fixture-other','student');const read=await makePermission('audit:read','API','fixture-other'),write=await makePermission('audit:write','API','fixture-other');await grant(rr,[read,write]);await eligible(sibling,[rr]);const u=await createUser('fixture_other_system',sibling);await assign(u,rr);const t=await freshLogin(u.username,fixturePassword,'fixture-other');
+    const other=await ok('POST','/systems',{code:'fixture-other',name:'fixture other'});assert.equal(other.code,'fixture-other');
+    await makeRole('student', other.code);
+    const rr=await makeRole('OTHER_AUDIT',other.code,'student');const read=await makePermission('audit:read','API',other.code),write=await makePermission('audit:write','API',other.code);await grant(rr,[read,write]);await eligible(sibling,[rr]);const u=await createUser('fixture_other_system',sibling);await assign(u,rr);const t=await freshLogin(u.username,fixturePassword,other.code);
     const cross=await audit(b,t);status(cross,400);assert.equal(cross.body.code,'AUDIT_DUPLICATE_CONFLICT');const empty=status(await request('GET','/auth/audit-logs?target=fixture_boundary',undefined,t,0,auditHeaders),200);assert.equal(empty.total,0);
   });
   await scenario('AUD-05 trigger failure role mutation rollback no false SUCCESS',async()=>{

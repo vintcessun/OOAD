@@ -69,7 +69,7 @@ jobs:
           printf 'ACCEPTANCE_JACOCO_CLI=%s\n' "$ACCEPTANCE_JACOCO_CLI" >> "$GITHUB_ENV"
       - run: npm ci && npm test
         working-directory: tools/acceptance
-      - run: npm run acceptance
+      - run: npm run acceptance -- --report="$RUNNER_TEMP/rbac-http-acceptance"
         id: http-acceptance
         working-directory: tools/acceptance
       # Merge JUnit + real HTTP exec files before applying the original unmodified thresholds.
@@ -136,6 +136,7 @@ jobs:
             rbac-web/playwright-report/
             rbac-web/test-results/**/*.png
             rbac-web/test-results/logs/*.log
+            ${{ runner.temp }}/rbac-http-acceptance/report.json
             docs/design/
             /tmp/m6-course-real-*/report.json
             ~/Downloads/rbac1-context-extracted/*e2e*

@@ -34,14 +34,22 @@ for(const module of selection==='both'?['structured','ddd']:[selection]) {
 if(selection==='both') {
   const s=report.rows.filter(r=>r.module==='structured'&&!r.scenario.startsWith('ENVIRONMENT'));
   const d=report.rows.filter(r=>r.module==='ddd'&&!r.scenario.startsWith('ENVIRONMENT'));
+  let failure='Both backend runs must complete with the same scenario count';
   try {
     assert.ok(s.length>0&&d.length>0,'Both backend runs must complete');assert.equal(s.length,d.length);
     for(let i=0;i<s.length;i++) {
+      failure=`Scenario failed or the backend scenario names differ: ${s[i].scenario}`;
       assert.equal(s[i].scenario,d[i].scenario);assert.equal(s[i].status,'pass',`Structured contract failed: ${s[i].scenario}`);assert.equal(d[i].status,'pass',`DDD contract failed: ${d[i].scenario}`);
-      const canonical=rows=>rows.map(r=>JSON.stringify(r)).sort();assert.deepEqual(canonical(comparableObservations(s[i])),canonical(comparableObservations(d[i])),`HTTP status/error code/normalized response mismatch: ${s[i].scenario}`);assert.deepEqual(s[i].result,d[i].result,`Normalized result/DB mismatch: ${s[i].scenario}`);
+      failure=`HTTP status, error code or normalized response mismatch: ${s[i].scenario}`;
+      const canonical=rows=>rows.map(r=>JSON.stringify(r)).sort();assert.deepEqual(canonical(comparableObservations(s[i])),canonical(comparableObservations(d[i])));
+      failure=`Normalized result or DB mismatch: ${s[i].scenario}`;
+      assert.deepEqual(s[i].result,d[i].result);
     }
     report.rows.push({module:'comparison',scenario:'T21 normalized success/error/DB equivalence',status:'pass'});
-  } catch {report.rows.push({module:'comparison',scenario:'T21 normalized success/error/DB equivalence',status:'fail',classification:report.rows.some(r=>r.classification==='ENVIRONMENT_BLOCKED')?'ENVIRONMENT_BLOCKED':'CONTRACT_RED',error:'Runs incomplete, contract failed, HTTP outcomes or normalized final DB facts differ; see per-module scenario rows'});}
+  } catch {
+    report.rows.push({module:'comparison',scenario:'T21 normalized success/error/DB equivalence',status:'fail',classification:report.rows.some(r=>r.classification==='ENVIRONMENT_BLOCKED')?'ENVIRONMENT_BLOCKED':'CONTRACT_RED',error:failure});
+    console.error(`comparison | fail | ${failure}`);
+  }
 }
 report.finishedAt=new Date().toISOString();
 report.exitCode=interrupted||report.rows.some(r=>r.classification==='ENVIRONMENT_BLOCKED')?2:report.rows.some(r=>r.status==='fail')?1:0;

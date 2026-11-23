@@ -11,7 +11,18 @@ const accounts = [
   {role: 'student', no: 'CLOUD-S1', name: 'Cloud Test Student'},
 ];
 const bootstrap = (await readFile(runtime + '/bootstrap-password', 'utf8')).trim();
-const fixturePassword = 'CloudFixture!A1' + bootstrap.slice(-24);
+
+async function accountPassword(username, create = false) {
+  const file = runtime + '/login-' + username;
+  if (create) {
+    try {
+      await writeFile(file, 'Cloud!A1' + randomBytes(24).toString('hex'), {flag: 'wx', mode: 0o600});
+    } catch (error) {
+      if (error.code !== 'EEXIST') throw error;
+    }
+  }
+  return (await readFile(file, 'utf8')).trim();
+}
 
 async function request(origin, path, {method = 'GET', status = 200, token, body} = {}) {
   const response = await fetch(origin + path, {
@@ -51,15 +62,7 @@ async function preparePassword(username, initial, changed, audience) {
 }
 
 async function provision() {
-  const passwordFile = runtime + '/operator-password';
-  try {
-    await writeFile(passwordFile, 'CloudAdmin!1' + randomBytes(24).toString('hex'), {
-      flag: 'wx', mode: 0o600,
-    });
-  } catch (error) {
-    if (error.code !== 'EEXIST') throw error;
-  }
-  const operatorPassword = (await readFile(passwordFile, 'utf8')).trim();
+  const operatorPassword = await accountPassword('root', true);
   const token = await preparePassword('root', bootstrap, operatorPassword, 'rbac-center');
   async function manage(method, path, body) {
     const {result} = await request(center, '/api/v1' + path, {method, body, token});
@@ -75,18 +78,20 @@ async function provision() {
   const graph = await manage('GET', '/systems/' + system + '/role-hierarchy');
   for (const account of accounts) {
     const role = graph.roles.find(item => item.code === account.role);
-    assert(role, 'Course role is required: ' + account.role);
+    assert(role?.builtin && role.status === 'ENABLED', 'Enabled built-in course role is required: ' + account.role);
     account.roleId = role.id;
   }
   await manage('PUT', '/departments/' + department.id + '/assignable-roles', {
     roleIds: accounts.map(account => account.roleId),
   });
   for (const account of accounts) {
+    const password = await accountPassword(account.no, true);
+    const initial = password + 'Init';
     const users = await manage('GET', '/users?' + new URLSearchParams({keyword: account.no}));
     const user = users.items.find(item => item.username === account.no) ??
       await manage('POST', '/users', {
         username: account.no, no: account.no, name: account.name,
-        departmentId: department.id, password: fixturePassword,
+        departmentId: department.id, password: initial,
       });
     assert.equal(user.departmentId, department.id);
     assert.match(user.subject, /^[A-Za-z0-9_.:-]+$/);
@@ -95,7 +100,7 @@ async function provision() {
     if (!(await manage('GET', assignments)).some(item => item.roleId === account.roleId)) {
       await manage('POST', assignments, {roleId: account.roleId});
     }
-    await preparePassword(account.no, fixturePassword, fixturePassword + 'X', system);
+    await preparePassword(account.no, initial, password, system);
   }
   await writeFile(runtime + '/smoke-subjects.json', JSON.stringify(accounts), {mode: 0o600});
   const [teacher, student] = accounts;
@@ -132,11 +137,13 @@ COMMIT;
 }
 
 async function verify() {
+  const admin = await login('root', await accountPassword('root'), 'rbac-center');
+  await request(center, '/api/v1/departments/tree', {token: admin.result.accessToken});
   const subjects = JSON.parse(await readFile(runtime + '/smoke-subjects.json', 'utf8'));
   await request(course, '/api/terms', {status: 401});
   for (const account of subjects) {
     const {result} = await request(course, account.role === 'teacher' ? '/login' : '/api/login', {
-      method: 'POST', body: {role: account.role, account: account.no, password: fixturePassword + 'X'},
+      method: 'POST', body: {role: account.role, account: account.no, password: await accountPassword(account.no)},
     });
     const token = result.accessToken;
     assert(token);
