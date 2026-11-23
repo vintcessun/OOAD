@@ -17,6 +17,8 @@ const report = useRead<CoverageVO>(() => ({ mappings: [], unmappedUi: [], unmapp
 const api = useRead<Page<ApiOperationVO>>(() => ({ page: 1, pageSize: 20, total: 0, items: [] }))
 const page = ref(1), query = ref(''), keyword = ref(''), selectedUi = ref<number | null>(null), draft = ref<number[]>([])
 const knownApi = ref(new Map<number, ApiOperationVO>())
+const selectedApi = useRead<ApiOperationVO[]>(() => [])
+const selectedApiById = computed(() => new Map(selectedApi.data.value.map(operation => [operation.id, operation])))
 const uiOptions = computed(() => flatten(tree.data.value).map(resource => ({ value: resource.id, label: resource.name + ' · ' + resource.code })))
 const selectedName = computed(() => uiOptions.value.find(resource => resource.value === selectedUi.value)?.label)
 const baseline = computed(() => idsFor(coverage.value.mappings, selectedUi.value))
@@ -28,7 +30,30 @@ const base = () => `/systems/${encodeURIComponent(auth.targetSystem)}`
 function idsFor(mappings: MappingVO[], id: number | null) {
   return mappings.filter(mapping => mapping.uiResourceId === id).map(mapping => mapping.apiOperationId)
 }
-function name(id: number) { return knownApi.value.get(id)?.operationId ?? 'API #' + id }
+function name(id: number) {
+  return knownApi.value.get(id)?.operationId ?? selectedApiById.value.get(id)?.operationId ?? 'API #' + id
+}
+async function loadSelectedApi() {
+  selectedApi.reset()
+  const ids = baseline.value
+  const missing = new Set(ids.filter(id => !knownApi.value.has(id)))
+  if (!missing.size) return
+
+  const path = base() + '/api-operations'
+  const pageSize = 100
+  await selectedApi.read(async () => {
+    const found: ApiOperationVO[] = []
+    for (let currentPage = 1; ; currentPage++) {
+      const batch = await get<Page<ApiOperationVO>>(path, { page: currentPage, pageSize })
+      if (path !== base() + '/api-operations' || ids !== baseline.value) break
+      for (const operation of batch.items) {
+        if (missing.delete(operation.id)) found.push(operation)
+      }
+      if (!missing.size || batch.page * batch.pageSize >= batch.total) break
+    }
+    return found
+  })
+}
 async function loadReport() {
   const system = auth.targetSystem
   const loaded = await report.read(() => get<CoverageVO>(base() + '/ui-api-mappings'))
@@ -82,8 +107,9 @@ function save() {
     await put(path, { mappings })
   })
 }
+watch(baseline, () => { void loadSelectedApi() })
 watch(() => auth.targetSystem, () => {
-  reset(); tree.reset(); report.reset(); api.reset(); knownApi.value = new Map()
+  reset(); tree.reset(); report.reset(); api.reset(); selectedApi.reset(); knownApi.value = new Map()
   page.value = 1; query.value = ''; keyword.value = ''; selectUi(null)
   void reload()
 }, { immediate: true })
@@ -115,6 +141,7 @@ watch(() => auth.targetSystem, () => {
         <section><NTag size="small" type="warning">移除 {{ removed.length }}</NTag><ul><li v-for="id in removed" :key="id">{{ name(id) }}</li></ul></section>
       </div>
       <p v-else class="muted subsection">暂无待保存变更</p>
+      <ReadState :loading="selectedApi.loading.value" :error="selectedApi.error.value" @retry="loadSelectedApi" />
       <details v-if="selectedUi !== null && draft.length" class="subsection"><summary>查看所选 API</summary><ul class="compact-list"><li v-for="id in draft" :key="id"><code>{{ name(id) }}</code><NButton v-if="allowed('replaceUiApiMappings')" text size="small" :disabled="busy" @click="toggle(id, false)">移除</NButton></li></ul></details>
       <div v-if="allowed('replaceUiApiMappings')" class="dialog-actions"><NButton :disabled="!dirty || busy" @click="draft = [...baseline]">还原</NButton><NButton type="primary" :disabled="!dirty || busy || report.loading.value || Boolean(report.error.value)" @click="save">保存映射</NButton></div>
     </section>

@@ -48,7 +48,7 @@ watch(() => auth.loadedAt, time => {
     <section class="dashboard-section">
       <h2>工作入口</h2>
       <div class="quick-links">
-        <RouterLink to="/me"><span>本人资料<small>查看身份和有效权限</small></span><span aria-hidden="true">→</span></RouterLink>
+        <RouterLink to="/me"><span>本人资料</span><span aria-hidden="true">→</span></RouterLink>
         <RouterLink v-for="page in links" :key="page.path" :to="page.path"><span>{{ page.title }}</span><span aria-hidden="true">→</span></RouterLink>
       </div>
     </section>

@@ -30,6 +30,28 @@ class SkeletonHttpTest extends DddHttpTestSupport {
     }
 
     @Test
+    void mappingCoverageReturnsResourceAndOperationObjects() {
+        String token = login("root", "rbac-center");
+        JsonNode coverage = successful(HttpMethod.GET,
+                "/api/v1/systems/rbac-center/ui-api-mappings", token, null);
+
+        assertThat(coverage.path("unmappedUi"))
+                .anySatisfy(ui -> {
+                    assertThat(ui.path("id").asLong()).isPositive();
+                    assertThat(ui.path("code").asText()).isEqualTo("rbac:ui:authorization:view");
+                    assertThat(ui.path("name").asText()).isNotBlank();
+                    assertThat(ui.path("children").isArray()).isTrue();
+                });
+        assertThat(coverage.path("unmappedApi"))
+                .anySatisfy(api -> {
+                    assertThat(api.path("id").asLong()).isPositive();
+                    assertThat(api.path("operationId").asText()).isEqualTo("login");
+                    assertThat(api.path("method").asText()).isEqualTo("POST");
+                    assertThat(api.path("pathTemplate").asText()).isEqualTo("/auth/login");
+                });
+    }
+
+    @Test
     void loginJwtMeAndPersistentLogout() {
         ResponseEntity<JsonNode> login =
                 http.postForEntity(

@@ -170,7 +170,19 @@ public class ResourceController {
     public Object mappings(
             @RequestHeader(value = "Authorization", required = false) String b,
             @PathVariable String code) {
-        return RestSupport.ok(resources.mappings(rest.principal(b), code));
+        ResourceApplicationService.MappingCoverage coverage =
+                resources.mappings(rest.principal(b), code);
+        return RestSupport.ok(
+                Map.of(
+                        "mappings", coverage.mappings(),
+                        "unmappedUi",
+                                coverage.unmappedUi().stream()
+                                        .map(ui -> ResourceViews.ui(ui, List.of()))
+                                        .toList(),
+                        "unmappedApi",
+                                coverage.unmappedApi().stream()
+                                        .map(ResourceViews::operation)
+                                        .toList()));
     }
 
     @PutMapping("/systems/{code}/ui-api-mappings")

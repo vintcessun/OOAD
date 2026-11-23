@@ -196,24 +196,26 @@ public class ResourceApplicationService {
         return resources.operation(id);
     }
 
-    public Map<String, Object> mappings(TokenProvider.Principal p, String system) {
+    public record MappingCoverage(
+            List<Mapping> mappings, List<Ui> unmappedUi, List<ApiOperation> unmappedApi) {}
+
+    public MappingCoverage mappings(TokenProvider.Principal p, String system) {
         authorization.require(p, "rbac:resource:view", false);
         List<Mapping> mappings = resources.mappings(system);
-        List<Long> unmappedUi =
+        List<Ui> unmappedUi =
                 resources.ui(system).stream()
                         .filter(u -> mappings.stream().noneMatch(m -> m.uiResourceId() == u.id()))
-                        .map(Ui::id)
                         .toList();
-        List<Long> unmappedApi = new ArrayList<>();
+        List<ApiOperation> unmappedApi = new ArrayList<>();
         int page = 1;
         AuthorizationRepository.Page<ApiOperation> batch;
         do {
             batch = resources.operations(system, null, page++, 100);
             for (ApiOperation operation : batch.items())
                 if (mappings.stream().noneMatch(m -> m.apiOperationId() == operation.id()))
-                    unmappedApi.add(operation.id());
+                    unmappedApi.add(operation);
         } while ((long) (page - 1) * 100 < batch.total());
-        return Map.of("mappings", mappings, "unmappedUi", unmappedUi, "unmappedApi", unmappedApi);
+        return new MappingCoverage(mappings, unmappedUi, unmappedApi);
     }
 
     @Transactional
