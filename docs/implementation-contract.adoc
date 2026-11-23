@@ -54,14 +54,14 @@ PUBLIC GET /.well-known/jwks.json；健康/info仍位于/api/v1/actuator/{health
 
 == 管理API与输入（都在/api/v1）
 
-除/me、/menus/me外管理API必须aud=rbac-center；JWT有效和系统启用先于任何超级管理员处理。
+除/me、/menus/me、/auth/password外管理API必须aud=rbac-center；JWT有效和系统启用先于任何超级管理员处理。
 每个操作的operationId与x-required-permission由唯一OAS登记并在启动/CI对齐。权限码按下表，API种类。
 
 [cols="2,3,2"]
 |===
 |方法/路径 |输入/响应data |所需权限
 |GET /me |本人UserVO及当前系统EffectiveVO组成 `{user,effective}` |@authenticated
-|POST /auth/password |oldPassword,newPassword；204或包装null，更新tokenVersion |@authenticated
+|POST /auth/password |oldPassword,newPassword（8–256 字符）；200 包装 `data:null`，更新tokenVersion |@authenticated
 |GET /systems |SystemVO[]（有限注册系统） |rbac:system:view
 |POST /systems |{code,name}→SystemVO |rbac:system:edit
 |PATCH /systems/{id} |{name}→SystemVO |rbac:system:edit

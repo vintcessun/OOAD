@@ -21,6 +21,101 @@ DIRECTORY = {
     '/auth/departments/{departmentId}/users': ('listIdentityDepartmentUsers', 'IdentityDepartmentUser'),
     '/auth/users/{userId}': ('lookupIdentityUser', None),
 }
+OPERATION_GROUPS = {
+    '统一身份鉴权': {
+        'login': '登录',
+        'logout': '退出登录',
+        'getIdentityCurrentUser': '查询当前用户的身份与前端权限',
+        'listIdentityDepartments': '查询统一身份部门列表',
+        'listIdentityDepartmentUsers': '查询统一身份部门成员',
+        'lookupIdentityUser': '按统一身份标识查询用户',
+        'checkIdentityPermission': '检查当前用户的 UI 权限',
+        'getApiAuthority': '检查当前用户的 API 调用资格',
+        'getMe': '查询本人资料与有效权限',
+        'changePassword': '修改当前用户密码',
+        'getJwks': '获取 JWT 验签公钥',
+    },
+    '系统管理': {
+        'listSystems': '查询受管系统列表',
+        'createSystem': '注册受管系统',
+        'updateSystem': '修改系统名称',
+        'setSystemStatus': '启用或停用系统',
+    },
+    '部门与角色准入': {
+        'getDepartmentTree': '查询部门树',
+        'createDepartment': '新增子部门',
+        'updateDepartment': '修改部门名称',
+        'deleteDepartment': '删除空部门',
+        'getDepartmentAssignableRoles': '查询部门可指派角色',
+        'replaceDepartmentAssignableRoles': '替换部门可指派角色',
+    },
+    '用户管理': {
+        'listUsers': '查询用户列表',
+        'createUser': '新增用户',
+        'getUser': '查询用户详情',
+        'updateUser': '修改用户资料',
+        'setUserStatus': '修改用户状态',
+        'deleteUser': '逻辑删除用户',
+        'changeUserDepartment': '调整用户所属部门',
+        'listUserRoleAssignments': '查询用户角色指派',
+        'createUserRoleAssignment': '为用户分配角色',
+        'deleteUserRoleAssignment': '撤销用户角色指派',
+        'getUserEffectivePermissions': '查询用户有效权限',
+    },
+    '角色与继承': {
+        'listRoles': '查询角色列表',
+        'createRole': '新增角色',
+        'getRole': '查询角色详情',
+        'updateRole': '修改角色资料',
+        'setRoleStatus': '启用或停用角色',
+        'deleteRole': '删除角色',
+        'getRolePermissions': '查询角色直接权限',
+        'replaceRolePermissions': '替换角色直接权限',
+        'getRoleEffectivePermissions': '查询角色有效权限',
+        'getRoleHierarchy': '查询系统角色继承关系',
+        'addRoleInheritance': '添加角色继承关系',
+        'deleteRoleInheritance': '删除角色继承关系',
+    },
+    '权限管理': {
+        'listPermissions': '查询权限列表',
+        'createPermission': '新增权限',
+        'setPermissionStatus': '启用或停用权限',
+    },
+    '菜单与按钮': {
+        'getUiResources': '查询菜单与按钮配置',
+        'createUiResource': '新增菜单或按钮',
+        'updateUiResource': '修改菜单或按钮',
+        'deleteUiResource': '删除菜单或按钮',
+        'getMyMenus': '查询当前用户可见菜单',
+    },
+    'API 登记与映射': {
+        'listApiOperations': '查询已登记的 API',
+        'createApiOperation': '登记 API 操作',
+        'updateApiOperation': '修改 API 操作配置',
+        'getUiApiMappings': '查询 UI 与 API 映射及覆盖情况',
+        'replaceUiApiMappings': '替换 UI 与 API 映射',
+    },
+    '鉴权与解释': {
+        'checkAuthorization': '检查用户授权',
+        'explainAuthorization': '解释用户授权结果',
+    },
+    '统一身份审计': {
+        'queryIdentityAuditLogs': '查询课程审计日志',
+        'writeIdentityAuditLog': '写入课程审计日志',
+    },
+    '管理审计': {
+        'queryAuditLogs': '查询管理端审计日志',
+    },
+    '可信服务接口': {
+        'getIntegrationAuthorities': '查询当前用户的服务端授权',
+        'lookupUnifiedIdentityUser': '查询用户身份资料',
+    },
+    '仪表盘与运行状态': {
+        'getDashboard': '查询仪表盘基础计数',
+        'getHealth': '查询服务健康状态',
+        'getInfo': '查询服务信息',
+    },
+}
 def emit(path, text): OUTPUTS[RES / path] = text
 
 def q(v):
@@ -80,8 +175,13 @@ def oas():
     visit(external)
     schemas={n:v for n,v in schemas.items() if n in needed}
     schemas['Error']=obj({'code':string(minLength=1),'message':string(minLength=1),'details':{}},['code','message'])
-    schemas['LoginInput']['properties']['systems']['maxItems']=1
-    schemas['LoginInput']['properties']['username'].pop('example',None)
+    login_properties = schemas['LoginInput']['properties']
+    login_properties['username'].pop('example', None)
+    login_properties['username']['description'] = 'RBAC1 用户账号'
+    login_properties['password']['description'] = '由权限中心验证，数据库仅保存密码哈希。'
+    login_properties['systems'].update(maxItems=1, description='仅传一个已启用的系统编码，作为 JWT 的唯一 aud。')
+    for field in [login_properties['username'], login_properties['password'], login_properties['systems']['items']]:
+        field['pattern'] = r'\S'
     schemas['IdentityCurrentUserVO']['required']=['subject','roles','permissions','name','no']
     schemas['AuditVO']=obj({'id':ID,'at':DATE,'actor':obj({'id':nullable(ID),'name':string(),'roles':arr(string()),'deleted':BOOL}),'type':string(),'target':string(500),'before':nullable({'type':'object','additionalProperties':True}),'after':nullable({'type':'object','additionalProperties':True}),'objectType':nullable(string()),'objectId':nullable(string())},['id','at','actor','type','target','before','after'])
     # The pinned teacher file is OpenAPI 3.1; the center publishes 3.0 nullable schemas.
@@ -115,13 +215,43 @@ def oas():
     'MappingVO':obj({'uiResourceId':ID,'apiOperationId':ID}),
     'HierarchyVO':obj({'roles':arr('RoleVO'),'edges':arr(obj({'seniorRoleId':ID,'juniorRoleId':ID}))})})
     paths=external
+    identity_descriptions = {
+        'login': '权限中心验证用户名与密码，为 `systems` 中指定的单一系统签发 JWT。'
+                 '可用系统包括管理中心 `rbac-center` 和课程系统 `course-project-management`。'
+                 'JWT 携带身份和令牌状态所需的声明，角色与权限需通过对应接口查询。',
+        'logout': '权限中心持久化当前 JWT 的撤销记录，成功后该令牌失效。',
+        'getIdentityCurrentUser': '根据 JWT 的 `aud` 返回当前用户、有效身份角色与 UI 权限。'
+                                  '无学号或工号时 `no` 返回空字符串。',
+        'checkIdentityPermission': '根据 JWT 的 `aud` 查询当前用户是否拥有指定 UI 权限。未知或无权时返回 `allowed: false`。',
+        'getApiAuthority': '根据 JWT 的 `aud` 和 `operationId` 查询当前用户调用目标 API 的全局资格。'
+                           '已登记但无权或操作已停用时返回 `allowed: false`。'
+                           '查询 `rbac-center` 的 `getDashboard` 时同时检查仪表盘所需的三项 API 权限。'
+                           '课程对象级权限由课程业务接口继续校验。',
+        'queryIdentityAuditLogs': '从权限中心的持久化审计记录查询当前 `aud` 的课程审计日志，按操作者、对象或时间筛选。'
+                                  '调用需用户令牌、服务密钥与 `audit:read` API 权限。课程业务范围由课程服务校验。',
+        'writeIdentityAuditLog': '权限中心持久化课程审计日志。调用需用户令牌、服务密钥与 `audit:write` API 权限。'
+                                 '`objectType` 须与 `objectId` 前缀一致。'
+                                 '同一 `requestId`、来源系统、用户及规范化内容的重试返回原记录。'
+                                 '同一 `requestId` 对应不同内容或身份时返回 `400 AUDIT_DUPLICATE_CONFLICT`。',
+    }
     for p,v in external.items():
         for m,o in v.items():
             if m not in METHODS:continue
             o.pop('servers',None)
             o['x-required-permission']='PUBLIC' if p=='/auth/login' else ('audit:write' if m=='post' and p=='/auth/audit-logs' else 'audit:read' if p=='/auth/audit-logs' else '@authenticated')
+            if o['operationId'] in identity_descriptions:
+                o['description'] = identity_descriptions[o['operationId']]
+            responses = o['responses']
+            responses['503'] = {'$ref': '#/components/responses/Unavailable'}
+            if p == '/auth/login':
+                responses['400'] = {'$ref': '#/components/responses/BadRequest'}
+                responses['401'] = response(ref('Error'), '凭据无效、账号不可用或目标系统不可用')
+                responses['401']['content']['application/json']['example'] = {
+                    'code': 'INVALID_CREDENTIALS', 'message': '身份认证失败'}
+            if p == '/auth/permissions/{permission}':
+                v['parameters'][0]['schema'] = string(128, minLength=1)
             if p=='/auth/api-permissions/{operationId}' and m=='get':
-                o['responses'].setdefault('400', {'$ref': '#/components/responses/BadRequest'})
+                responses.setdefault('400', {'$ref': '#/components/responses/BadRequest'})
             if p in DIRECTORY:
                 o.update({'x-required-audience': 'course-project-management',
                           'x-required-role': 'admin', 'x-course-permission': 'TEC'})
@@ -129,22 +259,28 @@ def oas():
                 if item:
                     output = 'Page' + item
                     schemas[output] = page(item)
-                    o['responses']['200'] = response(ref(output), o['responses']['200']['description'])
-                o['responses'].setdefault('401', {'$ref': '#/components/responses/Unauthorized'})
-                o['responses'].setdefault('404', {'$ref': '#/components/responses/NotFound'})
+                    responses['200'] = response(ref(output), responses['200']['description'])
+                    responses['404'] = response(ref('Error'), '指定部门不存在或已停用（`NOT_FOUND`）')
+                else:
+                    v['parameters'][0]['schema'] = string(128, minLength=1)
+                    o['description'] = '按稳定的 `subject` 查询活跃用户的姓名与学号或工号。无学号或工号时 `no` 返回空字符串。'
+                    responses['404'] = response(ref('Error'), '用户不存在或未处于活跃状态（`IDENTITY_USER_NOT_FOUND`）')
+                responses.setdefault('400', {'$ref': '#/components/responses/BadRequest'})
+                responses.setdefault('401', {'$ref': '#/components/responses/Unauthorized'})
+                responses['403'] = response(ref('Error'), '需要课程系统令牌、`admin` 身份角色及 `TEC` API 权限（`PERMISSION_DENIED`）')
             if p=='/auth/audit-logs':
                 o.setdefault('parameters',[]).append({'name':'X-Audit-Service-Key','in':'header','required':True,'schema':string(minLength=1),'description':'可信课程后端服务密钥；不得提供给浏览器。'})
-                if m=='get':o['responses']['200']=response(ref('PageIdentityAuditLog'))
-                else:o['description']+='\nobjectType须与objectId前缀一致。同requestId同sourceSystem/subject/规范化内容返回相同id；异体400 AUDIT_DUPLICATE_CONFLICT。'
+                if m=='get':responses['200']=response(ref('PageIdentityAuditLog'))
+                responses['403'] = response(ref('Error'), '服务密钥无效（`AUDIT_SERVICE_REQUIRED`）或权限不足（`PERMISSION_DENIED`）')
     version={'type':'integer','format':'int64','minimum':0}
     schemas.update({
-    'PasswordInput':obj({'oldPassword':string(256,minLength=1),'newPassword':string(256,minLength=1)}),
+    'PasswordInput':obj({'oldPassword':string(minLength=1,pattern=r'\S',format='password',writeOnly=True),'newPassword':string(256,minLength=8,pattern=r'\S',format='password',writeOnly=True)}),
     'SystemCreateInput':obj({'code':string(64,minLength=1),'name':string(128,minLength=1)}),
     'NameInput':obj({'name':string(128,minLength=1)}),
     'StatusInput':obj({'status':STATUS}), 'UserStatusInput':obj({'status':USERSTATUS}),
     'DepartmentCreateInput':obj({'parentId':nullable(ID),'code':string(64,minLength=1),'name':string(128,minLength=1)},['code','name']),
     'RoleIdsInput':obj({'roleIds':arr(ID)}), 'PermissionIdsInput':obj({'permissionIds':{**arr(ID),'maxItems':1000}}),
-    'UserCreateInput':obj({'username':string(128,minLength=1),'name':string(128,minLength=1),'no':nullable(string(64)),'phone':nullable(string(32)),'departmentId':ID,'password':string(256,minLength=1)},['username','name','departmentId','password']),
+    'UserCreateInput':obj({'username':string(128,minLength=1),'name':string(128,minLength=1),'no':nullable(string(64)),'phone':nullable(string(32)),'departmentId':ID,'password':string(256,minLength=8,pattern=r'\S',format='password',writeOnly=True)},['username','name','departmentId','password']),
     'UserUpdateInput':obj({'name':string(128,minLength=1),'no':nullable(string(64)),'phone':nullable(string(32)),'version':version},[]),
     'DepartmentChangeInput':obj({'departmentId':ID,'version':version},['departmentId']),
     'RoleCreateInput':obj({'systemCode':string(64,minLength=1),'code':string(64,minLength=1),'name':string(128,minLength=1),'description':nullable(string(500)),'identityRole':nullable(enum('student','teacher','admin'))},['systemCode','code','name']),
@@ -174,11 +310,73 @@ def oas():
     ('listRoles',None,'PageRoleVO'),('createRole','RoleCreateInput','RoleVO'),('getRole',None,'RoleVO'),('updateRole','RoleUpdateInput','RoleVO'),('setRoleStatus','StatusInput','RoleVO'),('deleteRole',None,None),('getRolePermissions',None,arr('PermissionVO')),('replaceRolePermissions','PermissionIdsInput',None),('getRoleEffectivePermissions',None,'EffectiveVO'),('getRoleHierarchy',None,'HierarchyVO'),('addRoleInheritance',None,None),('deleteRoleInheritance',None,None),
     ('listUserRoleAssignments',None,arr('AssignmentVO')),('createUserRoleAssignment','AssignmentInput','AssignmentVO'),('deleteUserRoleAssignment',None,None),('getUserEffectivePermissions',None,'EffectiveVO'),('listPermissions',None,'PagePermissionVO'),('createPermission','PermissionCreateInput','PermissionVO'),('setPermissionStatus','StatusInput','PermissionVO'),('getUiResources',None,arr('UiResourceVO')),('createUiResource','UiCreateInput','UiResourceVO'),('updateUiResource','UiUpdateInput','UiResourceVO'),('deleteUiResource',None,None),('getMyMenus',None,arr('UiResourceVO')),('listApiOperations',None,'PageApiOperationVO'),('createApiOperation','ApiCreateInput','ApiOperationVO'),('updateApiOperation','ApiUpdateInput','ApiOperationVO'),('getUiApiMappings',None,'MappingCoverageVO'),('replaceUiApiMappings','MappingsInput',None),('checkAuthorization','AuthorizationInput','DecisionVO'),('explainAuthorization','AuthorizationInput','ExplanationVO'),('queryAuditLogs',None,'PageAuditVO'),('getDashboard',None,'DashboardVO')]
     assert len(rows)==len(definitions),(len(rows),len(definitions))
+    management_descriptions = {
+        'getMe': '返回当前登录用户的基本资料，以及在 JWT 的 `aud` 对应系统中的直接角色、有效角色、权限和权限来源。',
+        'changePassword': '修改成功后返回 HTTP 200 和 `data: null`，此前签发给该用户的令牌失效。',
+        'listSystems': '列出权限中心已登记的系统，返回各系统的编码、名称和启停状态。',
+        'createSystem': '以唯一的系统编码注册受管系统。新系统默认启用，随后可在该系统下配置角色、权限和资源。',
+        'updateSystem': '按系统 ID 修改显示名称，并返回更新后的系统资料。系统编码用于 JWT `aud` 和系统级配置定位。',
+        'setSystemStatus': '启用或停用指定系统。停用期间拒绝该系统的运行时授权。重新启用时校验即将恢复的授权。',
+        'getDepartmentTree': '返回以操作者所属部门为起点的组织树，包含该部门及其下级部门。',
+        'createDepartment': '在管理范围内的父部门下新建子部门。父部门通过 `parentId` 指定，系统已有根部门。',
+        'updateDepartment': '修改管理范围内指定部门的名称，并返回更新后的部门资料。',
+        'deleteDepartment': '删除管理范围内的空部门并清理其角色准入配置。指定部门为根部门或仍关联人员、子部门时返回 HTTP 409。',
+        'getDepartmentAssignableRoles': '查询指定部门已配置的角色准入清单，可用 `systemCode` 筛选角色所属系统。',
+        'replaceDepartmentAssignableRoles': '用 `roleIds` 整体替换指定部门的角色准入清单，并在同一事务内撤销该部门直属用户已不满足准入条件的角色指派。',
+        'listUsers': '在操作者所属部门及其子部门范围内分页查询用户，支持按关键字、部门 ID 和用户状态筛选。',
+        'createUser': '在管理范围内的指定部门创建用户。服务端生成稳定的 `subject`，以哈希保存初始密码，并返回用户资料。',
+        'getUser': '按用户 ID 查询管理范围内的用户资料，包含部门、状态及用于并发更新的版本。',
+        'updateUser': '更新管理范围内用户的姓名、学号或工号、手机号。仅提交要修改的字段，可提供 `version` 检查并发更新。',
+        'setUserStatus': '将用户状态设为 `ACTIVE`、`DISABLED` 或 `DELETED`。停用和逻辑删除会使已有令牌失效，逻辑删除还会清空角色指派。',
+        'deleteUser': '逻辑删除管理范围内的指定用户，撤销其角色指派，并使此前签发的令牌失效。',
+        'changeUserDepartment': '跨部门调动会在更新部门的同一事务中清空该用户的角色指派。提交当前部门时保留原指派。',
+        'listRoles': '按必填的 `systemCode` 查询角色目录，支持按关键字和角色状态筛选并分页返回。',
+        'createRole': '在指定系统下创建默认启用的角色。可配置 `identityRole`，供统一身份接口投影为学生、教师或管理员身份。',
+        'getRole': '按角色 ID 查询角色的所属系统、编码、显示信息、启停状态和版本。',
+        'updateRole': '更新角色名称或描述。省略的字段保留原值，`description` 显式传 `null` 可清空描述。支持通过 `version` 检查并发更新。',
+        'setRoleStatus': '启用或停用指定角色。停用的角色在运行时失效并中断经过该角色的继承路径，重新启用时校验受影响角色的授权。',
+        'deleteRole': '删除角色并清理关联的用户指派、部门准入、直接权限和继承边。服务端保护最后一个有效超级管理员。',
+        'getRolePermissions': '列出直接绑定到该角色的权限配置。需要查看继承后的权限及其来源时，调用角色有效权限接口。',
+        'replaceRolePermissions': '用 `permissionIds` 整体替换角色的直接权限。权限必须与角色属于同一系统，空数组清空直接权限。替换时校验受影响角色的授权。',
+        'getRoleEffectivePermissions': '以指定角色为起点计算已配置的有效角色、权限和来源。即使所属系统已停用，仍可查看由启用角色和权限组成的配置。',
+        'getRoleHierarchy': '返回指定系统的角色和有向继承边。每条边从 `seniorRoleId` 指向其继承的 `juniorRoleId`。',
+        'addRoleInheritance': '添加同一系统内从 `seniorId` 指向 `juniorId` 的继承边。重复边或会形成环的边返回 HTTP 409。',
+        'deleteRoleInheritance': '删除这两个角色之间指定方向的直接继承边。删除后按剩余路径计算继承权限，找不到该边时返回 HTTP 404。',
+        'listUserRoleAssignments': '查看管理范围内指定用户的直接角色指派。可用 `systemCode` 筛选，返回指派 ID、所属系统和指派时间等信息。',
+        'createUserRoleAssignment': '向管理范围内的用户直接指派角色。角色须列入该用户当前部门的准入清单，并满足用户、角色及所属系统的启用条件。',
+        'deleteUserRoleAssignment': '撤销路径中指定用户的某条直接角色指派。服务端核对 `assignmentId` 是否属于该用户。',
+        'getUserEffectivePermissions': '查询管理范围内指定用户在目标系统的直接角色、有效角色、去重权限和授权来源。用于查看该用户在该系统中的运行时授权。',
+        'listPermissions': '分页查询已定义的权限，可按所属系统、`UI` 或 `API` 种类及关键字筛选。',
+        'createPermission': '在指定系统创建权限定义。权限编码在同一系统和种类内唯一，创建后可将该权限显式授予角色。',
+        'setPermissionStatus': '启用或停用指定权限定义。停用后该权限退出运行时有效权限集合，角色中的绑定可供后续恢复使用。',
+        'getUiResources': '查询指定系统的菜单和按钮配置树，包含资源状态和关联的 UI 权限码，供管理端编辑资源。',
+        'createUiResource': '为指定系统新建菜单或按钮，并绑定该系统中已登记的 UI 权限。按钮需要挂在菜单下。',
+        'updateUiResource': '修改菜单或按钮的配置，例如显示名称、父菜单、路由、关联权限或状态。父菜单和关联权限须属于资源所在系统。',
+        'deleteUiResource': '删除指定的菜单或按钮。资源仍包含子节点或被 UI 与 API 映射引用时返回 HTTP 409。',
+        'getMyMenus': '返回当前用户在 JWT 的 `aud` 对应系统中可见的菜单和按钮树。树按用户的有效 UI 权限裁剪，并保留展示所需的父菜单。',
+        'listApiOperations': '分页查询指定系统已登记的 API 操作。可按 `operationId` 或路径模板搜索，结果包含访问策略和启用状态。',
+        'createApiOperation': '登记指定系统的 API 方法、路径模板和访问策略。`PROTECTED` 操作至少需要 API 权限或身份角色条件，固定中心操作须与共享 OpenAPI 契约一致。',
+        'updateApiOperation': '修改已登记操作的配置，包括访问策略、权限条件或启用状态。固定中心操作的配置须与共享 OpenAPI 契约一致并保持启用。',
+        'getUiApiMappings': '返回指定系统的 UI 与 API 显式映射及覆盖情况，包括尚未建立映射的 UI 资源和 API 操作。',
+        'replaceUiApiMappings': '用 `mappings` 整体替换指定系统的映射。每条映射的 UI 资源和 API 操作须属于该系统。映射供追踪和覆盖检查使用。',
+        'checkAuthorization': '判断指定用户在目标系统中的授权资格，省略 `userId` 时检查调用者本人。UI 检查使用 `permission`，API 检查使用 `operationId`。结果包含决定、原因和追踪 ID。',
+        'explainAuthorization': '按与授权检查相同的输入和管理范围计算决定，并返回判定步骤及目标用户的有效角色、权限和来源，供排查授权结果。',
+        'queryAuditLogs': '分页查询权限中心记录的管理和课程审计事件，可按来源系统、操作者、目标和时间范围筛选。',
+        'getDashboard': ('使用 `rbac-center` 令牌，调用者须同时具备 `rbac:user:view`、`rbac:role:view` 和 '
+                         '`rbac:system:view` 三项 API 权限。`x-required-permission` 是路由登记的入口权限，'
+                         '`x-required-permissions-all` 列出服务端同时校验的权限。'),
+    }
     for name in ['UserVO','RoleVO','PermissionVO','ApiOperationVO','AuditVO']:schemas['Page'+name]=page(name)
-    for (method,path,description,permission),(oid,inp,out) in zip(rows,definitions):
+    for (method,path,_,permission),(oid,inp,out) in zip(rows,definitions):
         out=ref(out) if isinstance(out,str) else out
         wrapper=obj({'code':enum('OK'),'message':string(),'data':out or {'type':'object','nullable':True,'enum':[None]},'timestamp':DATE})
-        op={'operationId':oid,'summary':description.split('→')[0].strip(),'x-required-permission':permission.strip(),'x-required-audience':'rbac-center' if path not in ['/me','/menus/me','/auth/password'] else '@current','responses':{'200':response(wrapper)}}
+        op = {
+            'operationId': oid,
+            'description': management_descriptions[oid],
+            'x-required-permission': permission.strip(),
+            'x-required-audience': 'rbac-center' if path not in ['/me', '/menus/me', '/auth/password'] else '@current',
+            'responses': {'200': response(wrapper)},
+        }
         if inp:op['requestBody']={'required':True,'content':{'application/json':{'schema':ref(inp)}}}
         op['parameters']=[]
         for arg in re.findall(r'\{([^}]+)\}',path):op['parameters'].append({'name':arg,'in':'path','required':True,'schema':string(64,minLength=1) if arg=='code' else ID})
@@ -189,6 +387,8 @@ def oas():
             op['parameters'] += [{'$ref':'#/components/parameters/Page'},{'$ref':'#/components/parameters/PageSize'}]
         for status in ['400','401','403','404','409','503']:op['responses'][status]={'$ref':'#/components/responses/'+{'400':'BadRequest','401':'Unauthorized','403':'Forbidden','404':'NotFound','409':'Conflict','503':'Unavailable'}[status]}
         paths.setdefault('/api/v1'+path,{})[method.lower()]=op
+    dashboard = paths['/api/v1/dashboard']['get']
+    dashboard['x-required-permissions-all'] = ['rbac:user:view', 'rbac:role:view', 'rbac:system:view']
     # Private service-to-service projections remain separate from the teacher provider operations.
     schemas['IntegrationAuthoritiesVO']=obj({'authorities':arr(string())})
     schemas['IdentityUserLookupVO']=obj({'userId':string(128),'name':string(128),'no':string(64)})
@@ -196,8 +396,31 @@ def oas():
         parameters=[{'name':'X-Audit-Service-Key','in':'header','required':True,'schema':string(minLength=1),'description':'Only trusted course backend; never exposed in frontend configuration.'}]
         if '{userId}' in path:parameters.append({'name':'userId','in':'path','required':True,'schema':string(128,minLength=1)})
         paths[path]={'get':{'operationId':oid,'x-required-permission':'@authenticated','x-required-audience':'@current','x-trusted-service':True,'description':'Service key plus validated current user; lookup additionally requires admin identity and TEC API capability. No target subject/system overrides for authority projection.','parameters':parameters,'responses':{'200':response(ref(out)),**{status:{'$ref':'#/components/responses/'+name} for status,name in [('400','BadRequest'),('401','Unauthorized'),('403','Forbidden'),('404','NotFound'),('503','Unavailable')]}}}}
-    for path,oid,out in [('/.well-known/jwks.json','getJwks',obj({'keys':arr(obj({'kty':enum('RSA'),'use':enum('sig'),'kid':string(),'alg':enum('RS256'),'n':string(),'e':string()}))})),('/api/v1/actuator/health','getHealth',{'type':'object','required':['status'],'properties':{'status':string()},'additionalProperties':True}),('/api/v1/actuator/info','getInfo',{'type':'object','additionalProperties':True})]:
-        paths[path]={'get':{'operationId':oid,'x-required-permission':'PUBLIC','security':[],'responses':{'200':response(out)}}}
+    public_operations = [
+        ('/.well-known/jwks.json', 'getJwks',
+         obj({'keys': arr(obj({'kty': enum('RSA'), 'use': enum('sig'), 'kid': string(),
+                               'alg': enum('RS256'), 'n': string(), 'e': string()}))}),
+         '返回验证 RS256 JWT 所用的公钥集合。验证方根据令牌头中的 `kid` 选取公钥。'),
+        ('/api/v1/actuator/health', 'getHealth',
+         {'type': 'object', 'required': ['status'], 'properties': {'status': string()}, 'additionalProperties': True},
+         '返回服务的总体健康状态 `status`，供运行监测使用。组件和详情由各后端的 Actuator 配置决定。'),
+        ('/api/v1/actuator/info', 'getInfo',
+         {'type': 'object', 'additionalProperties': True},
+         '返回 Actuator 已配置的应用信息。没有配置可发布的信息时返回空对象。'),
+    ]
+    for path, oid, out, description in public_operations:
+        paths[path] = {'get': {'operationId': oid, 'description': description,
+                               'x-required-permission': 'PUBLIC', 'security': [], 'responses': {'200': response(out)}}}
+    presentation = {oid: (group, summary) for group, titles in OPERATION_GROUPS.items()
+                    for oid, summary in titles.items()}
+    for methods in paths.values():
+        for method, operation in methods.items():
+            if method not in METHODS:
+                continue
+            oid = operation['operationId']
+            group, summary = presentation[oid]
+            display = {'operationId': oid, 'summary': summary, 'tags': [group], 'x-apifox-folder': group}
+            methods[method] = {**display, **{key: value for key, value in operation.items() if key not in display}}
     components={'schemas':schemas,'parameters':copy.deepcopy(teacher['components']['parameters']),'responses':copy.deepcopy(teacher['components']['responses']),'securitySchemes':{'bearerAuth':{'type':'http','scheme':'bearer','bearerFormat':'JWT'}}}
     for status,name in [('400','BadRequest'),('401','Unauthorized'),('403','Forbidden'),('404','NotFound'),('409','Conflict'),('503','Unavailable')]:components['responses'][name]=response(ref('Error'),status+' 业务错误')
     # Remove unused teacher parameters/responses to avoid unrelated business schemas.
@@ -213,7 +436,7 @@ def oas():
     components['responses']={n:v for n,v in components['responses'].items() if '#/components/responses/'+n in used}
     components['parameters']['Page']['schema']={'type':'integer','minimum':1,'default':1}
     components['parameters']['PageSize']['schema']={'type':'integer','minimum':1,'maximum':100,'default':20}
-    document={'openapi':'3.0.3','info':{'title':'RBAC1 统一授权中心','version':'2.0.0','description':'冻结实施合同；单aud JWT；UI/API分离；成功code=OK，错误裸字符串code。仅新空开发库。'},'servers':[{'url':'http://localhost:8081'}],'security':[{'bearerAuth':[]}],'paths':paths,'components':components}
+    document={'openapi':'3.0.3','info':{'title':'RBAC1 统一授权中心','version':'2.0.0','description':'结构化与 DDD 后端的共享契约。业务管理接口返回 code=OK 包装，外部身份、审计与服务投影采用裸响应。错误响应包含稳定的字符串 code。'},'servers':[{'url':'http://localhost:8081','description':'结构化后端默认本地地址'},{'url':'http://localhost:8082','description':'DDD 后端默认本地地址'}],'security':[{'bearerAuth':[]}],'tags':[{'name': group} for group in OPERATION_GROUPS],'paths':paths,'components':components}
     def clean(x):
         if isinstance(x,dict):
             if x.get('required') == []: del x['required']

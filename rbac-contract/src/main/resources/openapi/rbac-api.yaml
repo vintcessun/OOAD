@@ -2,29 +2,39 @@ openapi: 3.0.3
 info:
   title: RBAC1 统一授权中心
   version: 2.0.0
-  description: 冻结实施合同；单aud JWT；UI/API分离；成功code=OK，错误裸字符串code。仅新空开发库。
+  description: 结构化与 DDD 后端的共享契约。业务管理接口返回 code=OK 包装，外部身份、审计与服务投影采用裸响应。错误响应包含稳定的字符串
+    code。
 servers:
 - url: http://localhost:8081
+  description: 结构化后端默认本地地址
+- url: http://localhost:8082
+  description: DDD 后端默认本地地址
 security:
 - bearerAuth: []
+tags:
+- name: 统一身份鉴权
+- name: 系统管理
+- name: 部门与角色准入
+- name: 用户管理
+- name: 角色与继承
+- name: 权限管理
+- name: 菜单与按钮
+- name: API 登记与映射
+- name: 鉴权与解释
+- name: 统一身份审计
+- name: 管理审计
+- name: 可信服务接口
+- name: 仪表盘与运行状态
 paths:
   /auth/login:
     post:
+      operationId: login
+      summary: 登录
       tags:
       - 统一身份鉴权
-      summary: 登录
-      description: "由学校统一身份认证提供，本系统不代理、不持久化密码。\n`systems` 必须列出本次登录目标系统，系统标识与 JWT `aud`\
-        \ 一致；登录本系统时必须包含 `course-project-management`。\n\n## accessToken 格式\n\n返回的 `accessToken`\
-        \ 是 JWT 紧凑格式：\n\n```text\n<base64url(header)>.<base64url(payload)>.<signature>\n\
-        ```\n\npayload 示例（具体字段以统一身份认证实际签发为准）：\n\n```json\n{\n  \"sub\": \"sso-u1001\"\
-        ,\n  \"aud\": [\"course-project-management\"],\n  \"iss\": \"https://identity.example.edu\"\
-        ,\n  \"iat\": 1799992800,\n  \"exp\": 1799999999,\n  \"jti\": \"01J00000000000000000000000\"\
-        \n}\n```\n\n字段用途：\n\n- `sub`：统一身份用户标识；本系统用它关联教师或学生业务身份。\n- `aud`：令牌目标系统；统一身份认证据此确定权限查询的目标系统，调用本系统时必须包含\
-        \ `course-project-management`。\n- `iss`、`iat`、`exp`、`jti`：签发方、签发时间、过期时间和令牌唯一标识，由\
-        \ Spring Security 按统一身份认证的 JWK 校验。\n- JWT 不包含 `identity`、`roles` 或 `permissions`。登录身份由本系统按\
-        \ `sub` 查询；角色和前端权限由统一身份认证权限接口返回。\n\n调用本系统接口时使用 `Authorization: Bearer <accessToken>`，前端不得解析或信任\
-        \ JWT 中的权限信息。\n"
-      operationId: login
+      x-apifox-folder: 统一身份鉴权
+      description: 权限中心验证用户名与密码，为 `systems` 中指定的单一系统签发 JWT。可用系统包括管理中心 `rbac-center`
+        和课程系统 `course-project-management`。JWT 携带身份和令牌状态所需的声明，角色与权限需通过对应接口查询。
       x-provider: unified-identity
       x-provider-name: 统一身份认证系统
       security: []
@@ -46,31 +56,27 @@ paths:
                 tokenType: Bearer
                 expiresIn: 7200
         '401':
-          description: 账号或密码错误
+          description: 凭据无效、账号不可用或目标系统不可用
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
               example:
-                code: UNAUTHORIZED
-                message: 账号或密码错误。
+                code: INVALID_CREDENTIALS
+                message: 身份认证失败
         '503':
-          description: 统一身份认证服务不可用
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-              example:
-                code: IDENTITY_SERVICE_UNAVAILABLE
-                message: 统一身份认证暂时不可用，请稍后重试。
+          $ref: '#/components/responses/Unavailable'
+        '400':
+          $ref: '#/components/responses/BadRequest'
       x-required-permission: PUBLIC
   /auth/logout:
     post:
+      operationId: logout
+      summary: 退出登录
       tags:
       - 统一身份鉴权
-      summary: 退出登录
-      description: 由学校统一身份认证提供；调用后使当前访问令牌失效，本系统不保存令牌状态。
-      operationId: logout
+      x-apifox-folder: 统一身份鉴权
+      description: 权限中心持久化当前 JWT 的撤销记录，成功后该令牌失效。
       x-provider: unified-identity
       x-provider-name: 统一身份认证系统
       security:
@@ -80,20 +86,17 @@ paths:
           description: 已退出
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       x-required-permission: '@authenticated'
   /auth/me:
     get:
+      operationId: getIdentityCurrentUser
+      summary: 查询当前用户的身份与前端权限
       tags:
       - 统一身份鉴权
-      summary: 当前用户、角色与权限
-      description: '由学校统一身份认证提供。从 JWT 的 `aud` 解析目标系统，返回当前用户、角色和前端菜单/按钮权限。
-
-        JWT 本身不包含权限，角色和权限由统一身份认证返回。
-
-        `permissions` 仅用于前端控制菜单和按钮，后端仍必须在 Service 中做强权限校验。
-
-        '
-      operationId: getIdentityCurrentUser
+      x-apifox-folder: 统一身份鉴权
+      description: 根据 JWT 的 `aud` 返回当前用户、有效身份角色与 UI 权限。无学号或工号时 `no` 返回空字符串。
       security:
       - bearerAuth: []
       x-provider: unified-identity
@@ -108,24 +111,17 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
         '503':
-          description: 统一身份认证服务不可用
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-              example:
-                code: IDENTITY_SERVICE_UNAVAILABLE
-                message: 统一身份认证暂时不可用，请稍后重试。
+          $ref: '#/components/responses/Unavailable'
       x-required-permission: '@authenticated'
   /auth/departments:
     get:
+      operationId: listIdentityDepartments
+      summary: 查询统一身份部门列表
       tags:
       - 统一身份鉴权
-      summary: 查询统一身份部门列表（逐层展开）
+      x-apifox-folder: 统一身份鉴权
       description: 由学校统一身份认证提供。按层级查询组织架构：不传 parentId 返回根部门，传入 parentId 只返回该部门的直接子部门。界面可结合
         hasChildren 逐层展开。
-      operationId: listIdentityDepartments
-      x-apifox-folder: 统一身份鉴权
       x-provider: unified-identity
       x-provider-name: 统一身份认证系统
       security:
@@ -158,25 +154,19 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
-          description: 当前用户无权读取统一身份组织架构
+          description: 需要课程系统令牌、`admin` 身份角色及 `TEC` API 权限（`PERMISSION_DENIED`）
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-              example:
-                code: FORBIDDEN
-                message: 你没有查询统一身份部门的权限。
         '503':
-          description: 统一身份认证服务不可用
+          $ref: '#/components/responses/Unavailable'
+        '404':
+          description: 指定部门不存在或已停用（`NOT_FOUND`）
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-              example:
-                code: IDENTITY_SERVICE_UNAVAILABLE
-                message: 统一身份认证暂时不可用，请稍后重试。
-        '404':
-          $ref: '#/components/responses/NotFound'
       x-required-permission: '@authenticated'
       x-required-audience: course-project-management
       x-required-role: admin
@@ -191,12 +181,12 @@ paths:
         minimum: 1
       description: 统一身份认证系统中的部门标识
     get:
+      operationId: listIdentityDepartmentUsers
+      summary: 查询统一身份部门成员
       tags:
       - 统一身份鉴权
-      summary: 查询部门下的用户
-      description: 由学校统一身份认证提供。按工号、学号或姓名分页查询指定部门下的统一身份用户，不返回电话、邮箱等联系方式。
-      operationId: listIdentityDepartmentUsers
       x-apifox-folder: 统一身份鉴权
+      description: 由学校统一身份认证提供。按工号、学号或姓名分页查询指定部门下的统一身份用户，不返回电话、邮箱等联系方式。
       x-provider: unified-identity
       x-provider-name: 统一身份认证系统
       security:
@@ -222,46 +212,32 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
-          description: 当前用户无权读取该部门用户
+          description: 需要课程系统令牌、`admin` 身份角色及 `TEC` API 权限（`PERMISSION_DENIED`）
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-              example:
-                code: FORBIDDEN
-                message: 你没有查询该部门用户的权限。
         '404':
-          description: 部门不存在
+          description: 指定部门不存在或已停用（`NOT_FOUND`）
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-              example:
-                code: IDENTITY_DEPARTMENT_NOT_FOUND
-                message: 统一身份认证系统中没有找到该部门。
         '503':
-          description: 统一身份认证服务不可用
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-              example:
-                code: IDENTITY_SERVICE_UNAVAILABLE
-                message: 统一身份认证暂时不可用，请稍后重试。
+          $ref: '#/components/responses/Unavailable'
       x-required-permission: '@authenticated'
       x-required-audience: course-project-management
       x-required-role: admin
       x-course-permission: TEC
   /auth/audit-logs:
     get:
+      operationId: queryIdentityAuditLogs
+      summary: 查询课程审计日志
       tags:
       - 统一身份审计
-      summary: 查询统一身份审计日志
-      description: '由学校统一身份认证系统提供，只支持按时间、操作对象和操作人查询。
-
-        课程、教学班、操作类型和教师可见范围过滤由课程项目管理系统在 Service 层完成；本系统不建立审计日志表，也不保存日志副本。'
-      operationId: queryIdentityAuditLogs
       x-apifox-folder: 统一身份审计
+      description: 从权限中心的持久化审计记录查询当前 `aud` 的课程审计日志，按操作者、对象或时间筛选。调用需用户令牌、服务密钥与 `audit:read`
+        API 权限。课程业务范围由课程服务校验。
       x-provider: unified-identity
       x-provider-name: 统一身份认证系统
       security:
@@ -315,38 +291,23 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
-          description: 无权查询统一身份审计日志或跨越给定可见范围
+          description: 服务密钥无效（`AUDIT_SERVICE_REQUIRED`）或权限不足（`PERMISSION_DENIED`）
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-              example:
-                code: FORBIDDEN
-                message: 没有查询这些课程日志的权限。
         '503':
-          description: 统一身份认证服务不可用
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-              example:
-                code: IDENTITY_SERVICE_UNAVAILABLE
-                message: 统一身份认证暂时不可用，请稍后重试。
+          $ref: '#/components/responses/Unavailable'
       x-required-permission: audit:read
     post:
+      operationId: writeIdentityAuditLog
+      summary: 写入课程审计日志
       tags:
       - 统一身份审计
-      summary: 写入统一身份审计日志
-      description: '由学校统一身份认证系统提供。课程项目管理系统在关键业务事务成功后调用本接口写入审计日志。
-
-        `requestId` 是业务操作生成的幂等键，同一 `requestId` 重试时统一身份系统返回同一条日志，不产生重复记录。
-
-        本系统不建立审计日志表，也不保存日志副本。
-
-        objectType须与objectId前缀一致。同requestId同sourceSystem/subject/规范化内容返回相同id；异体400
-        AUDIT_DUPLICATE_CONFLICT。'
-      operationId: writeIdentityAuditLog
       x-apifox-folder: 统一身份审计
+      description: 权限中心持久化课程审计日志。调用需用户令牌、服务密钥与 `audit:write` API 权限。`objectType` 须与
+        `objectId` 前缀一致。同一 `requestId`、来源系统、用户及规范化内容的重试返回原记录。同一 `requestId` 对应不同内容或身份时返回
+        `400 AUDIT_DUPLICATE_CONFLICT`。
       x-provider: unified-identity
       x-provider-name: 统一身份认证系统
       security:
@@ -369,23 +330,13 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
-          description: 当前系统或用户无权写入审计日志
+          description: 服务密钥无效（`AUDIT_SERVICE_REQUIRED`）或权限不足（`PERMISSION_DENIED`）
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-              example:
-                code: FORBIDDEN
-                message: 没有写入审计日志的权限。
         '503':
-          description: 统一身份认证服务不可用
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-              example:
-                code: IDENTITY_SERVICE_UNAVAILABLE
-                message: 统一身份认证暂时不可用，请稍后重试。
+          $ref: '#/components/responses/Unavailable'
       x-required-permission: audit:write
       parameters:
       - name: X-Audit-Service-Key
@@ -402,14 +353,16 @@ paths:
       required: true
       description: 统一身份认证定义的前端菜单/按钮权限码
       schema:
-        $ref: '#/components/schemas/UiPermission'
+        type: string
+        maxLength: 128
+        minLength: 1
     get:
+      operationId: checkIdentityPermission
+      summary: 检查当前用户的 UI 权限
       tags:
       - 统一身份鉴权
-      summary: 校验当前用户是否具备指定前端权限
-      description: 由学校统一身份认证提供；从 JWT 的 `aud` 解析目标系统，校验路径中的前端菜单/按钮权限码。响应只返回 `allowed`，不返回权限码或权限集合。该权限码由统一身份认证定义，不使用
-        AuthorityCodes。
-      operationId: checkIdentityPermission
+      x-apifox-folder: 统一身份鉴权
+      description: '根据 JWT 的 `aud` 查询当前用户是否拥有指定 UI 权限。未知或无权时返回 `allowed: false`。'
       x-provider: unified-identity
       x-provider-name: 统一身份认证系统
       security:
@@ -425,6 +378,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/Unavailable'
       x-required-permission: '@authenticated'
   /auth/api-permissions/{operationId}:
     parameters:
@@ -437,19 +392,13 @@ paths:
         minLength: 1
         maxLength: 128
     get:
+      operationId: getApiAuthority
+      summary: 检查当前用户的 API 调用资格
       tags:
       - 统一身份鉴权
-      summary: 判断当前用户能否调用指定 API 接口
-      description: '由学校统一身份认证提供。根据 JWT 的 `aud` 确定目标系统，按 `operationId` 判断当前用户是否具备调用目标
-        API
-
-        所需的全局 `AuthorityCodes` 权限。响应只返回判断结果，不返回权限码。JWT 不包含权限。
-
-        本接口只处理全局 API 权限；课程组长、任课教师、组员、本人等对象级权限仍由目标接口的 Service 判断。
-
-        '
-      operationId: getApiAuthority
       x-apifox-folder: 统一身份鉴权
+      description: '根据 JWT 的 `aud` 和 `operationId` 查询当前用户调用目标 API 的全局资格。已登记但无权或操作已停用时返回
+        `allowed: false`。查询 `rbac-center` 的 `getDashboard` 时同时检查仪表盘所需的三项 API 权限。课程对象级权限由课程业务接口继续校验。'
       security:
       - bearerAuth: []
       x-provider: unified-identity
@@ -473,14 +422,7 @@ paths:
                 code: API_OPERATION_NOT_FOUND
                 message: 没有找到对应的 API 操作。
         '503':
-          description: 统一身份认证服务不可用
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-              example:
-                code: IDENTITY_SERVICE_UNAVAILABLE
-                message: 统一身份认证暂时不可用，请稍后重试。
+          $ref: '#/components/responses/Unavailable'
         '400':
           $ref: '#/components/responses/BadRequest'
       x-required-permission: '@authenticated'
@@ -491,13 +433,16 @@ paths:
       required: true
       schema:
         type: string
+        maxLength: 128
+        minLength: 1
       description: 学校统一身份认证系统中的用户标识
     get:
+      operationId: lookupIdentityUser
+      summary: 按统一身份标识查询用户
       tags:
       - 统一身份鉴权
-      summary: 查询统一身份用户
-      description: 添加教师时调用学校统一身份认证系统，按外部用户标识获取姓名与工号；姓名和工号不在本系统手工录入。
-      operationId: lookupIdentityUser
+      x-apifox-folder: 统一身份鉴权
+      description: 按稳定的 `subject` 查询活跃用户的姓名与学号或工号。无学号或工号时 `no` 返回空字符串。
       x-required-role: admin
       x-required-permission: '@authenticated'
       responses:
@@ -508,26 +453,23 @@ paths:
               schema:
                 $ref: '#/components/schemas/IdentityUser'
         '403':
-          description: 当前管理员没有添加教师的权限
+          description: 需要课程系统令牌、`admin` 身份角色及 `TEC` API 权限（`PERMISSION_DENIED`）
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-              example:
-                code: FORBIDDEN
-                message: 你没有添加教师的权限。
         '404':
-          description: 统一身份系统中不存在该用户
+          description: 用户不存在或未处于活跃状态（`IDENTITY_USER_NOT_FOUND`）
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-              example:
-                code: IDENTITY_USER_NOT_FOUND
-                message: 统一身份认证系统中没有找到该用户。
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
-      x-apifox-folder: 统一身份鉴权
       x-provider: unified-identity
       x-provider-name: 统一身份认证系统
       security:
@@ -537,7 +479,11 @@ paths:
   /api/v1/me:
     get:
       operationId: getMe
-      summary: 本人UserVO及当前系统EffectiveVO组成 `{user,effective}`
+      summary: 查询本人资料与有效权限
+      tags:
+      - 统一身份鉴权
+      x-apifox-folder: 统一身份鉴权
+      description: 返回当前登录用户的基本资料，以及在 JWT 的 `aud` 对应系统中的直接角色、有效角色、权限和权限来源。
       x-required-permission: '@authenticated'
       x-required-audience: '@current'
       responses:
@@ -581,7 +527,11 @@ paths:
   /api/v1/auth/password:
     post:
       operationId: changePassword
-      summary: oldPassword,newPassword；204或包装null，更新tokenVersion
+      summary: 修改当前用户密码
+      tags:
+      - 统一身份鉴权
+      x-apifox-folder: 统一身份鉴权
+      description: '修改成功后返回 HTTP 200 和 `data: null`，此前签发给该用户的令牌失效。'
       x-required-permission: '@authenticated'
       x-required-audience: '@current'
       responses:
@@ -632,7 +582,11 @@ paths:
   /api/v1/systems:
     get:
       operationId: listSystems
-      summary: SystemVO[]（有限注册系统）
+      summary: 查询受管系统列表
+      tags:
+      - 系统管理
+      x-apifox-folder: 系统管理
+      description: 列出权限中心已登记的系统，返回各系统的编码、名称和启停状态。
       x-required-permission: rbac:system:view
       x-required-audience: rbac-center
       responses:
@@ -675,7 +629,11 @@ paths:
       parameters: []
     post:
       operationId: createSystem
-      summary: '{code,name}'
+      summary: 注册受管系统
+      tags:
+      - 系统管理
+      x-apifox-folder: 系统管理
+      description: 以唯一的系统编码注册受管系统。新系统默认启用，随后可在该系统下配置角色、权限和资源。
       x-required-permission: rbac:system:edit
       x-required-audience: rbac-center
       responses:
@@ -723,7 +681,11 @@ paths:
   /api/v1/systems/{id}:
     patch:
       operationId: updateSystem
-      summary: '{name}'
+      summary: 修改系统名称
+      tags:
+      - 系统管理
+      x-apifox-folder: 系统管理
+      description: 按系统 ID 修改显示名称，并返回更新后的系统资料。系统编码用于 JWT `aud` 和系统级配置定位。
       x-required-permission: rbac:system:edit
       x-required-audience: rbac-center
       responses:
@@ -778,7 +740,11 @@ paths:
   /api/v1/systems/{id}/status:
     put:
       operationId: setSystemStatus
-      summary: '{status}'
+      summary: 启用或停用系统
+      tags:
+      - 系统管理
+      x-apifox-folder: 系统管理
+      description: 启用或停用指定系统。停用期间拒绝该系统的运行时授权。重新启用时校验即将恢复的授权。
       x-required-permission: rbac:system:edit
       x-required-audience: rbac-center
       responses:
@@ -830,7 +796,11 @@ paths:
   /api/v1/departments/tree:
     get:
       operationId: getDepartmentTree
-      summary: DepartmentVO[]
+      summary: 查询部门树
+      tags:
+      - 部门与角色准入
+      x-apifox-folder: 部门与角色准入
+      description: 返回以操作者所属部门为起点的组织树，包含该部门及其下级部门。
       x-required-permission: rbac:department:view
       x-required-audience: rbac-center
       responses:
@@ -874,7 +844,11 @@ paths:
   /api/v1/departments:
     post:
       operationId: createDepartment
-      summary: '{parentId?,code,name}'
+      summary: 新增子部门
+      tags:
+      - 部门与角色准入
+      x-apifox-folder: 部门与角色准入
+      description: 在管理范围内的父部门下新建子部门。父部门通过 `parentId` 指定，系统已有根部门。
       x-required-permission: rbac:department:edit
       x-required-audience: rbac-center
       responses:
@@ -922,7 +896,11 @@ paths:
   /api/v1/departments/{id}:
     patch:
       operationId: updateDepartment
-      summary: '{name}'
+      summary: 修改部门名称
+      tags:
+      - 部门与角色准入
+      x-apifox-folder: 部门与角色准入
+      description: 修改管理范围内指定部门的名称，并返回更新后的部门资料。
       x-required-permission: rbac:department:edit
       x-required-audience: rbac-center
       responses:
@@ -973,7 +951,11 @@ paths:
         schema: *id002
     delete:
       operationId: deleteDepartment
-      summary: 有员工/子部门则409；无数据再删
+      summary: 删除空部门
+      tags:
+      - 部门与角色准入
+      x-apifox-folder: 部门与角色准入
+      description: 删除管理范围内的空部门并清理其角色准入配置。指定部门为根部门或仍关联人员、子部门时返回 HTTP 409。
       x-required-permission: rbac:department:edit
       x-required-audience: rbac-center
       responses:
@@ -1022,7 +1004,11 @@ paths:
   /api/v1/departments/{id}/assignable-roles:
     get:
       operationId: getDepartmentAssignableRoles
-      summary: ?systemCode
+      summary: 查询部门可指派角色
+      tags:
+      - 部门与角色准入
+      x-apifox-folder: 部门与角色准入
+      description: 查询指定部门已配置的角色准入清单，可用 `systemCode` 筛选角色所属系统。
       x-required-permission: rbac:department:view
       x-required-audience: rbac-center
       responses:
@@ -1075,7 +1061,11 @@ paths:
           maxLength: 64
     put:
       operationId: replaceDepartmentAssignableRoles
-      summary: '{roleIds:Long[]}原子替换，回收不合资格指派'
+      summary: 替换部门可指派角色
+      tags:
+      - 部门与角色准入
+      x-apifox-folder: 部门与角色准入
+      description: 用 `roleIds` 整体替换指定部门的角色准入清单，并在同一事务内撤销该部门直属用户已不满足准入条件的角色指派。
       x-required-permission: rbac:department:edit
       x-required-audience: rbac-center
       responses:
@@ -1130,7 +1120,11 @@ paths:
   /api/v1/users:
     get:
       operationId: listUsers
-      summary: ?keyword,departmentId,status,page,pageSize
+      summary: 查询用户列表
+      tags:
+      - 用户管理
+      x-apifox-folder: 用户管理
+      description: 在操作者所属部门及其子部门范围内分页查询用户，支持按关键字、部门 ID 和用户状态筛选。
       x-required-permission: rbac:user:view
       x-required-audience: rbac-center
       responses:
@@ -1191,7 +1185,11 @@ paths:
       - $ref: '#/components/parameters/PageSize'
     post:
       operationId: createUser
-      summary: '{username,name,no?,phone?,departmentId,password}'
+      summary: 新增用户
+      tags:
+      - 用户管理
+      x-apifox-folder: 用户管理
+      description: 在管理范围内的指定部门创建用户。服务端生成稳定的 `subject`，以哈希保存初始密码，并返回用户资料。
       x-required-permission: rbac:user:edit
       x-required-audience: rbac-center
       responses:
@@ -1239,7 +1237,11 @@ paths:
   /api/v1/users/{id}:
     get:
       operationId: getUser
-      summary: UserVO
+      summary: 查询用户详情
+      tags:
+      - 用户管理
+      x-apifox-folder: 用户管理
+      description: 按用户 ID 查询管理范围内的用户资料，包含部门、状态及用于并发更新的版本。
       x-required-permission: rbac:user:view
       x-required-audience: rbac-center
       responses:
@@ -1284,7 +1286,11 @@ paths:
         schema: *id002
     patch:
       operationId: updateUser
-      summary: '{name?,no?,phone?,version?}，禁止department/status'
+      summary: 修改用户资料
+      tags:
+      - 用户管理
+      x-apifox-folder: 用户管理
+      description: 更新管理范围内用户的姓名、学号或工号、手机号。仅提交要修改的字段，可提供 `version` 检查并发更新。
       x-required-permission: rbac:user:edit
       x-required-audience: rbac-center
       responses:
@@ -1335,7 +1341,11 @@ paths:
         schema: *id002
     delete:
       operationId: deleteUser
-      summary: 逻辑删除，清理指派、版本、审计
+      summary: 逻辑删除用户
+      tags:
+      - 用户管理
+      x-apifox-folder: 用户管理
+      description: 逻辑删除管理范围内的指定用户，撤销其角色指派，并使此前签发的令牌失效。
       x-required-permission: rbac:user:edit
       x-required-audience: rbac-center
       responses:
@@ -1384,7 +1394,11 @@ paths:
   /api/v1/users/{id}/status:
     put:
       operationId: setUserStatus
-      summary: '{status}'
+      summary: 修改用户状态
+      tags:
+      - 用户管理
+      x-apifox-folder: 用户管理
+      description: 将用户状态设为 `ACTIVE`、`DISABLED` 或 `DELETED`。停用和逻辑删除会使已有令牌失效，逻辑删除还会清空角色指派。
       x-required-permission: rbac:user:edit
       x-required-audience: rbac-center
       responses:
@@ -1436,7 +1450,11 @@ paths:
   /api/v1/users/{id}/department:
     put:
       operationId: changeUserDepartment
-      summary: '{departmentId,version?}'
+      summary: 调整用户所属部门
+      tags:
+      - 用户管理
+      x-apifox-folder: 用户管理
+      description: 跨部门调动会在更新部门的同一事务中清空该用户的角色指派。提交当前部门时保留原指派。
       x-required-permission: rbac:user:edit
       x-required-audience: rbac-center
       responses:
@@ -1488,7 +1506,11 @@ paths:
   /api/v1/roles:
     get:
       operationId: listRoles
-      summary: ?systemCode必填,keyword,status,page,pageSize
+      summary: 查询角色列表
+      tags:
+      - 角色与继承
+      x-apifox-folder: 角色与继承
+      description: 按必填的 `systemCode` 查询角色目录，支持按关键字和角色状态筛选并分页返回。
       x-required-permission: rbac:role:view
       x-required-audience: rbac-center
       responses:
@@ -1551,7 +1573,11 @@ paths:
       - $ref: '#/components/parameters/PageSize'
     post:
       operationId: createRole
-      summary: '{systemCode,code,name,description?,identityRole?}'
+      summary: 新增角色
+      tags:
+      - 角色与继承
+      x-apifox-folder: 角色与继承
+      description: 在指定系统下创建默认启用的角色。可配置 `identityRole`，供统一身份接口投影为学生、教师或管理员身份。
       x-required-permission: rbac:role:edit
       x-required-audience: rbac-center
       responses:
@@ -1599,7 +1625,11 @@ paths:
   /api/v1/roles/{id}:
     get:
       operationId: getRole
-      summary: RoleVO
+      summary: 查询角色详情
+      tags:
+      - 角色与继承
+      x-apifox-folder: 角色与继承
+      description: 按角色 ID 查询角色的所属系统、编码、显示信息、启停状态和版本。
       x-required-permission: rbac:role:view
       x-required-audience: rbac-center
       responses:
@@ -1644,7 +1674,12 @@ paths:
         schema: *id002
     patch:
       operationId: updateRole
-      summary: '{name?,description?,version?}，禁止status'
+      summary: 修改角色资料
+      tags:
+      - 角色与继承
+      x-apifox-folder: 角色与继承
+      description: 更新角色名称或描述。省略的字段保留原值，`description` 显式传 `null` 可清空描述。支持通过 `version`
+        检查并发更新。
       x-required-permission: rbac:role:edit
       x-required-audience: rbac-center
       responses:
@@ -1695,7 +1730,11 @@ paths:
         schema: *id002
     delete:
       operationId: deleteRole
-      summary: 受控退役/清指派、边、权限、准入，保护最后有效超级管理员
+      summary: 删除角色
+      tags:
+      - 角色与继承
+      x-apifox-folder: 角色与继承
+      description: 删除角色并清理关联的用户指派、部门准入、直接权限和继承边。服务端保护最后一个有效超级管理员。
       x-required-permission: rbac:role:edit
       x-required-audience: rbac-center
       responses:
@@ -1744,7 +1783,11 @@ paths:
   /api/v1/roles/{id}/status:
     put:
       operationId: setRoleStatus
-      summary: '{status}'
+      summary: 启用或停用角色
+      tags:
+      - 角色与继承
+      x-apifox-folder: 角色与继承
+      description: 启用或停用指定角色。停用的角色在运行时失效并中断经过该角色的继承路径，重新启用时校验受影响角色的授权。
       x-required-permission: rbac:role:status
       x-required-audience: rbac-center
       responses:
@@ -1796,7 +1839,11 @@ paths:
   /api/v1/roles/{id}/permissions:
     get:
       operationId: getRolePermissions
-      summary: PermissionVO[]（直接）
+      summary: 查询角色直接权限
+      tags:
+      - 角色与继承
+      x-apifox-folder: 角色与继承
+      description: 列出直接绑定到该角色的权限配置。需要查看继承后的权限及其来源时，调用角色有效权限接口。
       x-required-permission: rbac:role:view
       x-required-audience: rbac-center
       responses:
@@ -1843,7 +1890,11 @@ paths:
         schema: *id002
     put:
       operationId: replaceRolePermissions
-      summary: '{permissionIds:Long[]}原子替换，仅同系统'
+      summary: 替换角色直接权限
+      tags:
+      - 角色与继承
+      x-apifox-folder: 角色与继承
+      description: 用 `permissionIds` 整体替换角色的直接权限。权限必须与角色属于同一系统，空数组清空直接权限。替换时校验受影响角色的授权。
       x-required-permission: rbac:role:edit
       x-required-audience: rbac-center
       responses:
@@ -1898,7 +1949,11 @@ paths:
   /api/v1/roles/{id}/effective-permissions:
     get:
       operationId: getRoleEffectivePermissions
-      summary: EffectiveVO（以该角色为直接角色，停用系统仍展示启用角色和权限的配置闭包）
+      summary: 查询角色有效权限
+      tags:
+      - 角色与继承
+      x-apifox-folder: 角色与继承
+      description: 以指定角色为起点计算已配置的有效角色、权限和来源。即使所属系统已停用，仍可查看由启用角色和权限组成的配置。
       x-required-permission: rbac:role:view
       x-required-audience: rbac-center
       responses:
@@ -1944,7 +1999,11 @@ paths:
   /api/v1/systems/{code}/role-hierarchy:
     get:
       operationId: getRoleHierarchy
-      summary: HierarchyVO
+      summary: 查询系统角色继承关系
+      tags:
+      - 角色与继承
+      x-apifox-folder: 角色与继承
+      description: 返回指定系统的角色和有向继承边。每条边从 `seniorRoleId` 指向其继承的 `juniorRoleId`。
       x-required-permission: rbac:role:view
       x-required-audience: rbac-center
       responses:
@@ -1993,7 +2052,11 @@ paths:
   /api/v1/roles/{seniorId}/inherits/{juniorId}:
     post:
       operationId: addRoleInheritance
-      summary: 同系统有向边，重复409，环409 ROLE_CYCLE
+      summary: 添加角色继承关系
+      tags:
+      - 角色与继承
+      x-apifox-folder: 角色与继承
+      description: 添加同一系统内从 `seniorId` 指向 `juniorId` 的继承边。重复边或会形成环的边返回 HTTP 409。
       x-required-permission: rbac:role:edit
       x-required-audience: rbac-center
       responses:
@@ -2045,7 +2108,11 @@ paths:
         schema: *id002
     delete:
       operationId: deleteRoleInheritance
-      summary: 无边404，否则回收并失效
+      summary: 删除角色继承关系
+      tags:
+      - 角色与继承
+      x-apifox-folder: 角色与继承
+      description: 删除这两个角色之间指定方向的直接继承边。删除后按剩余路径计算继承权限，找不到该边时返回 HTTP 404。
       x-required-permission: rbac:role:edit
       x-required-audience: rbac-center
       responses:
@@ -2098,7 +2165,11 @@ paths:
   /api/v1/users/{id}/role-assignments:
     get:
       operationId: listUserRoleAssignments
-      summary: ?systemCode
+      summary: 查询用户角色指派
+      tags:
+      - 用户管理
+      x-apifox-folder: 用户管理
+      description: 查看管理范围内指定用户的直接角色指派。可用 `systemCode` 筛选，返回指派 ID、所属系统和指派时间等信息。
       x-required-permission: rbac:user:view
       x-required-audience: rbac-center
       responses:
@@ -2151,7 +2222,11 @@ paths:
           maxLength: 64
     post:
       operationId: createUserRoleAssignment
-      summary: '{roleId}'
+      summary: 为用户分配角色
+      tags:
+      - 用户管理
+      x-apifox-folder: 用户管理
+      description: 向管理范围内的用户直接指派角色。角色须列入该用户当前部门的准入清单，并满足用户、角色及所属系统的启用条件。
       x-required-permission: rbac:assignment:edit
       x-required-audience: rbac-center
       responses:
@@ -2203,7 +2278,11 @@ paths:
   /api/v1/users/{id}/role-assignments/{assignmentId}:
     delete:
       operationId: deleteUserRoleAssignment
-      summary: 按用户核对指派所属再删
+      summary: 撤销用户角色指派
+      tags:
+      - 用户管理
+      x-apifox-folder: 用户管理
+      description: 撤销路径中指定用户的某条直接角色指派。服务端核对 `assignmentId` 是否属于该用户。
       x-required-permission: rbac:assignment:edit
       x-required-audience: rbac-center
       responses:
@@ -2256,7 +2335,11 @@ paths:
   /api/v1/users/{id}/systems/{code}/permissions:
     get:
       operationId: getUserEffectivePermissions
-      summary: EffectiveVO
+      summary: 查询用户有效权限
+      tags:
+      - 用户管理
+      x-apifox-folder: 用户管理
+      description: 查询管理范围内指定用户在目标系统的直接角色、有效角色、去重权限和授权来源。用于查看该用户在该系统中的运行时授权。
       x-required-permission: rbac:user:view
       x-required-audience: rbac-center
       responses:
@@ -2309,7 +2392,11 @@ paths:
   /api/v1/permissions:
     get:
       operationId: listPermissions
-      summary: ?systemCode,kind,keyword,page,pageSize
+      summary: 查询权限列表
+      tags:
+      - 权限管理
+      x-apifox-folder: 权限管理
+      description: 分页查询已定义的权限，可按所属系统、`UI` 或 `API` 种类及关键字筛选。
       x-required-permission: rbac:permission:view
       x-required-audience: rbac-center
       responses:
@@ -2371,7 +2458,11 @@ paths:
       - $ref: '#/components/parameters/PageSize'
     post:
       operationId: createPermission
-      summary: '{systemCode,code,name,kind}'
+      summary: 新增权限
+      tags:
+      - 权限管理
+      x-apifox-folder: 权限管理
+      description: 在指定系统创建权限定义。权限编码在同一系统和种类内唯一，创建后可将该权限显式授予角色。
       x-required-permission: rbac:permission:edit
       x-required-audience: rbac-center
       responses:
@@ -2419,7 +2510,11 @@ paths:
   /api/v1/permissions/{id}/status:
     put:
       operationId: setPermissionStatus
-      summary: '{status}'
+      summary: 启用或停用权限
+      tags:
+      - 权限管理
+      x-apifox-folder: 权限管理
+      description: 启用或停用指定权限定义。停用后该权限退出运行时有效权限集合，角色中的绑定可供后续恢复使用。
       x-required-permission: rbac:permission:edit
       x-required-audience: rbac-center
       responses:
@@ -2471,7 +2566,11 @@ paths:
   /api/v1/systems/{code}/ui-resources:
     get:
       operationId: getUiResources
-      summary: UiResourceVO[]树
+      summary: 查询菜单与按钮配置
+      tags:
+      - 菜单与按钮
+      x-apifox-folder: 菜单与按钮
+      description: 查询指定系统的菜单和按钮配置树，包含资源状态和关联的 UI 权限码，供管理端编辑资源。
       x-required-permission: rbac:resource:view
       x-required-audience: rbac-center
       responses:
@@ -2521,7 +2620,11 @@ paths:
           minLength: 1
     post:
       operationId: createUiResource
-      summary: '{parentId?,type,code,name,route?,component?,sortOrder?,permissionCode,status?}'
+      summary: 新增菜单或按钮
+      tags:
+      - 菜单与按钮
+      x-apifox-folder: 菜单与按钮
+      description: 为指定系统新建菜单或按钮，并绑定该系统中已登记的 UI 权限。按钮需要挂在菜单下。
       x-required-permission: rbac:resource:edit
       x-required-audience: rbac-center
       responses:
@@ -2576,7 +2679,11 @@ paths:
   /api/v1/ui-resources/{id}:
     patch:
       operationId: updateUiResource
-      summary: 同上可编辑字段，禁止换system
+      summary: 修改菜单或按钮
+      tags:
+      - 菜单与按钮
+      x-apifox-folder: 菜单与按钮
+      description: 修改菜单或按钮的配置，例如显示名称、父菜单、路由、关联权限或状态。父菜单和关联权限须属于资源所在系统。
       x-required-permission: rbac:resource:edit
       x-required-audience: rbac-center
       responses:
@@ -2627,7 +2734,11 @@ paths:
         schema: *id002
     delete:
       operationId: deleteUiResource
-      summary: 有子节点/映射则409，不静默孤儿
+      summary: 删除菜单或按钮
+      tags:
+      - 菜单与按钮
+      x-apifox-folder: 菜单与按钮
+      description: 删除指定的菜单或按钮。资源仍包含子节点或被 UI 与 API 映射引用时返回 HTTP 409。
       x-required-permission: rbac:resource:edit
       x-required-audience: rbac-center
       responses:
@@ -2676,7 +2787,11 @@ paths:
   /api/v1/menus/me:
     get:
       operationId: getMyMenus
-      summary: 当前aud可见UiResourceVO[]树，含按钮
+      summary: 查询当前用户可见菜单
+      tags:
+      - 菜单与按钮
+      x-apifox-folder: 菜单与按钮
+      description: 返回当前用户在 JWT 的 `aud` 对应系统中可见的菜单和按钮树。树按用户的有效 UI 权限裁剪，并保留展示所需的父菜单。
       x-required-permission: '@authenticated'
       x-required-audience: '@current'
       responses:
@@ -2720,7 +2835,11 @@ paths:
   /api/v1/systems/{code}/api-operations:
     get:
       operationId: listApiOperations
-      summary: ?keyword,page,pageSize
+      summary: 查询已登记的 API
+      tags:
+      - API 登记与映射
+      x-apifox-folder: API 登记与映射
+      description: 分页查询指定系统已登记的 API 操作。可按 `operationId` 或路径模板搜索，结果包含访问策略和启用状态。
       x-required-permission: rbac:resource:view
       x-required-audience: rbac-center
       responses:
@@ -2775,7 +2894,12 @@ paths:
       - $ref: '#/components/parameters/PageSize'
     post:
       operationId: createApiOperation
-      summary: '{operationId,method,pathTemplate,permissionCode?,requiredRole?,accessPolicy,enabled}'
+      summary: 登记 API 操作
+      tags:
+      - API 登记与映射
+      x-apifox-folder: API 登记与映射
+      description: 登记指定系统的 API 方法、路径模板和访问策略。`PROTECTED` 操作至少需要 API 权限或身份角色条件，固定中心操作须与共享
+        OpenAPI 契约一致。
       x-required-permission: rbac:resource:edit
       x-required-audience: rbac-center
       responses:
@@ -2830,7 +2954,11 @@ paths:
   /api/v1/api-operations/{id}:
     patch:
       operationId: updateApiOperation
-      summary: 同上可修改；中心受保护路由不能弱化OAS要求
+      summary: 修改 API 操作配置
+      tags:
+      - API 登记与映射
+      x-apifox-folder: API 登记与映射
+      description: 修改已登记操作的配置，包括访问策略、权限条件或启用状态。固定中心操作的配置须与共享 OpenAPI 契约一致并保持启用。
       x-required-permission: rbac:resource:edit
       x-required-audience: rbac-center
       responses:
@@ -2882,7 +3010,11 @@ paths:
   /api/v1/systems/{code}/ui-api-mappings:
     get:
       operationId: getUiApiMappings
-      summary: MappingVO[]及覆盖报告 `{mappings,unmappedUi,unmappedApi}`
+      summary: 查询 UI 与 API 映射及覆盖情况
+      tags:
+      - API 登记与映射
+      x-apifox-folder: API 登记与映射
+      description: 返回指定系统的 UI 与 API 显式映射及覆盖情况，包括尚未建立映射的 UI 资源和 API 操作。
       x-required-permission: rbac:resource:view
       x-required-audience: rbac-center
       responses:
@@ -2930,7 +3062,11 @@ paths:
           minLength: 1
     put:
       operationId: replaceUiApiMappings
-      summary: '{mappings:[{uiResourceId,apiOperationId}]}原子替换'
+      summary: 替换 UI 与 API 映射
+      tags:
+      - API 登记与映射
+      x-apifox-folder: API 登记与映射
+      description: 用 `mappings` 整体替换指定系统的映射。每条映射的 UI 资源和 API 操作须属于该系统。映射供追踪和覆盖检查使用。
       x-required-permission: rbac:resource:edit
       x-required-audience: rbac-center
       responses:
@@ -2988,7 +3124,12 @@ paths:
   /api/v1/authorization/check:
     post:
       operationId: checkAuthorization
-      summary: '{systemCode,userId?,kind:UI/API,permission?或operationId?}'
+      summary: 检查用户授权
+      tags:
+      - 鉴权与解释
+      x-apifox-folder: 鉴权与解释
+      description: 判断指定用户在目标系统中的授权资格，省略 `userId` 时检查调用者本人。UI 检查使用 `permission`，API
+        检查使用 `operationId`。结果包含决定、原因和追踪 ID。
       x-required-permission: rbac:authz:invoke
       x-required-audience: rbac-center
       responses:
@@ -3036,7 +3177,11 @@ paths:
   /api/v1/authorization/explain:
     post:
       operationId: explainAuthorization
-      summary: 同上
+      summary: 解释用户授权结果
+      tags:
+      - 鉴权与解释
+      x-apifox-folder: 鉴权与解释
+      description: 按与授权检查相同的输入和管理范围计算决定，并返回判定步骤及目标用户的有效角色、权限和来源，供排查授权结果。
       x-required-permission: rbac:authz:invoke
       x-required-audience: rbac-center
       responses:
@@ -3084,7 +3229,11 @@ paths:
   /api/v1/audit-logs:
     get:
       operationId: queryAuditLogs
-      summary: 同外部过滤＋systemCode，Page<AuditVO>
+      summary: 查询管理端审计日志
+      tags:
+      - 管理审计
+      x-apifox-folder: 管理审计
+      description: 分页查询权限中心记录的管理和课程审计事件，可按来源系统、操作者、目标和时间范围筛选。
       x-required-permission: rbac:audit:view
       x-required-audience: rbac-center
       responses:
@@ -3157,7 +3306,13 @@ paths:
   /api/v1/dashboard:
     get:
       operationId: getDashboard
-      summary: 仅基础计数 `{users,roles,systems}`，不做统计/热力图
+      summary: 查询仪表盘基础计数
+      tags:
+      - 仪表盘与运行状态
+      x-apifox-folder: 仪表盘与运行状态
+      description: 使用 `rbac-center` 令牌，调用者须同时具备 `rbac:user:view`、`rbac:role:view`
+        和 `rbac:system:view` 三项 API 权限。`x-required-permission` 是路由登记的入口权限，`x-required-permissions-all`
+        列出服务端同时校验的权限。
       x-required-permission: rbac:user:view
       x-required-audience: rbac-center
       responses:
@@ -3196,9 +3351,17 @@ paths:
         '503':
           $ref: '#/components/responses/Unavailable'
       parameters: []
+      x-required-permissions-all:
+      - rbac:user:view
+      - rbac:role:view
+      - rbac:system:view
   /integration/authorities:
     get:
       operationId: getIntegrationAuthorities
+      summary: 查询当前用户的服务端授权
+      tags:
+      - 可信服务接口
+      x-apifox-folder: 可信服务接口
       x-required-permission: '@authenticated'
       x-required-audience: '@current'
       x-trusted-service: true
@@ -3233,6 +3396,10 @@ paths:
   /identity/users/{userId}:
     get:
       operationId: lookupUnifiedIdentityUser
+      summary: 查询用户身份资料
+      tags:
+      - 可信服务接口
+      x-apifox-folder: 可信服务接口
       x-required-permission: '@authenticated'
       x-required-audience: '@current'
       x-trusted-service: true
@@ -3274,6 +3441,11 @@ paths:
   /.well-known/jwks.json:
     get:
       operationId: getJwks
+      summary: 获取 JWT 验签公钥
+      tags:
+      - 统一身份鉴权
+      x-apifox-folder: 统一身份鉴权
+      description: 返回验证 RS256 JWT 所用的公钥集合。验证方根据令牌头中的 `kid` 选取公钥。
       x-required-permission: PUBLIC
       security: []
       responses:
@@ -3321,6 +3493,11 @@ paths:
   /api/v1/actuator/health:
     get:
       operationId: getHealth
+      summary: 查询服务健康状态
+      tags:
+      - 仪表盘与运行状态
+      x-apifox-folder: 仪表盘与运行状态
+      description: 返回服务的总体健康状态 `status`，供运行监测使用。组件和详情由各后端的 Actuator 配置决定。
       x-required-permission: PUBLIC
       security: []
       responses:
@@ -3339,6 +3516,11 @@ paths:
   /api/v1/actuator/info:
     get:
       operationId: getInfo
+      summary: 查询服务信息
+      tags:
+      - 仪表盘与运行状态
+      x-apifox-folder: 仪表盘与运行状态
+      description: 返回 Actuator 已配置的应用信息。没有配置可发布的信息时返回空对象。
       x-required-permission: PUBLIC
       security: []
       responses:
@@ -3402,22 +3584,25 @@ components:
           type: string
           minLength: 1
           maxLength: 128
-          description: 学校统一身份认证账号
+          description: RBAC1 用户账号
+          pattern: \S
         password:
           type: string
           format: password
           minLength: 1
           maxLength: 256
-          description: 密码只转发给统一身份认证，不落库、不记录日志
+          description: 由权限中心验证，数据库仅保存密码哈希。
           writeOnly: true
+          pattern: \S
         systems:
           type: array
           minItems: 1
           uniqueItems: true
-          description: 本次登录目标系统列表；系统标识必须与 JWT `aud` 一致，登录本系统时至少包含 `course-project-management`
+          description: 仅传一个已启用的系统编码，作为 JWT 的唯一 aud。
           items:
             type: string
             minLength: 1
+            pattern: \S
           example:
           - course-project-management
           maxItems: 1
@@ -4256,12 +4441,17 @@ components:
       properties:
         oldPassword:
           type: string
-          maxLength: 256
           minLength: 1
+          pattern: \S
+          format: password
+          writeOnly: true
         newPassword:
           type: string
           maxLength: 256
-          minLength: 1
+          minLength: 8
+          pattern: \S
+          format: password
+          writeOnly: true
       required:
       - oldPassword
       - newPassword
@@ -4367,7 +4557,10 @@ components:
         password:
           type: string
           maxLength: 256
-          minLength: 1
+          minLength: 8
+          pattern: \S
+          format: password
+          writeOnly: true
       required:
       - username
       - name
