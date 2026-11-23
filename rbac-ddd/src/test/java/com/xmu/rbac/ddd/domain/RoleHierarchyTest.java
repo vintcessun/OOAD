@@ -9,7 +9,7 @@ import java.util.*;
 /** RBAC1 图规则的纯领域回归。 */
 class RoleHierarchyTest {
     private Role role(long id) {
-        return new Role(id, "s", "r" + id, "角色", null, true, false, null, 0, Set.of(id));
+        return new Role(id, "s", "r" + id, "角色", null, true, false, 0, Set.of(id));
     }
 
     private RoleHierarchy graph() {
@@ -68,7 +68,7 @@ class RoleHierarchyTest {
 
     @Test
     void crossSystem() {
-        Role other = new Role(5, "other", "x", "X", null, true, false, null, 0, Set.of());
+        Role other = new Role(5, "other", "x", "X", null, true, false, 0, Set.of());
         RoleHierarchy g = new RoleHierarchy(List.of(role(1), other), Set.of());
         assertThatThrownBy(() -> g.link(1, 5)).hasMessageContaining("CROSS_SYSTEM_ROLE");
     }
@@ -139,7 +139,7 @@ class RoleHierarchyTest {
 
     @Test
     void corruptedRestoredGraphCannotCrossSystems() {
-        Role other = new Role(2, "other", "r2", "角色", null, true, false, null, 0, Set.of());
+        Role other = new Role(2, "other", "r2", "角色", null, true, false, 0, Set.of());
         assertThatThrownBy(
                         () ->
                                 new RoleHierarchy(

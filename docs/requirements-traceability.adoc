@@ -76,7 +76,7 @@
 |xref:requirements.adoc#EXT-02[EXT-02] |两个外部审计操作 |API-C09～12、AUD-T09/10。验证写入与分页查询、用户认证和可信服务凭据。
 |xref:requirements.adoc#EXT-03[EXT-03] |教师课程操作登记 |T11、共享 EXT-03。核对 80 个课程操作的元数据，提供方的 10 个操作由中心直接实现。
 |xref:requirements.adoc#EXT-04[EXT-04] |可信课程路由与转发 |T13/14、当前 S04。受保护请求经中心内嵌代理匹配操作并鉴权，许可后送往配置的课程后端。验证伪造身份或路由提示不能绕过鉴权，保留课程后端对象级拒绝。
-|xref:requirements.adoc#EXT-05[EXT-05] |课程对象授权及两项私有投影 |T12、共享 EXT 私有投影、课程真实联调。验证组长与非组长的复制权限差异、可信服务和当前系统身份。
+|xref:requirements.adoc#EXT-05[EXT-05] |课程对象授权及两项私有身份接口 |T12、共享 EXT 私有身份接口、课程真实联调。验证组长与非组长的复制权限差异、可信服务和当前系统身份。
 |xref:requirements.adoc#EXT-06[EXT-06] |两系统 UI 权限隔离 |SELF-04、API-C03。按令牌的目标系统返回本人 UI 投影，API 权限清单不暴露给浏览器。
 |xref:requirements.adoc#EXT-07[EXT-07] |联调、重试与撤权 |API-C14/15、J03/04、课程联调。验证撤权生效、有限重试使用同一请求标识，未确认失败明确反馈。
 |xref:requirements.adoc#AUD-01[AUD-01] |外部审计同步幂等写入 |AUD-T01～03。串行及并发重复请求返回同一结果，冲突拒绝且只保留一份记录。

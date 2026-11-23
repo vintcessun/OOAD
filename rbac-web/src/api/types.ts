@@ -5,7 +5,7 @@ export type Status = 'ENABLED' | 'DISABLED'
 export interface SystemVO { id: number; code: string; name: string; status: Status }
 export interface DepartmentVO { id: number; parentId: number | null; code: string; name: string; path: string; status: Status; children: DepartmentVO[] }
 export interface UserVO { id: number; subject: string; username: string; name: string; no: string | null; phone: string | null; departmentId: number; departmentName: string; status: 'ACTIVE' | 'DISABLED' | 'DELETED'; version: number }
-export interface RoleVO { id: number; systemCode: string; code: string; name: string; description: string | null; status: Status; builtin: boolean; identityRole: 'student' | 'teacher' | 'admin' | null; version: number }
+export interface RoleVO { id: number; systemCode: string; code: string; name: string; description: string | null; status: Status; builtin: boolean; version: number }
 export interface PermissionVO { id: number; systemCode: string; code: string; name: string; kind: 'UI' | 'API'; status: Status }
 export interface AssignmentVO { id: number; userId: number; roleId: number; systemCode: string; roleCode: string; roleName: string; assignedAt: string; assignedBy: number }
 export interface EffectiveVO { directRoles: RoleVO[]; effectiveRoles: RoleVO[]; permissions: PermissionVO[]; sources: { permissionCode: string; permissionKind: PermissionVO['kind']; roleCode: string; inherited: boolean; path: string[] }[] }

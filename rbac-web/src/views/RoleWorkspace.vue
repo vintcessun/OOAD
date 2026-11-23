@@ -16,7 +16,7 @@ import StatusTag from '@/components/StatusTag.vue'
 import TechText from '@/components/TechText.vue'
 import WorkspaceFeedback from '@/components/WorkspaceFeedback.vue'
 import RowActions from '@/components/RowActions.vue'
-import { choices, positiveId, sameIds, text, useRead, useWorkspace } from './workspace'
+import { positiveId, sameIds, text, useRead, useWorkspace } from './workspace'
 
 const route = useRoute(), router = useRouter()
 const roleId = computed(() => positiveId(route.query.roleId))
@@ -79,7 +79,6 @@ function edit(row?: RoleVO) {
     initial: row ? { name: row.name, description: row.description } : undefined,
     fields: row ? [text('name', '角色名称'), text('description', '说明', false)] : [
       text('code', '角色编码'), text('name', '角色名称'), text('description', '说明', false),
-      { ...choices('identityRole', '身份投影', ['student', 'teacher', 'admin']), required: false, hint: '供目标系统读取的统一身份角色' },
     ],
     submit: data => mutate(() => row ? patch(`/roles/${row.id}`, { ...data, version: row.version }) : post('/roles', { ...data, systemCode: system })),
   }
@@ -153,10 +152,10 @@ watch([roleId, () => auth.targetSystem], () => {
         <div class="field"><label for="roles-status">角色状态</label><select id="roles-status" v-model="filters.status"><option value="">全部状态</option><option value="ENABLED">启用</option><option value="DISABLED">停用</option></select></div>
         <NButton type="primary" attr-type="submit">检索</NButton><NButton @click="clearFilters">重置</NButton>
       </form>
-      <div class="table-scroll" tabindex="0" aria-label="角色列表"><table class="data-table"><thead><tr><th>角色</th><th>状态</th><th>身份投影</th><th>说明</th><th>操作</th></tr></thead><tbody>
+      <div class="table-scroll" tabindex="0" aria-label="角色列表"><table class="data-table"><thead><tr><th>角色</th><th>状态</th><th>说明</th><th>操作</th></tr></thead><tbody>
         <tr v-for="row in rows.items" :key="row.id">
           <td><RouterLink class="row-title" :to="{ path: '/roles', query: { roleId: row.id, system: auth.targetSystem } }">{{ row.name }}</RouterLink><div><TechText :value="row.code" /></div></td>
-          <td><StatusTag :value="row.status" /></td><td>{{ row.identityRole ?? '—' }}</td><td>{{ row.description ?? '—' }}</td>
+          <td><StatusTag :value="row.status" /></td><td>{{ row.description ?? '—' }}</td>
           <td><div class="row-actions"><RouterLink :to="{ path: '/roles', query: { roleId: row.id, system: auth.targetSystem, tab: 'direct' } }">直接权限</RouterLink><RowActions :options="options()" :label="'更多操作 ' + row.name" @select="rowAction($event, row)" /></div></td>
         </tr>
       </tbody></table></div>
@@ -173,7 +172,7 @@ watch([roleId, () => auth.targetSystem], () => {
     <section v-if="role" class="surface padded">
       <DetailTabs :value="tab" :tabs="[{ key: 'profile', label: '角色资料' }, { key: 'direct', label: '直接权限' }, { key: 'effective', label: '继承来源与有效权限' }]" label="角色详情" @change="setTab">
         <template #profile>
-          <dl class="description-grid"><div><dt>角色名称</dt><dd>{{ role.name }}</dd></div><div><dt>角色编码</dt><dd><TechText :value="role.code" /></dd></div><div><dt>所属系统</dt><dd><TechText :value="role.systemCode" /></dd></div><div><dt>身份投影</dt><dd>{{ role.identityRole ?? '—' }}</dd></div><div><dt>来源</dt><dd>{{ role.builtin ? '内置角色' : '自定义角色' }}</dd></div><div><dt>说明</dt><dd>{{ role.description ?? '—' }}</dd></div></dl>
+          <dl class="description-grid"><div><dt>角色名称</dt><dd>{{ role.name }}</dd></div><div><dt>角色编码</dt><dd><TechText :value="role.code" /></dd></div><div><dt>所属系统</dt><dd><TechText :value="role.systemCode" /></dd></div><div><dt>来源</dt><dd>{{ role.builtin ? '内置角色' : '自定义角色' }}</dd></div><div><dt>说明</dt><dd>{{ role.description ?? '—' }}</dd></div></dl>
         </template>
         <template #direct>
           <ReadState :loading="direct.loading.value" :error="direct.error.value" @retry="loadDetail" />

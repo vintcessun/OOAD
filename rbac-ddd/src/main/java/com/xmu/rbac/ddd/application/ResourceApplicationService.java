@@ -182,7 +182,7 @@ public class ResourceApplicationService {
             DomainException.require(
                     (permissionId == null
                                     || target.permissions().stream().anyMatch(p -> p.id() == permissionId))
-                            && (requiredRole == null || target.identities().contains(requiredRole)),
+                            && (requiredRole == null || target.roleCodes().contains(requiredRole)),
                     403,
                     "GRANT_EXCEEDS_ACTOR");
         }

@@ -1633,7 +1633,7 @@ paths:
       tags:
       - 角色与继承
       x-apifox-folder: 角色与继承
-      description: 在指定系统下创建默认启用的角色。可配置 `identityRole`，供统一身份接口投影为学生、教师或管理员身份。
+      description: 在指定系统下创建默认启用的角色。
       x-required-permission: rbac:role:edit
       x-required-audience: rbac-center
       responses:
@@ -4179,13 +4179,6 @@ components:
           nullable: true
         status: *id003
         builtin: *id005
-        identityRole:
-          type: string
-          enum:
-          - student
-          - teacher
-          - admin
-          nullable: true
         version:
           type: integer
           format: int64
@@ -4198,7 +4191,6 @@ components:
       - description
       - status
       - builtin
-      - identityRole
       - version
     PermissionVO:
       type: object
@@ -4669,13 +4661,6 @@ components:
         description:
           type: string
           maxLength: 500
-          nullable: true
-        identityRole:
-          type: string
-          enum:
-          - student
-          - teacher
-          - admin
           nullable: true
       required:
       - systemCode

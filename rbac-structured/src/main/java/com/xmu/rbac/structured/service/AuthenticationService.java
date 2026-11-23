@@ -96,7 +96,7 @@ public class AuthenticationService {
     public Object externalMe(Actor actor) {
         User user = authz.require(User.class, actor.userId());
         AuthorizationService.Snapshot snapshot = authz.snapshot(user.id, actor.systemCode());
-        return map("subject", user.subject, "roles", authz.identities(snapshot), "permissions",
+        return map("subject", user.subject, "roles", authz.courseRoleCodes(snapshot), "permissions",
             snapshot.permissions()
                 .stream()
                 .map(id -> authz.require(Permission.class, id))

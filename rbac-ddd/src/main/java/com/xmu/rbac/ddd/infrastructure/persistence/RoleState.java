@@ -12,6 +12,5 @@ public record RoleState(
         String name,
         String description,
         String status,
-        Boolean builtin,
-        String identityRole) {
+        Boolean builtin) {
 }

@@ -71,10 +71,19 @@ class ContractMigrationTest {
    if (!legacy.next() || legacy.getInt(1)!=1) throw new AssertionError("V3 must have the previous lookup");
   }
   if(config.target("4").load().migrate().migrationsExecuted!=1) throw new AssertionError("Expected V4 upgrade only");
+  if(config.target("5").load().migrate().migrationsExecuted!=1) throw new AssertionError("Expected V5 upgrade only");
+  try(var connection=DriverManager.getConnection(url,"root",password); var stmt=connection.createStatement()) {
+   stmt.executeUpdate("INSERT INTO sys_role(system_id,code,name,status,identity_role) VALUES(2,'LEGACY_LAB','Legacy lab','ENABLED','teacher'),(2,'LEGACY_DISABLED','Legacy disabled','DISABLED','teacher')");
+   stmt.executeUpdate("INSERT INTO sys_role(system_id,code,name,status) VALUES(1,'teacher','Same code, no qualification','ENABLED')");
+   stmt.executeUpdate("INSERT INTO sys_role_permission(role_id,permission_id) SELECT r.id,p.id FROM sys_role r JOIN sys_permission p ON p.system_id=r.system_id WHERE r.code='LEGACY_LAB' AND p.kind='API' AND p.code='course:access'");
+   stmt.executeUpdate("INSERT INTO sys_department_allowed_role(department_id,role_id) SELECT 1,id FROM sys_role WHERE code='LEGACY_LAB'");
+   stmt.executeUpdate("INSERT INTO sys_user(username,subject,name,password_hash,department_id,status) VALUES('legacy-lab','legacy-lab','Legacy lab','UNINITIALIZED',1,'ACTIVE')");
+   stmt.executeUpdate("INSERT INTO sys_user_role(user_id,role_id) SELECT u.id,r.id FROM sys_user u JOIN sys_role r ON r.code='LEGACY_LAB' WHERE u.username='legacy-lab'");
+  }
   Flyway f=config.target("latest").load();
-  if(f.migrate().migrationsExecuted!=1) throw new AssertionError("Expected V5 upgrade only");
+  if(f.migrate().migrationsExecuted!=2) throw new AssertionError("Expected V6/V7 upgrade");
   f.validate();var second=f.migrate();if(second.migrationsExecuted!=0)throw new AssertionError("Repeat migration not idempotent");
-  System.out.println("Flyway migrate V1/V2, upgrade V3/V4/V5, validate, repeat migrate PASS");
+  System.out.println("Flyway migrate V1/V2, upgrade V3 through V7, validate, repeat migrate PASS");
  }
 }'''
     with tempfile.TemporaryDirectory(prefix='rbac1-contract-') as temp:
@@ -82,7 +91,13 @@ class ContractMigrationTest {
         run([java,'-cp',os.pathsep.join(map(str,jars)),str(src),str(RES/'db/migration')],env=env)
     assert sql('SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name LIKE \'sys_%\';')=='15'
     assert sql("SELECT password_hash FROM sys_user WHERE id=1;")=='UNINITIALIZED'
-    assert sql('SELECT COUNT(*) FROM sys_user_role;')=='1'
+    assert sql('SELECT COUNT(*) FROM sys_user_role;')=='2'
+    assert sql("SELECT r.code FROM sys_user_role ur JOIN sys_user u ON u.id=ur.user_id JOIN sys_role r ON r.id=ur.role_id WHERE u.username='legacy-lab';")=='LEGACY_LAB'
+    assert sql("SELECT COUNT(*) FROM sys_department_allowed_role ar JOIN sys_role r ON r.id=ar.role_id WHERE ar.department_id=1 AND r.code='LEGACY_LAB';")=='1'
+    assert sql("SELECT p.code FROM sys_role r JOIN sys_role_permission rp ON rp.role_id=r.id JOIN sys_permission p ON p.id=rp.permission_id WHERE r.code='LEGACY_LAB';")=='course:access'
+    assert sql("SELECT COUNT(*) FROM sys_role_hierarchy;")=='0'
+    assert sql("SELECT CONCAT(r.id,' ',r.code,' ',COUNT(rp.id)) FROM sys_role r JOIN sys_role_permission rp ON rp.role_id=r.id WHERE r.system_id=2 AND r.id IN (4,5,6) GROUP BY r.id,r.code ORDER BY r.id;")=='4 teacher 53\n5 student 21\n6 admin 79'
+    assert sql("SELECT COUNT(*) FROM sys_role WHERE system_id=1 AND name='Same code, no qualification' AND code LIKE 'legacy-role-%';")=='1'
     assert sql("SELECT p.code FROM sys_api_operation a JOIN sys_permission p ON p.id=a.permission_id WHERE a.system_id=1 AND a.operation_id='setRoleStatus';")=='rbac:role:status'
     assert sql("SELECT p.code FROM sys_api_operation a JOIN sys_permission p ON p.id=a.permission_id WHERE a.system_id=1 AND a.operation_id='updateRole';")=='rbac:role:edit'
     assert sql("SELECT r.code FROM sys_role_permission rp JOIN sys_role r ON r.id=rp.role_id JOIN sys_permission p ON p.id=rp.permission_id WHERE p.system_id=1 AND p.kind='API' AND p.code='rbac:role:status' ORDER BY r.code;")=='RBAC_ADMIN\nSUPER_ADMIN'
@@ -96,7 +111,7 @@ class ContractMigrationTest {
         'deleteDepartment rbac:ui:deleteDepartment rbac:ui:departments:view',
         'setDepartmentStatus rbac:ui:setDepartmentStatus rbac:ui:departments:view',
     ])
-    assert sql('SELECT version FROM sys_grant_version WHERE id=1;')=='3'
+    assert sql('SELECT version FROM sys_grant_version WHERE id=1;')=='4'
     assert sql('SELECT COUNT(*) FROM sys_api_operation WHERE system_id=2;')=='80'
     assert sql("SELECT required_role FROM sys_api_operation WHERE system_id=2 AND operation_id='copyCourse';")=='teacher'
     assert sql("SELECT COUNT(*) FROM sys_api_operation WHERE system_id=1;")=='68'
@@ -106,11 +121,11 @@ class ContractMigrationTest {
     assert sql("SELECT COUNT(*) FROM sys_ui_api_mapping WHERE api_operation_id=137;")=='0'
     assert sql("SELECT COUNT(*) FROM sys_api_operation WHERE system_id=1 AND access_policy='AUTHENTICATED' AND required_role='admin' AND operation_id IN ('listIdentityDepartments','listIdentityDepartmentUsers','lookupIdentityUser');")=='3'
     assert sql("SELECT COUNT(*) FROM sys_role_permission rp JOIN sys_role r ON r.id=rp.role_id JOIN sys_permission p ON p.id=rp.permission_id WHERE r.system_id=2 AND r.code='teacher' AND p.kind='API' AND p.code NOT IN ('course:access','audit:read','audit:write','CRS');")=='0'
-    assert sql("SELECT COUNT(*) FROM sys_role_permission rp JOIN sys_role r ON r.id=rp.role_id JOIN sys_permission p ON p.id=rp.permission_id WHERE r.system_id=2 AND r.code='student' AND p.kind='API' AND p.code NOT IN ('course:access','audit:write');")=='0'
+    assert sql("SELECT COUNT(*) FROM sys_role_permission rp JOIN sys_role r ON r.id=rp.role_id JOIN sys_permission p ON p.id=rp.permission_id WHERE r.system_id=2 AND r.id=5 AND p.kind='API' AND p.code NOT IN ('course:access','audit:write');")=='0'
     assert sql("SELECT COUNT(*) FROM sys_api_operation a WHERE a.system_id=2 AND a.permission_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM sys_role_permission rp JOIN sys_role r ON r.id=rp.role_id WHERE r.system_id=2 AND r.code='admin' AND rp.permission_id=a.permission_id);")=='0'
     assert sql("SELECT COUNT(*) FROM sys_ui_resource WHERE system_id=1 AND type='MENU';")=='12'
     assert sql("SELECT COUNT(*) FROM sys_api_operation a WHERE access_policy='PROTECTED' AND NOT EXISTS(SELECT 1 FROM sys_ui_api_mapping m WHERE m.api_operation_id=a.id);")=='0'
-    # Exact physical columns must match the frozen schema, including nullable projections.
+    # Exact physical columns must match the frozen schema, after applying all migrations.
     contract=(ROOT/'docs/schema-contract.adoc').read_text(encoding='utf8')
     for table,definition in re.findall(r'^\|(sys_\w+) \|(.+)$',contract,re.M):
         expected=[part.strip().split()[0] for part in definition.split('；')[0].split(',') if part.strip()]
@@ -120,7 +135,7 @@ class ContractMigrationTest {
         assert actual==expected,(table,actual,expected)
     invalid=[
       "INSERT INTO sys_system(code,name,status) VALUES('invalid','invalid','BAD');",
-      "INSERT INTO sys_role(system_id,code,name,status,identity_role) VALUES(2,'invalid','invalid','ENABLED','SUPER_ADMIN');",
+      "INSERT INTO sys_role(system_id,code,name,status) VALUES(2,'invalid','invalid','BAD');",
       "INSERT INTO sys_permission(system_id,code,name,kind,status) VALUES(1,'invalid','invalid','INVALID','ENABLED');",
       "INSERT INTO sys_user_role(user_id,role_id) VALUES(999999999,1);",
       "INSERT INTO sys_user_role(user_id,role_id) VALUES(1,1);",
@@ -132,6 +147,6 @@ class ContractMigrationTest {
     for query in invalid:sql(query,expect_failure=True)
     sql('START TRANSACTION; INSERT INTO sys_user(subject,username,password_hash,name,department_id,status) VALUES(\'test-reservation\',\'test-reservation\',\'UNINITIALIZED\',\'Test\',1,\'ACTIVE\'); SELECT LAST_INSERT_ID(); ROLLBACK;')
     assert int(sql("SELECT AUTO_INCREMENT FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='sys_user';"))>=10000
-    assert sql('SELECT COUNT(*) FROM flyway_schema_history WHERE success=1;')=='5'
+    assert sql('SELECT COUNT(*) FROM flyway_schema_history WHERE success=1;')=='7'
     print(f'MySQL {DATABASE}: 15 exact-column tables, all catalogs/grants/mappings, root placeholder, ID reservation and {len(invalid)} negative constraint tests PASS')
 if __name__=='__main__':main()

@@ -290,7 +290,7 @@ class AuthorizationConsistencyTest {
         when(store.get(Role.class, target.id)).thenReturn(target);
         when(store.where(Role.class, "e.systemId=?1", system.id)).thenReturn(List.of(target));
         if ("identity".equals(configuredGrant))
-            target.identityRole = "teacher";
+            target.code = "teacher";
         if ("permission".equals(configuredGrant)) {
             Permission permission = permission(100L, "API");
             when(store.where(Permission.class, "e.systemId=?1 and e.status=?2", system.id, "ENABLED"))

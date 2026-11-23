@@ -5,7 +5,7 @@
       "path": "/auth/login",
       "id": "login",
       "summary": "登录",
-      "description": "由学校统一身份认证提供，本系统不代理、不持久化密码。\n`systems` 必须列出本次登录目标系统，系统标识与 JWT `aud` 一致；登录本系统时必须包含 `course-project-management`。\n\n## accessToken 格式\n\n返回的 `accessToken` 是 JWT 紧凑格式：\n\n```text\n<base64url(header)>.<base64url(payload)>.<signature>\n```\n\npayload 示例（具体字段以统一身份认证实际签发为准）：\n\n```json\n{\n  \"sub\": \"sso-u1001\",\n  \"aud\": [\"course-project-management\"],\n  \"iss\": \"https://identity.example.edu\",\n  \"iat\": 1799992800,\n  \"exp\": 1799999999,\n  \"jti\": \"01J00000000000000000000000\"\n}\n```\n\n字段用途：\n\n- `sub`：统一身份用户标识；本系统用它关联教师或学生业务身份。\n- `aud`：令牌目标系统；统一身份认证据此确定权限查询的目标系统，调用本系统时必须包含 `course-project-management`。\n- `iss`、`iat`、`exp`、`jti`：签发方、签发时间、过期时间和令牌唯一标识，由 Spring Security 按统一身份认证的 JWK 校验。\n- JWT 不包含 `identity`、`roles` 或 `permissions`。登录身份由本系统按 `sub` 查询；角色和前端权限由统一身份认证权限接口返回。\n\n调用本系统接口时使用 `Authorization: Bearer <accessToken>`，前端不得解析或信任 JWT 中的权限信息。\n",
+      "description": "权限中心验证用户名与密码，为 `systems` 中指定的单一系统签发 JWT。可用系统包括管理中心 `rbac-center` 和课程系统 `course-project-management`。JWT 携带身份和令牌状态所需的声明，角色与权限需通过对应接口查询。",
       "group": "统一身份与鉴权",
       "permission": "PUBLIC",
       "role": "",
@@ -36,38 +36,30 @@
             }
           }
         },
+        "400": {
+          "$ref": "#/components/responses/BadRequest"
+        },
         "401": {
-          "description": "账号或密码错误",
+          "description": "凭据无效、账号不可用或目标系统不可用",
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/Error"
               },
               "example": {
-                "code": "UNAUTHORIZED",
-                "message": "账号或密码错误。"
+                "code": "INVALID_CREDENTIALS",
+                "message": "身份认证失败"
               }
             }
           }
         },
         "503": {
-          "description": "统一身份认证服务不可用",
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Error"
-              },
-              "example": {
-                "code": "IDENTITY_SERVICE_UNAVAILABLE",
-                "message": "统一身份认证暂时不可用，请稍后重试。"
-              }
-            }
-          }
+          "$ref": "#/components/responses/Unavailable"
         }
       },
       "security": [],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 27,
+      "line": 31,
       "structured": [
         {
           "method": "POST",
@@ -91,7 +83,7 @@
       "path": "/auth/logout",
       "id": "logout",
       "summary": "退出登录",
-      "description": "由学校统一身份认证提供；调用后使当前访问令牌失效，本系统不保存令牌状态。",
+      "description": "权限中心持久化当前 JWT 的撤销记录，成功后该令牌失效。",
       "group": "统一身份与鉴权",
       "permission": "@authenticated",
       "role": "",
@@ -103,6 +95,9 @@
         },
         "401": {
           "$ref": "#/components/responses/Unauthorized"
+        },
+        "503": {
+          "$ref": "#/components/responses/Unavailable"
         }
       },
       "security": [
@@ -111,7 +106,7 @@
         }
       ],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 73,
+      "line": 74,
       "structured": [
         {
           "method": "POST",
@@ -134,8 +129,8 @@
       "method": "GET",
       "path": "/auth/me",
       "id": "getIdentityCurrentUser",
-      "summary": "当前用户、角色与权限",
-      "description": "由学校统一身份认证提供。从 JWT 的 `aud` 解析目标系统，返回当前用户、角色和前端菜单/按钮权限。\nJWT 本身不包含权限，角色和权限由统一身份认证返回。\n`permissions` 仅用于前端控制菜单和按钮，后端仍必须在 Service 中做强权限校验。\n",
+      "summary": "查询当前用户的身份与前端权限",
+      "description": "根据 JWT 的 `aud` 返回当前用户、有效身份角色与 UI 权限。无学号或工号时 `no` 返回空字符串。",
       "group": "统一身份与鉴权",
       "permission": "@authenticated",
       "role": "",
@@ -156,18 +151,7 @@
           "$ref": "#/components/responses/Unauthorized"
         },
         "503": {
-          "description": "统一身份认证服务不可用",
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Error"
-              },
-              "example": {
-                "code": "IDENTITY_SERVICE_UNAVAILABLE",
-                "message": "统一身份认证暂时不可用，请稍后重试。"
-              }
-            }
-          }
+          "$ref": "#/components/responses/Unavailable"
         }
       },
       "security": [
@@ -176,7 +160,7 @@
         }
       ],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 96,
+      "line": 94,
       "structured": [
         {
           "method": "GET",
@@ -199,7 +183,7 @@
       "method": "GET",
       "path": "/auth/departments",
       "id": "listIdentityDepartments",
-      "summary": "查询统一身份部门列表（逐层展开）",
+      "summary": "查询统一身份部门列表",
       "description": "由学校统一身份认证提供。按层级查询组织架构：不传 parentId 返回根部门，传入 parentId 只返回该部门的直接子部门。界面可结合 hasChildren 逐层展开。",
       "group": "统一身份与鉴权",
       "permission": "TEC",
@@ -250,35 +234,27 @@
           "$ref": "#/components/responses/Unauthorized"
         },
         "403": {
-          "description": "当前用户无权读取统一身份组织架构",
+          "description": "需要课程系统令牌、`admin` 身份角色及 `TEC` API 权限（`PERMISSION_DENIED`）",
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/Error"
-              },
-              "example": {
-                "code": "FORBIDDEN",
-                "message": "你没有查询统一身份部门的权限。"
               }
             }
           }
         },
         "404": {
-          "$ref": "#/components/responses/NotFound"
-        },
-        "503": {
-          "description": "统一身份认证服务不可用",
+          "description": "指定部门不存在或已停用（`NOT_FOUND`）",
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/Error"
-              },
-              "example": {
-                "code": "IDENTITY_SERVICE_UNAVAILABLE",
-                "message": "统一身份认证暂时不可用，请稍后重试。"
               }
             }
           }
+        },
+        "503": {
+          "$ref": "#/components/responses/Unavailable"
         }
       },
       "security": [
@@ -287,7 +263,7 @@
         }
       ],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 127,
+      "line": 118,
       "structured": [
         {
           "method": "GET",
@@ -310,7 +286,7 @@
       "method": "GET",
       "path": "/auth/departments/{departmentId}/users",
       "id": "listIdentityDepartmentUsers",
-      "summary": "查询部门下的用户",
+      "summary": "查询统一身份部门成员",
       "description": "由学校统一身份认证提供。按工号、学号或姓名分页查询指定部门下的统一身份用户，不返回电话、邮箱等联系方式。",
       "group": "统一身份与鉴权",
       "permission": "TEC",
@@ -361,46 +337,27 @@
           "$ref": "#/components/responses/Unauthorized"
         },
         "403": {
-          "description": "当前用户无权读取该部门用户",
+          "description": "需要课程系统令牌、`admin` 身份角色及 `TEC` API 权限（`PERMISSION_DENIED`）",
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/Error"
-              },
-              "example": {
-                "code": "FORBIDDEN",
-                "message": "你没有查询该部门用户的权限。"
               }
             }
           }
         },
         "404": {
-          "description": "部门不存在",
+          "description": "指定部门不存在或已停用（`NOT_FOUND`）",
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/Error"
-              },
-              "example": {
-                "code": "IDENTITY_DEPARTMENT_NOT_FOUND",
-                "message": "统一身份认证系统中没有找到该部门。"
               }
             }
           }
         },
         "503": {
-          "description": "统一身份认证服务不可用",
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Error"
-              },
-              "example": {
-                "code": "IDENTITY_SERVICE_UNAVAILABLE",
-                "message": "统一身份认证暂时不可用，请稍后重试。"
-              }
-            }
-          }
+          "$ref": "#/components/responses/Unavailable"
         }
       },
       "security": [
@@ -409,7 +366,7 @@
         }
       ],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 198,
+      "line": 184,
       "structured": [
         {
           "method": "GET",
@@ -432,8 +389,8 @@
       "method": "GET",
       "path": "/auth/audit-logs",
       "id": "queryIdentityAuditLogs",
-      "summary": "查询统一身份审计日志",
-      "description": "由学校统一身份认证系统提供，只支持按时间、操作对象和操作人查询。\n课程、教学班、操作类型和教师可见范围过滤由课程项目管理系统在 Service 层完成；本系统不建立审计日志表，也不保存日志副本。",
+      "summary": "查询课程审计日志",
+      "description": "从权限中心的持久化审计记录查询当前 `aud` 的课程审计日志，按操作者、对象或时间筛选。调用需用户令牌、服务密钥与 `audit:read` API 权限。课程业务范围由课程服务校验。",
       "group": "集中审计服务",
       "permission": "audit:read",
       "role": "",
@@ -516,32 +473,17 @@
           "$ref": "#/components/responses/Unauthorized"
         },
         "403": {
-          "description": "无权查询统一身份审计日志或跨越给定可见范围",
+          "description": "服务密钥无效（`AUDIT_SERVICE_REQUIRED`）或权限不足（`PERMISSION_DENIED`）",
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/Error"
-              },
-              "example": {
-                "code": "FORBIDDEN",
-                "message": "没有查询这些课程日志的权限。"
               }
             }
           }
         },
         "503": {
-          "description": "统一身份认证服务不可用",
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Error"
-              },
-              "example": {
-                "code": "IDENTITY_SERVICE_UNAVAILABLE",
-                "message": "统一身份认证暂时不可用，请稍后重试。"
-              }
-            }
-          }
+          "$ref": "#/components/responses/Unavailable"
         }
       },
       "security": [
@@ -550,7 +492,7 @@
         }
       ],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 263,
+      "line": 234,
       "structured": [
         {
           "method": "GET",
@@ -564,7 +506,7 @@
           "method": "GET",
           "path": "/auth/audit-logs",
           "file": "rbac-ddd/src/main/java/com/xmu/rbac/ddd/interfaces/rest/IdentityController.java",
-          "line": 203
+          "line": 205
         }
       ],
       "provider": true
@@ -573,8 +515,8 @@
       "method": "POST",
       "path": "/auth/audit-logs",
       "id": "writeIdentityAuditLog",
-      "summary": "写入统一身份审计日志",
-      "description": "由学校统一身份认证系统提供。课程项目管理系统在关键业务事务成功后调用本接口写入审计日志。\n`requestId` 是业务操作生成的幂等键，同一 `requestId` 重试时统一身份系统返回同一条日志，不产生重复记录。\n本系统不建立审计日志表，也不保存日志副本。\nobjectType须与objectId前缀一致。同requestId同sourceSystem/subject/规范化内容返回相同id；异体400 AUDIT_DUPLICATE_CONFLICT。",
+      "summary": "写入课程审计日志",
+      "description": "权限中心持久化课程审计日志。调用需用户令牌、服务密钥与 `audit:write` API 权限。`objectType` 须与 `objectId` 前缀一致。同一 `requestId`、来源系统、用户及规范化内容的重试返回原记录。同一 `requestId` 对应不同内容或身份时返回 `400 AUDIT_DUPLICATE_CONFLICT`。",
       "group": "集中审计服务",
       "permission": "audit:write",
       "role": "",
@@ -618,32 +560,17 @@
           "$ref": "#/components/responses/Unauthorized"
         },
         "403": {
-          "description": "当前系统或用户无权写入审计日志",
+          "description": "服务密钥无效（`AUDIT_SERVICE_REQUIRED`）或权限不足（`PERMISSION_DENIED`）",
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/Error"
-              },
-              "example": {
-                "code": "FORBIDDEN",
-                "message": "没有写入审计日志的权限。"
               }
             }
           }
         },
         "503": {
-          "description": "统一身份认证服务不可用",
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Error"
-              },
-              "example": {
-                "code": "IDENTITY_SERVICE_UNAVAILABLE",
-                "message": "统一身份认证暂时不可用，请稍后重试。"
-              }
-            }
-          }
+          "$ref": "#/components/responses/Unavailable"
         }
       },
       "security": [
@@ -652,7 +579,7 @@
         }
       ],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 348,
+      "line": 303,
       "structured": [
         {
           "method": "POST",
@@ -666,7 +593,7 @@
           "method": "POST",
           "path": "/auth/audit-logs",
           "file": "rbac-ddd/src/main/java/com/xmu/rbac/ddd/interfaces/rest/IdentityController.java",
-          "line": 178
+          "line": 180
         }
       ],
       "provider": true
@@ -675,8 +602,8 @@
       "method": "GET",
       "path": "/auth/permissions/{permission}",
       "id": "checkIdentityPermission",
-      "summary": "校验当前用户是否具备指定前端权限",
-      "description": "由学校统一身份认证提供；从 JWT 的 `aud` 解析目标系统，校验路径中的前端菜单/按钮权限码。响应只返回 `allowed`，不返回权限码或权限集合。该权限码由统一身份认证定义，不使用 AuthorityCodes。",
+      "summary": "检查当前用户的 UI 权限",
+      "description": "根据 JWT 的 `aud` 查询当前用户是否拥有指定 UI 权限。未知或无权时返回 `allowed: false`。",
       "group": "统一身份与鉴权",
       "permission": "@authenticated",
       "role": "",
@@ -687,7 +614,9 @@
           "required": true,
           "description": "统一身份认证定义的前端菜单/按钮权限码",
           "schema": {
-            "$ref": "#/components/schemas/UiPermission"
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1
           }
         }
       ],
@@ -708,6 +637,9 @@
         },
         "401": {
           "$ref": "#/components/responses/Unauthorized"
+        },
+        "503": {
+          "$ref": "#/components/responses/Unavailable"
         }
       },
       "security": [
@@ -716,7 +648,7 @@
         }
       ],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 412,
+      "line": 360,
       "structured": [
         {
           "method": "GET",
@@ -739,8 +671,8 @@
       "method": "GET",
       "path": "/auth/api-permissions/{operationId}",
       "id": "getApiAuthority",
-      "summary": "判断当前用户能否调用指定 API 接口",
-      "description": "由学校统一身份认证提供。根据 JWT 的 `aud` 确定目标系统，按 `operationId` 判断当前用户是否具备调用目标 API\n所需的全局 `AuthorityCodes` 权限。响应只返回判断结果，不返回权限码。JWT 不包含权限。\n本接口只处理全局 API 权限；课程组长、任课教师、组员、本人等对象级权限仍由目标接口的 Service 判断。\n",
+      "summary": "检查当前用户的 API 调用资格",
+      "description": "根据 JWT 的 `aud` 和 `operationId` 查询当前用户调用目标 API 的全局资格。已登记但无权或操作已停用时返回 `allowed: false`。查询 `rbac-center` 的 `getDashboard` 时同时检查仪表盘所需的三项 API 权限。课程对象级权限由课程业务接口继续校验。",
       "group": "统一身份与鉴权",
       "permission": "@authenticated",
       "role": "",
@@ -769,6 +701,9 @@
             }
           }
         },
+        "400": {
+          "$ref": "#/components/responses/BadRequest"
+        },
         "401": {
           "$ref": "#/components/responses/Unauthorized"
         },
@@ -787,18 +722,7 @@
           }
         },
         "503": {
-          "description": "统一身份认证服务不可用",
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Error"
-              },
-              "example": {
-                "code": "IDENTITY_SERVICE_UNAVAILABLE",
-                "message": "统一身份认证暂时不可用，请稍后重试。"
-              }
-            }
-          }
+          "$ref": "#/components/responses/Unavailable"
         }
       },
       "security": [
@@ -807,7 +731,7 @@
         }
       ],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 451,
+      "line": 395,
       "structured": [
         {
           "method": "GET",
@@ -830,8 +754,8 @@
       "method": "GET",
       "path": "/auth/users/{userId}",
       "id": "lookupIdentityUser",
-      "summary": "查询统一身份用户",
-      "description": "添加教师时调用学校统一身份认证系统，按外部用户标识获取姓名与工号；姓名和工号不在本系统手工录入。",
+      "summary": "按统一身份标识查询用户",
+      "description": "按稳定的 `subject` 查询活跃用户的姓名与学号或工号。无学号或工号时 `no` 返回空字符串。",
       "group": "统一身份与鉴权",
       "permission": "TEC",
       "role": "admin",
@@ -841,7 +765,9 @@
           "in": "path",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1
           },
           "description": "学校统一身份认证系统中的用户标识"
         }
@@ -858,36 +784,34 @@
             }
           }
         },
+        "400": {
+          "$ref": "#/components/responses/BadRequest"
+        },
         "401": {
           "$ref": "#/components/responses/Unauthorized"
         },
         "403": {
-          "description": "当前管理员没有添加教师的权限",
+          "description": "需要课程系统令牌、`admin` 身份角色及 `TEC` API 权限（`PERMISSION_DENIED`）",
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/Error"
-              },
-              "example": {
-                "code": "FORBIDDEN",
-                "message": "你没有添加教师的权限。"
               }
             }
           }
         },
         "404": {
-          "description": "统一身份系统中不存在该用户",
+          "description": "用户不存在或未处于活跃状态（`IDENTITY_USER_NOT_FOUND`）",
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/Error"
-              },
-              "example": {
-                "code": "IDENTITY_USER_NOT_FOUND",
-                "message": "统一身份认证系统中没有找到该用户。"
               }
             }
           }
+        },
+        "503": {
+          "$ref": "#/components/responses/Unavailable"
         }
       },
       "security": [
@@ -896,7 +820,7 @@
         }
       ],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 498,
+      "line": 440,
       "structured": [
         {
           "method": "GET",
@@ -919,8 +843,8 @@
       "method": "GET",
       "path": "/api/v1/me",
       "id": "getMe",
-      "summary": "本人UserVO及当前系统EffectiveVO组成 `{user,effective}`",
-      "description": "",
+      "summary": "查询本人资料与有效权限",
+      "description": "返回当前登录用户的基本资料，以及在 JWT 的 `aud` 对应系统中的直接角色、有效角色、权限和权限来源。",
       "group": "本人资料、改密与首页",
       "permission": "@authenticated",
       "role": "",
@@ -987,7 +911,7 @@
         }
       ],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 537,
+      "line": 481,
       "structured": [
         {
           "method": "GET",
@@ -1001,7 +925,7 @@
           "method": "GET",
           "path": "/api/v1/me",
           "file": "rbac-ddd/src/main/java/com/xmu/rbac/ddd/interfaces/rest/DirectoryController.java",
-          "line": 294
+          "line": 296
         }
       ],
       "provider": false
@@ -1010,8 +934,8 @@
       "method": "POST",
       "path": "/api/v1/auth/password",
       "id": "changePassword",
-      "summary": "oldPassword,newPassword；204或包装null，更新tokenVersion",
-      "description": "",
+      "summary": "修改当前用户密码",
+      "description": "修改成功后返回 HTTP 200 和 `data: null`，此前签发给该用户的令牌失效。",
       "group": "本人资料、改密与首页",
       "permission": "@authenticated",
       "role": "",
@@ -1091,7 +1015,7 @@
         }
       ],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 581,
+      "line": 529,
       "structured": [
         {
           "method": "POST",
@@ -1105,7 +1029,7 @@
           "method": "POST",
           "path": "/api/v1/auth/password",
           "file": "rbac-ddd/src/main/java/com/xmu/rbac/ddd/interfaces/rest/IdentityController.java",
-          "line": 142
+          "line": 144
         }
       ],
       "provider": false
@@ -1114,8 +1038,8 @@
       "method": "GET",
       "path": "/api/v1/systems",
       "id": "listSystems",
-      "summary": "SystemVO[]（有限注册系统）",
-      "description": "",
+      "summary": "查询受管系统列表",
+      "description": "列出权限中心已登记的系统，返回各系统的编码、名称和启停状态。",
       "group": "受管系统",
       "permission": "rbac:system:view",
       "role": "",
@@ -1185,7 +1109,7 @@
         }
       ],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 632,
+      "line": 584,
       "structured": [
         {
           "method": "GET",
@@ -1208,8 +1132,8 @@
       "method": "POST",
       "path": "/api/v1/systems",
       "id": "createSystem",
-      "summary": "{code,name}",
-      "description": "",
+      "summary": "注册受管系统",
+      "description": "以唯一的系统编码注册受管系统。新系统默认启用，随后可在该系统下配置角色、权限和资源。",
       "group": "受管系统",
       "permission": "rbac:system:edit",
       "role": "",
@@ -1285,7 +1209,7 @@
         }
       ],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 675,
+      "line": 631,
       "structured": [
         {
           "method": "POST",
@@ -1308,8 +1232,8 @@
       "method": "PATCH",
       "path": "/api/v1/systems/{id}",
       "id": "updateSystem",
-      "summary": "{name}",
-      "description": "",
+      "summary": "修改系统名称",
+      "description": "按系统 ID 修改显示名称，并返回更新后的系统资料。系统编码用于 JWT `aud` 和系统级配置定位。",
       "group": "受管系统",
       "permission": "rbac:system:edit",
       "role": "",
@@ -1396,7 +1320,7 @@
         }
       ],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 723,
+      "line": 683,
       "structured": [
         {
           "method": "PATCH",
@@ -1419,8 +1343,8 @@
       "method": "PUT",
       "path": "/api/v1/systems/{id}/status",
       "id": "setSystemStatus",
-      "summary": "{status}",
-      "description": "",
+      "summary": "启用或停用系统",
+      "description": "启用或停用指定系统。停用期间拒绝该系统的运行时授权。重新启用时校验即将恢复的授权。",
       "group": "受管系统",
       "permission": "rbac:system:edit",
       "role": "",
@@ -1507,7 +1431,7 @@
         }
       ],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 778,
+      "line": 742,
       "structured": [
         {
           "method": "PUT",
@@ -1530,8 +1454,8 @@
       "method": "GET",
       "path": "/api/v1/departments/tree",
       "id": "getDepartmentTree",
-      "summary": "DepartmentVO[]",
-      "description": "",
+      "summary": "查询部门树",
+      "description": "返回以操作者所属部门为起点的组织树，包含该部门及其下级部门。",
       "group": "部门与角色准入",
       "permission": "rbac:department:view",
       "role": "",
@@ -1601,7 +1525,7 @@
         }
       ],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 830,
+      "line": 798,
       "structured": [
         {
           "method": "GET",
@@ -1624,8 +1548,8 @@
       "method": "POST",
       "path": "/api/v1/departments",
       "id": "createDepartment",
-      "summary": "{parentId?,code,name}",
-      "description": "",
+      "summary": "新增子部门",
+      "description": "在管理范围内的父部门下新建子部门。父部门通过 `parentId` 指定，系统已有根部门。",
       "group": "部门与角色准入",
       "permission": "rbac:department:edit",
       "role": "",
@@ -1701,7 +1625,7 @@
         }
       ],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 874,
+      "line": 846,
       "structured": [
         {
           "method": "POST",
@@ -1724,8 +1648,8 @@
       "method": "PATCH",
       "path": "/api/v1/departments/{id}",
       "id": "updateDepartment",
-      "summary": "{name}",
-      "description": "",
+      "summary": "修改部门名称",
+      "description": "修改管理范围内指定部门的名称，并返回更新后的部门资料。",
       "group": "部门与角色准入",
       "permission": "rbac:department:edit",
       "role": "",
@@ -1812,7 +1736,7 @@
         }
       ],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 922,
+      "line": 898,
       "structured": [
         {
           "method": "PATCH",
@@ -1835,10 +1759,10 @@
       "method": "DELETE",
       "path": "/api/v1/departments/{id}",
       "id": "deleteDepartment",
-      "summary": "有员工/子部门则409；无数据再删",
-      "description": "",
+      "summary": "删除空部门",
+      "description": "删除管理范围内的空部门并清理其角色准入配置。指定部门为根部门或仍关联人员、子部门时返回 HTTP 409。",
       "group": "部门与角色准入",
-      "permission": "rbac:department:edit",
+      "permission": "rbac:department:delete",
       "role": "",
       "parameters": [
         {
@@ -1918,19 +1842,130 @@
         }
       ],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 973,
+      "line": 953,
       "structured": [
         {
           "method": "DELETE",
           "path": "/api/v1/departments/{id}",
           "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/ManagementController.java",
-          "line": 75
+          "line": 80
         }
       ],
       "ddd": [
         {
           "method": "DELETE",
           "path": "/api/v1/departments/{id}",
+          "file": "rbac-ddd/src/main/java/com/xmu/rbac/ddd/interfaces/rest/DirectoryController.java",
+          "line": 144
+        }
+      ],
+      "provider": false
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/departments/{id}/status",
+      "id": "setDepartmentStatus",
+      "summary": "启用或停用部门",
+      "description": "启用或停用管理范围内指定部门。仅非根且无子部门的节点可停用。停用保留成员和既有角色指派，并关闭新接纳。",
+      "group": "部门与角色准入",
+      "permission": "rbac:department:status",
+      "role": "",
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          }
+        }
+      ],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/StatusInput"
+            }
+          }
+        }
+      },
+      "responses": {
+        "200": {
+          "description": "成功",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "enum": [
+                      "OK"
+                    ]
+                  },
+                  "message": {
+                    "type": "string"
+                  },
+                  "data": {
+                    "$ref": "#/components/schemas/DepartmentVO"
+                  },
+                  "timestamp": {
+                    "type": "string",
+                    "format": "date-time"
+                  }
+                },
+                "required": [
+                  "code",
+                  "message",
+                  "data",
+                  "timestamp"
+                ]
+              }
+            }
+          }
+        },
+        "400": {
+          "$ref": "#/components/responses/BadRequest"
+        },
+        "401": {
+          "$ref": "#/components/responses/Unauthorized"
+        },
+        "403": {
+          "$ref": "#/components/responses/Forbidden"
+        },
+        "404": {
+          "$ref": "#/components/responses/NotFound"
+        },
+        "409": {
+          "$ref": "#/components/responses/Conflict"
+        },
+        "503": {
+          "$ref": "#/components/responses/Unavailable"
+        }
+      },
+      "security": [
+        {
+          "bearerAuth": []
+        }
+      ],
+      "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
+      "line": 1006,
+      "structured": [
+        {
+          "method": "PUT",
+          "path": "/api/v1/departments/{id}/status",
+          "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/ManagementController.java",
+          "line": 75
+        }
+      ],
+      "ddd": [
+        {
+          "method": "PUT",
+          "path": "/api/v1/departments/{id}/status",
           "file": "rbac-ddd/src/main/java/com/xmu/rbac/ddd/interfaces/rest/DirectoryController.java",
           "line": 134
         }
@@ -1941,8 +1976,8 @@
       "method": "GET",
       "path": "/api/v1/departments/{id}/assignable-roles",
       "id": "getDepartmentAssignableRoles",
-      "summary": "?systemCode",
-      "description": "",
+      "summary": "查询部门可指派角色",
+      "description": "查询指定部门已配置的角色准入清单，可用 `systemCode` 筛选角色所属系统。",
       "group": "部门与角色准入",
       "permission": "rbac:department:view",
       "role": "",
@@ -2032,13 +2067,13 @@
         }
       ],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 1022,
+      "line": 1062,
       "structured": [
         {
           "method": "GET",
           "path": "/api/v1/departments/{id}/assignable-roles",
           "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/ManagementController.java",
-          "line": 80
+          "line": 85
         }
       ],
       "ddd": [
@@ -2046,7 +2081,7 @@
           "method": "GET",
           "path": "/api/v1/departments/{id}/assignable-roles",
           "file": "rbac-ddd/src/main/java/com/xmu/rbac/ddd/interfaces/rest/DirectoryController.java",
-          "line": 142
+          "line": 152
         }
       ],
       "provider": false
@@ -2055,8 +2090,8 @@
       "method": "PUT",
       "path": "/api/v1/departments/{id}/assignable-roles",
       "id": "replaceDepartmentAssignableRoles",
-      "summary": "{roleIds:Long[]}原子替换，回收不合资格指派",
-      "description": "",
+      "summary": "替换部门可指派角色",
+      "description": "用 `roleIds` 整体替换指定部门的角色准入清单，并在同一事务内撤销该部门直属用户已不满足准入条件的角色指派。",
       "group": "部门与角色准入",
       "permission": "rbac:department:edit",
       "role": "",
@@ -2147,13 +2182,13 @@
         }
       ],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 1075,
+      "line": 1119,
       "structured": [
         {
           "method": "PUT",
           "path": "/api/v1/departments/{id}/assignable-roles",
           "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/ManagementController.java",
-          "line": 85
+          "line": 90
         }
       ],
       "ddd": [
@@ -2161,7 +2196,7 @@
           "method": "PUT",
           "path": "/api/v1/departments/{id}/assignable-roles",
           "file": "rbac-ddd/src/main/java/com/xmu/rbac/ddd/interfaces/rest/DirectoryController.java",
-          "line": 153
+          "line": 163
         }
       ],
       "provider": false
@@ -2170,8 +2205,8 @@
       "method": "GET",
       "path": "/api/v1/users",
       "id": "listUsers",
-      "summary": "?keyword,departmentId,status,page,pageSize",
-      "description": "",
+      "summary": "查询用户列表",
+      "description": "在操作者所属部门及其子部门范围内分页查询用户，支持按关键字、部门 ID 和用户状态筛选。",
       "group": "用户管理",
       "permission": "rbac:user:view",
       "role": "",
@@ -2276,13 +2311,13 @@
         }
       ],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 1130,
+      "line": 1178,
       "structured": [
         {
           "method": "GET",
           "path": "/api/v1/users",
           "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/ManagementController.java",
-          "line": 91
+          "line": 96
         }
       ],
       "ddd": [
@@ -2290,7 +2325,7 @@
           "method": "GET",
           "path": "/api/v1/users",
           "file": "rbac-ddd/src/main/java/com/xmu/rbac/ddd/interfaces/rest/DirectoryController.java",
-          "line": 162
+          "line": 172
         }
       ],
       "provider": false
@@ -2299,8 +2334,8 @@
       "method": "POST",
       "path": "/api/v1/users",
       "id": "createUser",
-      "summary": "{username,name,no?,phone?,departmentId,password}",
-      "description": "",
+      "summary": "新增用户",
+      "description": "在管理范围内的指定部门创建用户。服务端生成稳定的 `subject`，以哈希保存初始密码，并返回用户资料。",
       "group": "用户管理",
       "permission": "rbac:user:edit",
       "role": "",
@@ -2376,13 +2411,13 @@
         }
       ],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 1191,
+      "line": 1243,
       "structured": [
         {
           "method": "POST",
           "path": "/api/v1/users",
           "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/ManagementController.java",
-          "line": 100
+          "line": 105
         }
       ],
       "ddd": [
@@ -2390,7 +2425,7 @@
           "method": "POST",
           "path": "/api/v1/users",
           "file": "rbac-ddd/src/main/java/com/xmu/rbac/ddd/interfaces/rest/DirectoryController.java",
-          "line": 184
+          "line": 194
         }
       ],
       "provider": false
@@ -2399,8 +2434,8 @@
       "method": "GET",
       "path": "/api/v1/users/{id}",
       "id": "getUser",
-      "summary": "UserVO",
-      "description": "",
+      "summary": "查询用户详情",
+      "description": "按用户 ID 查询管理范围内的用户资料，包含部门、状态及用于并发更新的版本。",
       "group": "用户管理",
       "permission": "rbac:user:view",
       "role": "",
@@ -2478,13 +2513,13 @@
         }
       ],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 1239,
+      "line": 1295,
       "structured": [
         {
           "method": "GET",
           "path": "/api/v1/users/{id}",
           "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/ManagementController.java",
-          "line": 105
+          "line": 110
         }
       ],
       "ddd": [
@@ -2492,7 +2527,7 @@
           "method": "GET",
           "path": "/api/v1/users/{id}",
           "file": "rbac-ddd/src/main/java/com/xmu/rbac/ddd/interfaces/rest/DirectoryController.java",
-          "line": 200
+          "line": 210
         }
       ],
       "provider": false
@@ -2501,8 +2536,8 @@
       "method": "PATCH",
       "path": "/api/v1/users/{id}",
       "id": "updateUser",
-      "summary": "{name?,no?,phone?,version?}，禁止department/status",
-      "description": "",
+      "summary": "修改用户资料",
+      "description": "更新管理范围内用户的姓名、学号或工号、手机号。仅提交要修改的字段，可提供 `version` 检查并发更新。",
       "group": "用户管理",
       "permission": "rbac:user:edit",
       "role": "",
@@ -2589,13 +2624,13 @@
         }
       ],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 1284,
+      "line": 1344,
       "structured": [
         {
           "method": "PATCH",
           "path": "/api/v1/users/{id}",
           "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/ManagementController.java",
-          "line": 109
+          "line": 114
         }
       ],
       "ddd": [
@@ -2603,7 +2638,7 @@
           "method": "PATCH",
           "path": "/api/v1/users/{id}",
           "file": "rbac-ddd/src/main/java/com/xmu/rbac/ddd/interfaces/rest/DirectoryController.java",
-          "line": 207
+          "line": 217
         }
       ],
       "provider": false
@@ -2612,8 +2647,8 @@
       "method": "DELETE",
       "path": "/api/v1/users/{id}",
       "id": "deleteUser",
-      "summary": "逻辑删除，清理指派、版本、审计",
-      "description": "",
+      "summary": "逻辑删除用户",
+      "description": "逻辑删除管理范围内的指定用户，撤销其角色指派，并使此前签发的令牌失效。",
       "group": "用户管理",
       "permission": "rbac:user:edit",
       "role": "",
@@ -2695,13 +2730,13 @@
         }
       ],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 1335,
+      "line": 1399,
       "structured": [
         {
           "method": "DELETE",
           "path": "/api/v1/users/{id}",
           "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/ManagementController.java",
-          "line": 114
+          "line": 119
         }
       ],
       "ddd": [
@@ -2709,7 +2744,7 @@
           "method": "DELETE",
           "path": "/api/v1/users/{id}",
           "file": "rbac-ddd/src/main/java/com/xmu/rbac/ddd/interfaces/rest/DirectoryController.java",
-          "line": 234
+          "line": 244
         }
       ],
       "provider": false
@@ -2718,8 +2753,8 @@
       "method": "PUT",
       "path": "/api/v1/users/{id}/status",
       "id": "setUserStatus",
-      "summary": "{status}",
-      "description": "",
+      "summary": "修改用户状态",
+      "description": "将用户状态设为 `ACTIVE`、`DISABLED` 或 `DELETED`。停用和逻辑删除会使已有令牌失效，逻辑删除还会清空角色指派。",
       "group": "用户管理",
       "permission": "rbac:user:edit",
       "role": "",
@@ -2806,13 +2841,13 @@
         }
       ],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 1384,
+      "line": 1452,
       "structured": [
         {
           "method": "PUT",
           "path": "/api/v1/users/{id}/status",
           "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/ManagementController.java",
-          "line": 119
+          "line": 124
         }
       ],
       "ddd": [
@@ -2820,7 +2855,7 @@
           "method": "PUT",
           "path": "/api/v1/users/{id}/status",
           "file": "rbac-ddd/src/main/java/com/xmu/rbac/ddd/interfaces/rest/DirectoryController.java",
-          "line": 225
+          "line": 235
         }
       ],
       "provider": false
@@ -2829,8 +2864,8 @@
       "method": "PUT",
       "path": "/api/v1/users/{id}/department",
       "id": "changeUserDepartment",
-      "summary": "{departmentId,version?}",
-      "description": "",
+      "summary": "调整用户所属部门",
+      "description": "跨部门调动会在更新部门的同一事务中清空该用户的角色指派。提交当前部门时保留原指派。",
       "group": "用户管理",
       "permission": "rbac:user:edit",
       "role": "",
@@ -2917,13 +2952,13 @@
         }
       ],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 1436,
+      "line": 1508,
       "structured": [
         {
           "method": "PUT",
           "path": "/api/v1/users/{id}/department",
           "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/ManagementController.java",
-          "line": 124
+          "line": 129
         }
       ],
       "ddd": [
@@ -2931,7 +2966,7 @@
           "method": "PUT",
           "path": "/api/v1/users/{id}/department",
           "file": "rbac-ddd/src/main/java/com/xmu/rbac/ddd/interfaces/rest/DirectoryController.java",
-          "line": 242
+          "line": 252
         }
       ],
       "provider": false
@@ -2940,8 +2975,8 @@
       "method": "GET",
       "path": "/api/v1/roles",
       "id": "listRoles",
-      "summary": "?systemCode必填,keyword,status,page,pageSize",
-      "description": "",
+      "summary": "查询角色列表",
+      "description": "按必填的 `systemCode` 查询角色目录，支持按关键字和角色状态筛选并分页返回。",
       "group": "角色、直接权限与继承",
       "permission": "rbac:role:view",
       "role": "",
@@ -3045,13 +3080,13 @@
         }
       ],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 1488,
+      "line": 1564,
       "structured": [
         {
           "method": "GET",
           "path": "/api/v1/roles",
           "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/ManagementController.java",
-          "line": 129
+          "line": 134
         }
       ],
       "ddd": [
@@ -3059,7 +3094,7 @@
           "method": "GET",
           "path": "/api/v1/roles",
           "file": "rbac-ddd/src/main/java/com/xmu/rbac/ddd/interfaces/rest/RoleController.java",
-          "line": 46
+          "line": 45
         }
       ],
       "provider": false
@@ -3068,8 +3103,8 @@
       "method": "POST",
       "path": "/api/v1/roles",
       "id": "createRole",
-      "summary": "{systemCode,code,name,description?,identityRole?}",
-      "description": "",
+      "summary": "新增角色",
+      "description": "在指定系统下创建默认启用的角色。",
       "group": "角色、直接权限与继承",
       "permission": "rbac:role:edit",
       "role": "",
@@ -3145,13 +3180,13 @@
         }
       ],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 1551,
+      "line": 1631,
       "structured": [
         {
           "method": "POST",
           "path": "/api/v1/roles",
           "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/ManagementController.java",
-          "line": 137
+          "line": 142
         }
       ],
       "ddd": [
@@ -3159,7 +3194,7 @@
           "method": "POST",
           "path": "/api/v1/roles",
           "file": "rbac-ddd/src/main/java/com/xmu/rbac/ddd/interfaces/rest/RoleController.java",
-          "line": 68
+          "line": 67
         }
       ],
       "provider": false
@@ -3168,8 +3203,8 @@
       "method": "GET",
       "path": "/api/v1/roles/{id}",
       "id": "getRole",
-      "summary": "RoleVO",
-      "description": "",
+      "summary": "查询角色详情",
+      "description": "按角色 ID 查询角色的所属系统、编码、显示信息、启停状态和版本。",
       "group": "角色、直接权限与继承",
       "permission": "rbac:role:view",
       "role": "",
@@ -3247,13 +3282,13 @@
         }
       ],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 1599,
+      "line": 1683,
       "structured": [
         {
           "method": "GET",
           "path": "/api/v1/roles/{id}",
           "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/ManagementController.java",
-          "line": 142
+          "line": 147
         }
       ],
       "ddd": [
@@ -3261,7 +3296,7 @@
           "method": "GET",
           "path": "/api/v1/roles/{id}",
           "file": "rbac-ddd/src/main/java/com/xmu/rbac/ddd/interfaces/rest/RoleController.java",
-          "line": 80
+          "line": 79
         }
       ],
       "provider": false
@@ -3270,8 +3305,8 @@
       "method": "PATCH",
       "path": "/api/v1/roles/{id}",
       "id": "updateRole",
-      "summary": "{name?,description?,version?}，禁止status",
-      "description": "",
+      "summary": "修改角色资料",
+      "description": "更新角色名称或描述。省略的字段保留原值，`description` 显式传 `null` 可清空描述。支持通过 `version` 检查并发更新。",
       "group": "角色、直接权限与继承",
       "permission": "rbac:role:edit",
       "role": "",
@@ -3358,13 +3393,13 @@
         }
       ],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 1644,
+      "line": 1732,
       "structured": [
         {
           "method": "PATCH",
           "path": "/api/v1/roles/{id}",
           "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/ManagementController.java",
-          "line": 146
+          "line": 151
         }
       ],
       "ddd": [
@@ -3372,7 +3407,7 @@
           "method": "PATCH",
           "path": "/api/v1/roles/{id}",
           "file": "rbac-ddd/src/main/java/com/xmu/rbac/ddd/interfaces/rest/RoleController.java",
-          "line": 87
+          "line": 86
         }
       ],
       "provider": false
@@ -3381,8 +3416,8 @@
       "method": "DELETE",
       "path": "/api/v1/roles/{id}",
       "id": "deleteRole",
-      "summary": "受控退役/清指派、边、权限、准入，保护最后有效超级管理员",
-      "description": "",
+      "summary": "删除角色",
+      "description": "删除角色并清理关联的用户指派、部门准入、直接权限和继承边。服务端保护最后一个有效超级管理员。",
       "group": "角色、直接权限与继承",
       "permission": "rbac:role:edit",
       "role": "",
@@ -3464,21 +3499,21 @@
         }
       ],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 1695,
+      "line": 1788,
       "structured": [
         {
           "method": "DELETE",
           "path": "/api/v1/roles/{id}",
           "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/ManagementController.java",
-          "line": 151
+          "line": 156
         }
       ],
       "ddd": [
         {
           "method": "DELETE",
           "path": "/api/v1/roles/{id}",
-          "file": "rbac-ddd/src/main/java/com/xmu/rbac/ddd/interfaces/rest/DirectoryController.java",
-          "line": 286
+          "file": "rbac-ddd/src/main/java/com/xmu/rbac/ddd/interfaces/rest/RoleController.java",
+          "line": 103
         }
       ],
       "provider": false
@@ -3487,8 +3522,8 @@
       "method": "PUT",
       "path": "/api/v1/roles/{id}/status",
       "id": "setRoleStatus",
-      "summary": "{status}",
-      "description": "",
+      "summary": "启用或停用角色",
+      "description": "启用或停用指定角色。停用的角色在运行时失效并中断经过该角色的继承路径，重新启用时校验受影响角色的授权。",
       "group": "角色、直接权限与继承",
       "permission": "rbac:role:status",
       "role": "",
@@ -3575,13 +3610,13 @@
         }
       ],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 1744,
+      "line": 1841,
       "structured": [
         {
           "method": "PUT",
           "path": "/api/v1/roles/{id}/status",
           "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/ManagementController.java",
-          "line": 156
+          "line": 161
         }
       ],
       "ddd": [
@@ -3589,7 +3624,7 @@
           "method": "PUT",
           "path": "/api/v1/roles/{id}/status",
           "file": "rbac-ddd/src/main/java/com/xmu/rbac/ddd/interfaces/rest/RoleController.java",
-          "line": 104
+          "line": 111
         }
       ],
       "provider": false
@@ -3598,8 +3633,8 @@
       "method": "GET",
       "path": "/api/v1/roles/{id}/permissions",
       "id": "getRolePermissions",
-      "summary": "PermissionVO[]（直接）",
-      "description": "",
+      "summary": "查询角色直接权限",
+      "description": "列出直接绑定到该角色的权限配置。需要查看继承后的权限及其来源时，调用角色有效权限接口。",
       "group": "角色、直接权限与继承",
       "permission": "rbac:role:view",
       "role": "",
@@ -3680,13 +3715,13 @@
         }
       ],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 1796,
+      "line": 1897,
       "structured": [
         {
           "method": "GET",
           "path": "/api/v1/roles/{id}/permissions",
           "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/ManagementController.java",
-          "line": 161
+          "line": 166
         }
       ],
       "ddd": [
@@ -3694,7 +3729,7 @@
           "method": "GET",
           "path": "/api/v1/roles/{id}/permissions",
           "file": "rbac-ddd/src/main/java/com/xmu/rbac/ddd/interfaces/rest/RoleController.java",
-          "line": 115
+          "line": 122
         }
       ],
       "provider": false
@@ -3703,8 +3738,8 @@
       "method": "PUT",
       "path": "/api/v1/roles/{id}/permissions",
       "id": "replaceRolePermissions",
-      "summary": "{permissionIds:Long[]}原子替换，仅同系统",
-      "description": "",
+      "summary": "替换角色直接权限",
+      "description": "用 `permissionIds` 整体替换角色的直接权限。权限必须与角色属于同一系统，空数组清空直接权限。替换时校验受影响角色的授权。",
       "group": "角色、直接权限与继承",
       "permission": "rbac:role:edit",
       "role": "",
@@ -3795,13 +3830,13 @@
         }
       ],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 1843,
+      "line": 1948,
       "structured": [
         {
           "method": "PUT",
           "path": "/api/v1/roles/{id}/permissions",
           "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/ManagementController.java",
-          "line": 166
+          "line": 171
         }
       ],
       "ddd": [
@@ -3809,7 +3844,7 @@
           "method": "PUT",
           "path": "/api/v1/roles/{id}/permissions",
           "file": "rbac-ddd/src/main/java/com/xmu/rbac/ddd/interfaces/rest/RoleController.java",
-          "line": 127
+          "line": 134
         }
       ],
       "provider": false
@@ -3818,8 +3853,8 @@
       "method": "GET",
       "path": "/api/v1/roles/{id}/effective-permissions",
       "id": "getRoleEffectivePermissions",
-      "summary": "EffectiveVO（以该角色为直接角色）",
-      "description": "",
+      "summary": "查询角色有效权限",
+      "description": "以指定角色为起点计算已配置的有效角色、权限和来源。即使所属系统已停用，仍可查看由启用角色和权限组成的配置。",
       "group": "角色、直接权限与继承",
       "permission": "rbac:role:view",
       "role": "",
@@ -3897,13 +3932,13 @@
         }
       ],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 1898,
+      "line": 2007,
       "structured": [
         {
           "method": "GET",
           "path": "/api/v1/roles/{id}/effective-permissions",
           "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/ManagementController.java",
-          "line": 172
+          "line": 177
         }
       ],
       "ddd": [
@@ -3911,7 +3946,7 @@
           "method": "GET",
           "path": "/api/v1/roles/{id}/effective-permissions",
           "file": "rbac-ddd/src/main/java/com/xmu/rbac/ddd/interfaces/rest/RoleController.java",
-          "line": 136
+          "line": 143
         }
       ],
       "provider": false
@@ -3920,8 +3955,8 @@
       "method": "GET",
       "path": "/api/v1/systems/{code}/role-hierarchy",
       "id": "getRoleHierarchy",
-      "summary": "HierarchyVO",
-      "description": "",
+      "summary": "查询系统角色继承关系",
+      "description": "返回指定系统的角色和有向继承边。每条边从 `seniorRoleId` 指向其继承的 `juniorRoleId`。",
       "group": "角色、直接权限与继承",
       "permission": "rbac:role:view",
       "role": "",
@@ -3999,13 +4034,13 @@
         }
       ],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 1944,
+      "line": 2057,
       "structured": [
         {
           "method": "GET",
           "path": "/api/v1/systems/{code}/role-hierarchy",
           "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/ManagementController.java",
-          "line": 177
+          "line": 182
         }
       ],
       "ddd": [
@@ -4013,7 +4048,7 @@
           "method": "GET",
           "path": "/api/v1/systems/{code}/role-hierarchy",
           "file": "rbac-ddd/src/main/java/com/xmu/rbac/ddd/interfaces/rest/RoleController.java",
-          "line": 143
+          "line": 150
         }
       ],
       "provider": false
@@ -4022,8 +4057,8 @@
       "method": "POST",
       "path": "/api/v1/roles/{seniorId}/inherits/{juniorId}",
       "id": "addRoleInheritance",
-      "summary": "同系统有向边，重复409，环409 ROLE_CYCLE",
-      "description": "",
+      "summary": "添加角色继承关系",
+      "description": "添加同一系统内从 `seniorId` 指向 `juniorId` 的继承边。重复边或会形成环的边返回 HTTP 409。",
       "group": "角色、直接权限与继承",
       "permission": "rbac:role:edit",
       "role": "",
@@ -4115,13 +4150,13 @@
         }
       ],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 1993,
+      "line": 2110,
       "structured": [
         {
           "method": "POST",
           "path": "/api/v1/roles/{seniorId}/inherits/{juniorId}",
           "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/ManagementController.java",
-          "line": 181
+          "line": 186
         }
       ],
       "ddd": [
@@ -4129,7 +4164,7 @@
           "method": "POST",
           "path": "/api/v1/roles/{seniorId}/inherits/{juniorId}",
           "file": "rbac-ddd/src/main/java/com/xmu/rbac/ddd/interfaces/rest/RoleController.java",
-          "line": 156
+          "line": 163
         }
       ],
       "provider": false
@@ -4138,8 +4173,8 @@
       "method": "DELETE",
       "path": "/api/v1/roles/{seniorId}/inherits/{juniorId}",
       "id": "deleteRoleInheritance",
-      "summary": "无边404，否则回收并失效",
-      "description": "",
+      "summary": "删除角色继承关系",
+      "description": "删除这两个角色之间指定方向的直接继承边。删除后按剩余路径计算继承权限，找不到该边时返回 HTTP 404。",
       "group": "角色、直接权限与继承",
       "permission": "rbac:role:edit",
       "role": "",
@@ -4231,13 +4266,13 @@
         }
       ],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 2045,
+      "line": 2166,
       "structured": [
         {
           "method": "DELETE",
           "path": "/api/v1/roles/{seniorId}/inherits/{juniorId}",
           "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/ManagementController.java",
-          "line": 187
+          "line": 192
         }
       ],
       "ddd": [
@@ -4245,7 +4280,7 @@
           "method": "DELETE",
           "path": "/api/v1/roles/{seniorId}/inherits/{juniorId}",
           "file": "rbac-ddd/src/main/java/com/xmu/rbac/ddd/interfaces/rest/RoleController.java",
-          "line": 165
+          "line": 172
         }
       ],
       "provider": false
@@ -4254,8 +4289,8 @@
       "method": "GET",
       "path": "/api/v1/users/{id}/role-assignments",
       "id": "listUserRoleAssignments",
-      "summary": "?systemCode",
-      "description": "",
+      "summary": "查询用户角色指派",
+      "description": "查看管理范围内指定用户的直接角色指派。可用 `systemCode` 筛选，返回指派 ID、所属系统和指派时间等信息。",
       "group": "用户角色指派与有效权限",
       "permission": "rbac:user:view",
       "role": "",
@@ -4345,13 +4380,13 @@
         }
       ],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 2098,
+      "line": 2223,
       "structured": [
         {
           "method": "GET",
           "path": "/api/v1/users/{id}/role-assignments",
           "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/ManagementController.java",
-          "line": 193
+          "line": 198
         }
       ],
       "ddd": [
@@ -4359,7 +4394,7 @@
           "method": "GET",
           "path": "/api/v1/users/{id}/role-assignments",
           "file": "rbac-ddd/src/main/java/com/xmu/rbac/ddd/interfaces/rest/DirectoryController.java",
-          "line": 252
+          "line": 262
         }
       ],
       "provider": false
@@ -4368,8 +4403,8 @@
       "method": "POST",
       "path": "/api/v1/users/{id}/role-assignments",
       "id": "createUserRoleAssignment",
-      "summary": "{roleId}",
-      "description": "",
+      "summary": "为用户分配角色",
+      "description": "向管理范围内的用户直接指派角色。角色须列入该用户当前部门的准入清单，并满足用户、角色及所属系统的启用条件。",
       "group": "用户角色指派与有效权限",
       "permission": "rbac:assignment:edit",
       "role": "",
@@ -4456,13 +4491,13 @@
         }
       ],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 2151,
+      "line": 2280,
       "structured": [
         {
           "method": "POST",
           "path": "/api/v1/users/{id}/role-assignments",
           "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/ManagementController.java",
-          "line": 198
+          "line": 203
         }
       ],
       "ddd": [
@@ -4470,7 +4505,7 @@
           "method": "POST",
           "path": "/api/v1/users/{id}/role-assignments",
           "file": "rbac-ddd/src/main/java/com/xmu/rbac/ddd/interfaces/rest/DirectoryController.java",
-          "line": 260
+          "line": 270
         }
       ],
       "provider": false
@@ -4479,8 +4514,8 @@
       "method": "DELETE",
       "path": "/api/v1/users/{id}/role-assignments/{assignmentId}",
       "id": "deleteUserRoleAssignment",
-      "summary": "按用户核对指派所属再删",
-      "description": "",
+      "summary": "撤销用户角色指派",
+      "description": "撤销路径中指定用户的某条直接角色指派。服务端核对 `assignmentId` 是否属于该用户。",
       "group": "用户角色指派与有效权限",
       "permission": "rbac:assignment:edit",
       "role": "",
@@ -4572,13 +4607,13 @@
         }
       ],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 2203,
+      "line": 2336,
       "structured": [
         {
           "method": "DELETE",
           "path": "/api/v1/users/{id}/role-assignments/{assignmentId}",
           "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/ManagementController.java",
-          "line": 203
+          "line": 208
         }
       ],
       "ddd": [
@@ -4586,7 +4621,7 @@
           "method": "DELETE",
           "path": "/api/v1/users/{id}/role-assignments/{assignmentId}",
           "file": "rbac-ddd/src/main/java/com/xmu/rbac/ddd/interfaces/rest/DirectoryController.java",
-          "line": 268
+          "line": 278
         }
       ],
       "provider": false
@@ -4595,8 +4630,8 @@
       "method": "GET",
       "path": "/api/v1/users/{id}/systems/{code}/permissions",
       "id": "getUserEffectivePermissions",
-      "summary": "EffectiveVO",
-      "description": "",
+      "summary": "查询用户有效权限",
+      "description": "查询管理范围内指定用户在目标系统的直接角色、有效角色、去重权限和授权来源。用于查看该用户在该系统中的运行时授权。",
       "group": "用户角色指派与有效权限",
       "permission": "rbac:user:view",
       "role": "",
@@ -4684,13 +4719,13 @@
         }
       ],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 2256,
+      "line": 2393,
       "structured": [
         {
           "method": "GET",
           "path": "/api/v1/users/{id}/systems/{code}/permissions",
           "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/ManagementController.java",
-          "line": 209
+          "line": 214
         }
       ],
       "ddd": [
@@ -4698,7 +4733,7 @@
           "method": "GET",
           "path": "/api/v1/users/{id}/systems/{code}/permissions",
           "file": "rbac-ddd/src/main/java/com/xmu/rbac/ddd/interfaces/rest/DirectoryController.java",
-          "line": 277
+          "line": 287
         }
       ],
       "provider": false
@@ -4707,8 +4742,8 @@
       "method": "GET",
       "path": "/api/v1/permissions",
       "id": "listPermissions",
-      "summary": "?systemCode,kind,keyword,page,pageSize",
-      "description": "",
+      "summary": "查询权限列表",
+      "description": "分页查询已定义的权限，可按所属系统、`UI` 或 `API` 种类及关键字筛选。",
       "group": "权限定义",
       "permission": "rbac:permission:view",
       "role": "",
@@ -4811,13 +4846,13 @@
         }
       ],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 2309,
+      "line": 2450,
       "structured": [
         {
           "method": "GET",
           "path": "/api/v1/permissions",
           "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/ManagementController.java",
-          "line": 214
+          "line": 219
         }
       ],
       "ddd": [
@@ -4825,7 +4860,7 @@
           "method": "GET",
           "path": "/api/v1/permissions",
           "file": "rbac-ddd/src/main/java/com/xmu/rbac/ddd/interfaces/rest/ResourceController.java",
-          "line": 185
+          "line": 197
         }
       ],
       "provider": false
@@ -4834,8 +4869,8 @@
       "method": "POST",
       "path": "/api/v1/permissions",
       "id": "createPermission",
-      "summary": "{systemCode,code,name,kind}",
-      "description": "",
+      "summary": "新增权限",
+      "description": "在指定系统创建权限定义。权限编码在同一系统和种类内唯一，创建后可将该权限显式授予角色。",
       "group": "权限定义",
       "permission": "rbac:permission:edit",
       "role": "",
@@ -4911,13 +4946,13 @@
         }
       ],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 2371,
+      "line": 2516,
       "structured": [
         {
           "method": "POST",
           "path": "/api/v1/permissions",
           "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/ManagementController.java",
-          "line": 222
+          "line": 227
         }
       ],
       "ddd": [
@@ -4925,7 +4960,7 @@
           "method": "POST",
           "path": "/api/v1/permissions",
           "file": "rbac-ddd/src/main/java/com/xmu/rbac/ddd/interfaces/rest/ResourceController.java",
-          "line": 207
+          "line": 219
         }
       ],
       "provider": false
@@ -4934,8 +4969,8 @@
       "method": "PUT",
       "path": "/api/v1/permissions/{id}/status",
       "id": "setPermissionStatus",
-      "summary": "{status}",
-      "description": "",
+      "summary": "启用或停用权限",
+      "description": "启用或停用指定权限定义。停用后该权限退出运行时有效权限集合，角色中的绑定可供后续恢复使用。",
       "group": "权限定义",
       "permission": "rbac:permission:edit",
       "role": "",
@@ -5022,13 +5057,13 @@
         }
       ],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 2419,
+      "line": 2568,
       "structured": [
         {
           "method": "PUT",
           "path": "/api/v1/permissions/{id}/status",
           "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/ManagementController.java",
-          "line": 227
+          "line": 232
         }
       ],
       "ddd": [
@@ -5036,7 +5071,7 @@
           "method": "PUT",
           "path": "/api/v1/permissions/{id}/status",
           "file": "rbac-ddd/src/main/java/com/xmu/rbac/ddd/interfaces/rest/ResourceController.java",
-          "line": 219
+          "line": 231
         }
       ],
       "provider": false
@@ -5045,8 +5080,8 @@
       "method": "GET",
       "path": "/api/v1/systems/{code}/ui-resources",
       "id": "getUiResources",
-      "summary": "UiResourceVO[]树",
-      "description": "",
+      "summary": "查询菜单与按钮配置",
+      "description": "查询指定系统的菜单和按钮配置树，包含资源状态和关联的 UI 权限码，供管理端编辑资源。",
       "group": "菜单与按钮资源",
       "permission": "rbac:resource:view",
       "role": "",
@@ -5127,13 +5162,13 @@
         }
       ],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 2471,
+      "line": 2624,
       "structured": [
         {
           "method": "GET",
           "path": "/api/v1/systems/{code}/ui-resources",
           "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/ManagementController.java",
-          "line": 232
+          "line": 237
         }
       ],
       "ddd": [
@@ -5150,8 +5185,8 @@
       "method": "POST",
       "path": "/api/v1/systems/{code}/ui-resources",
       "id": "createUiResource",
-      "summary": "{parentId?,type,code,name,route?,component?,sortOrder?,permissionCode,status?}",
-      "description": "",
+      "summary": "新增菜单或按钮",
+      "description": "为指定系统新建菜单或按钮，并绑定该系统中已登记的 UI 权限。按钮需要挂在菜单下。",
       "group": "菜单与按钮资源",
       "permission": "rbac:resource:edit",
       "role": "",
@@ -5238,13 +5273,13 @@
         }
       ],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 2521,
+      "line": 2678,
       "structured": [
         {
           "method": "POST",
           "path": "/api/v1/systems/{code}/ui-resources",
           "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/ManagementController.java",
-          "line": 236
+          "line": 241
         }
       ],
       "ddd": [
@@ -5261,8 +5296,8 @@
       "method": "PATCH",
       "path": "/api/v1/ui-resources/{id}",
       "id": "updateUiResource",
-      "summary": "同上可编辑字段，禁止换system",
-      "description": "",
+      "summary": "修改菜单或按钮",
+      "description": "修改菜单或按钮的配置，例如显示名称、父菜单、路由、关联权限或状态。父菜单和关联权限须属于资源所在系统。",
       "group": "菜单与按钮资源",
       "permission": "rbac:resource:edit",
       "role": "",
@@ -5349,13 +5384,13 @@
         }
       ],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 2576,
+      "line": 2737,
       "structured": [
         {
           "method": "PATCH",
           "path": "/api/v1/ui-resources/{id}",
           "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/ManagementController.java",
-          "line": 241
+          "line": 246
         }
       ],
       "ddd": [
@@ -5372,8 +5407,8 @@
       "method": "DELETE",
       "path": "/api/v1/ui-resources/{id}",
       "id": "deleteUiResource",
-      "summary": "有子节点/映射则409，不静默孤儿",
-      "description": "",
+      "summary": "删除菜单或按钮",
+      "description": "删除指定的菜单或按钮。资源仍包含子节点或被 UI 与 API 映射引用时返回 HTTP 409。",
       "group": "菜单与按钮资源",
       "permission": "rbac:resource:edit",
       "role": "",
@@ -5455,13 +5490,13 @@
         }
       ],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 2627,
+      "line": 2792,
       "structured": [
         {
           "method": "DELETE",
           "path": "/api/v1/ui-resources/{id}",
           "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/ManagementController.java",
-          "line": 246
+          "line": 251
         }
       ],
       "ddd": [
@@ -5478,8 +5513,8 @@
       "method": "GET",
       "path": "/api/v1/menus/me",
       "id": "getMyMenus",
-      "summary": "当前aud可见UiResourceVO[]树，含按钮",
-      "description": "",
+      "summary": "查询当前用户可见菜单",
+      "description": "返回当前用户在 JWT 的 `aud` 对应系统中可见的菜单和按钮树。树按用户的有效 UI 权限裁剪，并保留展示所需的父菜单。",
       "group": "菜单与按钮资源",
       "permission": "@authenticated",
       "role": "",
@@ -5549,13 +5584,13 @@
         }
       ],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 2676,
+      "line": 2845,
       "structured": [
         {
           "method": "GET",
           "path": "/api/v1/menus/me",
           "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/ManagementController.java",
-          "line": 251
+          "line": 256
         }
       ],
       "ddd": [
@@ -5572,8 +5607,8 @@
       "method": "GET",
       "path": "/api/v1/systems/{code}/api-operations",
       "id": "listApiOperations",
-      "summary": "?keyword,page,pageSize",
-      "description": "",
+      "summary": "查询已登记的 API",
+      "description": "分页查询指定系统已登记的 API 操作。可按 `operationId` 或路径模板搜索，结果包含访问策略和启用状态。",
       "group": "API 操作登记",
       "permission": "rbac:resource:view",
       "role": "",
@@ -5665,13 +5700,13 @@
         }
       ],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 2720,
+      "line": 2893,
       "structured": [
         {
           "method": "GET",
           "path": "/api/v1/systems/{code}/api-operations",
           "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/ManagementController.java",
-          "line": 255
+          "line": 260
         }
       ],
       "ddd": [
@@ -5688,8 +5723,8 @@
       "method": "POST",
       "path": "/api/v1/systems/{code}/api-operations",
       "id": "createApiOperation",
-      "summary": "{operationId,method,pathTemplate,permissionCode?,requiredRole?,accessPolicy,enabled}",
-      "description": "",
+      "summary": "登记 API 操作",
+      "description": "登记指定系统的 API 方法、路径模板和访问策略。`PROTECTED` 操作至少需要 API 权限或身份角色条件，固定中心操作须与共享 OpenAPI 契约一致。",
       "group": "API 操作登记",
       "permission": "rbac:resource:edit",
       "role": "",
@@ -5776,13 +5811,13 @@
         }
       ],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 2775,
+      "line": 2952,
       "structured": [
         {
           "method": "POST",
           "path": "/api/v1/systems/{code}/api-operations",
           "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/ManagementController.java",
-          "line": 262
+          "line": 267
         }
       ],
       "ddd": [
@@ -5799,8 +5834,8 @@
       "method": "PATCH",
       "path": "/api/v1/api-operations/{id}",
       "id": "updateApiOperation",
-      "summary": "同上可修改；中心受保护路由不能弱化OAS要求",
-      "description": "",
+      "summary": "修改 API 操作配置",
+      "description": "修改已登记操作的配置，包括访问策略、权限条件或启用状态。固定中心操作的配置须与共享 OpenAPI 契约一致并保持启用。",
       "group": "API 操作登记",
       "permission": "rbac:resource:edit",
       "role": "",
@@ -5887,13 +5922,13 @@
         }
       ],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 2830,
+      "line": 3012,
       "structured": [
         {
           "method": "PATCH",
           "path": "/api/v1/api-operations/{id}",
           "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/ManagementController.java",
-          "line": 267
+          "line": 272
         }
       ],
       "ddd": [
@@ -5910,8 +5945,8 @@
       "method": "GET",
       "path": "/api/v1/systems/{code}/ui-api-mappings",
       "id": "getUiApiMappings",
-      "summary": "MappingVO[]及覆盖报告 `{mappings,unmappedUi,unmappedApi}`",
-      "description": "",
+      "summary": "查询 UI 与 API 映射及覆盖情况",
+      "description": "返回指定系统的 UI 与 API 显式映射及覆盖情况，包括尚未建立映射的 UI 资源和 API 操作。",
       "group": "UI 与 API 映射",
       "permission": "rbac:resource:view",
       "role": "",
@@ -5989,13 +6024,13 @@
         }
       ],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 2882,
+      "line": 3068,
       "structured": [
         {
           "method": "GET",
           "path": "/api/v1/systems/{code}/ui-api-mappings",
           "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/ManagementController.java",
-          "line": 272
+          "line": 277
         }
       ],
       "ddd": [
@@ -6012,8 +6047,8 @@
       "method": "PUT",
       "path": "/api/v1/systems/{code}/ui-api-mappings",
       "id": "replaceUiApiMappings",
-      "summary": "{mappings:[{uiResourceId,apiOperationId}]}原子替换",
-      "description": "",
+      "summary": "替换 UI 与 API 映射",
+      "description": "用 `mappings` 整体替换指定系统的映射。每条映射的 UI 资源和 API 操作须属于该系统。映射供追踪和覆盖检查使用。",
       "group": "UI 与 API 映射",
       "permission": "rbac:resource:edit",
       "role": "",
@@ -6104,13 +6139,13 @@
         }
       ],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 2930,
+      "line": 3120,
       "structured": [
         {
           "method": "PUT",
           "path": "/api/v1/systems/{code}/ui-api-mappings",
           "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/ManagementController.java",
-          "line": 276
+          "line": 281
         }
       ],
       "ddd": [
@@ -6118,7 +6153,7 @@
           "method": "PUT",
           "path": "/api/v1/systems/{code}/ui-api-mappings",
           "file": "rbac-ddd/src/main/java/com/xmu/rbac/ddd/interfaces/rest/ResourceController.java",
-          "line": 176
+          "line": 188
         }
       ],
       "provider": false
@@ -6127,8 +6162,8 @@
       "method": "POST",
       "path": "/api/v1/authorization/check",
       "id": "checkAuthorization",
-      "summary": "{systemCode,userId?,kind:UI/API,permission?或operationId?}",
-      "description": "",
+      "summary": "检查用户授权",
+      "description": "判断指定用户在目标系统中的授权资格，省略 `userId` 时检查调用者本人。UI 检查使用 `permission`，API 检查使用 `operationId`。结果包含决定、原因和追踪 ID。",
       "group": "鉴权与解释",
       "permission": "rbac:authz:invoke",
       "role": "",
@@ -6204,13 +6239,13 @@
         }
       ],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 2988,
+      "line": 3182,
       "structured": [
         {
           "method": "POST",
           "path": "/api/v1/authorization/check",
           "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/ManagementController.java",
-          "line": 282
+          "line": 287
         }
       ],
       "ddd": [
@@ -6218,7 +6253,7 @@
           "method": "POST",
           "path": "/api/v1/authorization/check",
           "file": "rbac-ddd/src/main/java/com/xmu/rbac/ddd/interfaces/rest/AuthorizationController.java",
-          "line": 74
+          "line": 72
         }
       ],
       "provider": false
@@ -6227,8 +6262,8 @@
       "method": "POST",
       "path": "/api/v1/authorization/explain",
       "id": "explainAuthorization",
-      "summary": "同上",
-      "description": "",
+      "summary": "解释用户授权结果",
+      "description": "按与授权检查相同的输入和管理范围计算决定，并返回判定步骤及目标用户的有效角色、权限和来源，供排查授权结果。",
       "group": "鉴权与解释",
       "permission": "rbac:authz:invoke",
       "role": "",
@@ -6304,13 +6339,13 @@
         }
       ],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 3036,
+      "line": 3235,
       "structured": [
         {
           "method": "POST",
           "path": "/api/v1/authorization/explain",
           "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/ManagementController.java",
-          "line": 287
+          "line": 292
         }
       ],
       "ddd": [
@@ -6318,7 +6353,7 @@
           "method": "POST",
           "path": "/api/v1/authorization/explain",
           "file": "rbac-ddd/src/main/java/com/xmu/rbac/ddd/interfaces/rest/AuthorizationController.java",
-          "line": 81
+          "line": 79
         }
       ],
       "provider": false
@@ -6327,8 +6362,8 @@
       "method": "GET",
       "path": "/api/v1/audit-logs",
       "id": "queryAuditLogs",
-      "summary": "同外部过滤＋systemCode，Page<AuditVO>",
-      "description": "",
+      "summary": "查询管理端审计日志",
+      "description": "分页查询权限中心记录的管理和课程审计事件，可按来源系统、操作者、目标和时间范围筛选。",
       "group": "管理审计查询",
       "permission": "rbac:audit:view",
       "role": "",
@@ -6456,13 +6491,13 @@
         }
       ],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 3084,
+      "line": 3287,
       "structured": [
         {
           "method": "GET",
           "path": "/api/v1/audit-logs",
           "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/ManagementController.java",
-          "line": 292
+          "line": 297
         }
       ],
       "ddd": [
@@ -6470,7 +6505,7 @@
           "method": "GET",
           "path": "/api/v1/audit-logs",
           "file": "rbac-ddd/src/main/java/com/xmu/rbac/ddd/interfaces/rest/AuthorizationController.java",
-          "line": 88
+          "line": 86
         }
       ],
       "provider": false
@@ -6479,8 +6514,8 @@
       "method": "GET",
       "path": "/api/v1/dashboard",
       "id": "getDashboard",
-      "summary": "仅基础计数 `{users,roles,systems}`，不做统计/热力图",
-      "description": "",
+      "summary": "查询仪表盘基础计数",
+      "description": "使用 `rbac-center` 令牌，调用者须同时具备 `rbac:user:view`、`rbac:role:view` 和 `rbac:system:view` 三项 API 权限。`x-required-permission` 是路由登记的入口权限，`x-required-permissions-all` 列出服务端同时校验的权限。",
       "group": "本人资料、改密与首页",
       "permission": "rbac:user:view",
       "role": "",
@@ -6547,13 +6582,13 @@
         }
       ],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 3157,
+      "line": 3364,
       "structured": [
         {
           "method": "GET",
           "path": "/api/v1/dashboard",
           "file": "rbac-structured/src/main/java/com/xmu/rbac/structured/controller/ManagementController.java",
-          "line": 303
+          "line": 308
         }
       ],
       "ddd": [
@@ -6561,7 +6596,7 @@
           "method": "GET",
           "path": "/api/v1/dashboard",
           "file": "rbac-ddd/src/main/java/com/xmu/rbac/ddd/interfaces/rest/DirectoryController.java",
-          "line": 306
+          "line": 308
         }
       ],
       "provider": false
@@ -6570,9 +6605,9 @@
       "method": "GET",
       "path": "/integration/authorities",
       "id": "getIntegrationAuthorities",
-      "summary": "getIntegrationAuthorities",
+      "summary": "查询当前用户的服务端授权",
       "description": "Service key plus validated current user; lookup additionally requires admin identity and TEC API capability. No target subject/system overrides for authority projection.",
-      "group": "私有服务投影",
+      "group": "私有服务接口",
       "permission": "@authenticated",
       "role": "",
       "parameters": [
@@ -6621,7 +6656,7 @@
         }
       ],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 3199,
+      "line": 3416,
       "structured": [
         {
           "method": "GET",
@@ -6644,9 +6679,9 @@
       "method": "GET",
       "path": "/identity/users/{userId}",
       "id": "lookupUnifiedIdentityUser",
-      "summary": "lookupUnifiedIdentityUser",
+      "summary": "查询用户身份资料",
       "description": "Service key plus validated current user; lookup additionally requires admin identity and TEC API capability. No target subject/system overrides for authority projection.",
-      "group": "私有服务投影",
+      "group": "私有服务接口",
       "permission": "@authenticated",
       "role": "",
       "parameters": [
@@ -6705,7 +6740,7 @@
         }
       ],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 3233,
+      "line": 3454,
       "structured": [
         {
           "method": "GET",
@@ -6728,8 +6763,8 @@
       "method": "GET",
       "path": "/.well-known/jwks.json",
       "id": "getJwks",
-      "summary": "getJwks",
-      "description": "",
+      "summary": "获取 JWT 验签公钥",
+      "description": "返回验证 RS256 JWT 所用的公钥集合。验证方根据令牌头中的 `kid` 选取公钥。",
       "group": "公钥与运行状态",
       "permission": "PUBLIC",
       "role": "",
@@ -6799,7 +6834,7 @@
       },
       "security": [],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 3274,
+      "line": 3499,
       "structured": [
         {
           "method": "GET",
@@ -6822,8 +6857,8 @@
       "method": "GET",
       "path": "/api/v1/actuator/health",
       "id": "getHealth",
-      "summary": "getHealth",
-      "description": "",
+      "summary": "查询服务健康状态",
+      "description": "返回服务的总体健康状态 `status`，供运行监测使用。组件和详情由各后端的 Actuator 配置决定。",
       "group": "公钥与运行状态",
       "permission": "PUBLIC",
       "role": "",
@@ -6852,7 +6887,7 @@
       },
       "security": [],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 3321,
+      "line": 3551,
       "structured": [],
       "ddd": [],
       "provider": false
@@ -6861,8 +6896,8 @@
       "method": "GET",
       "path": "/api/v1/actuator/info",
       "id": "getInfo",
-      "summary": "getInfo",
-      "description": "",
+      "summary": "查询服务信息",
+      "description": "返回 Actuator 已配置的应用信息。没有配置可发布的信息时返回空对象。",
       "group": "公钥与运行状态",
       "permission": "PUBLIC",
       "role": "",
@@ -6883,7 +6918,7 @@
       },
       "security": [],
       "source": "rbac-contract/src/main/resources/openapi/rbac-api.yaml",
-      "line": 3339,
+      "line": 3574,
       "structured": [],
       "ddd": [],
       "provider": false

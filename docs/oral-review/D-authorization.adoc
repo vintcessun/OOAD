@@ -44,7 +44,7 @@ API决定要把operation.enabled/策略、目标身份和有效权限一起核�
 == 主审检查项
 
 * [ ] 直接角色/有效角色/权限集合去重，多条来源路径保持可解释，停用中间节点只切对应路径。
-* [ ] UI/API kind、system、identityRole和权限码分别过滤；API的PUBLIC/AUTHENTICATED/PROTECTED与requiredRole/permission不能混同。
+* [ ] UI/API kind、system、有效角色码和权限码分别过滤；API的PUBLIC/AUTHENTICATED/PROTECTED与requiredRole/permission不能混同。
 * [ ] 验证签名与当前用户/系统/撤销先于旁路；正常allowed:false、401/403/404/503分层解释。
 * [ ] 版本化键防旧回填；MySQL版本事实、L1/L2 TTL、两实现缓存结构/TTL不同不意味着合同可不同。
 * [ ] 版本复查与只读隔离/持久化上下文分别解决什么；持续不稳定或权威DB不可用不能放行。

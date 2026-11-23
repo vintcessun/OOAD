@@ -28,7 +28,7 @@ aud错误 `AUDIENCE_MISMATCH`，权限不足 `PERMISSION_DENIED`，管理范围�
 
 * POST /auth/login 输入username:string(1..128),password:string(1..256),systems:string[1]；只签单一aud，200 `{accessToken,tokenType:"Bearer",expiresIn}`，凭据/停用401、不可用503。
 * POST /auth/logout Bearer，无body；成功204，持久撤销jti；401。
-* GET /auth/me：`{subject:string,roles:(student|teacher|admin)[],permissions:string[],name:string,no:string}`，roles是当前aud有效角色的identityRole受控投影，不输出任意内部角色码；permissions仅UI；401/503。
+* GET /auth/me：`{subject:string,roles:(student|teacher|admin)[],permissions:string[],name:string,no:string}`，roles是当前系统有效角色中符合课程协议的 student、teacher、admin 角色码，包含继承结果；permissions仅UI；401/503。
 * GET /auth/permissions/{permission}：200 `{allowed:boolean}`，未知/无权false；400/401。
 * GET /auth/api-permissions/{operationId} 返回 `200 {operationId,allowed}`，已登记但无权时 `allowed=false`。操作标识长度为 1–128，非法输入返回 `400 VALIDATION_ERROR`，未知操作返回 `404 API_OPERATION_NOT_FOUND`。认证失败返回 401，服务不可用返回 503。
 * POST /auth/audit-logs：requestId为UUID；type限score_changed/group_changed/milestone_changed/roster_changed；objectType枚举term/course/class/group/milestone/student/teacher/submission/oral_record，objectId须匹配`^cpm-(term|course|class|group|milestone|student|teacher|submission|oral_record)-[0-9]+$`且类型一致；target必填最长500，before/after为可选安全JSON；201返回审计VO。同requestId同sourceSystem/subject/内容返回相同id，同键异体400 AUDIT_DUPLICATE_CONFLICT。actor只从身份确定。
@@ -43,7 +43,7 @@ PUBLIC GET /.well-known/jwks.json；健康/info仍位于/api/v1/actuator/{health
 * SystemVO：id,code,name,status。
 * DepartmentVO：id,parentId,code,name,path,status,children（树）；不含company。
 * UserVO：id,subject,username,name,no,phone,departmentId,departmentName,status,version；username不可复用，no可空，phone脱敏列表/详情按权。
-* RoleVO：id,systemCode,code,name,description,status,builtin,identityRole(nullable student/teacher/admin),version。
+* RoleVO：id,systemCode,code,name,description,status,builtin,version。
 * PermissionVO：id,systemCode,code,name,kind(UI/API),status。
 * AssignmentVO：id,userId,roleId,systemCode,roleCode,roleName,assignedAt,assignedBy；无scope部门。
 * EffectiveVO：directRoles:RoleVO[],effectiveRoles:RoleVO[],permissions:PermissionVO[],sources:[{permissionCode,permissionKind:UI/API,roleCode,inherited:boolean,path:string[]}]；权限集合去重，来源可多条，按权限种类与编码关联。
@@ -83,7 +83,7 @@ PUBLIC GET /.well-known/jwks.json；健康/info仍位于/api/v1/actuator/{health
 |DELETE /users/{id} |逻辑删除，清理指派、版本、审计 |rbac:user:edit
 |PUT /users/{id}/department |{departmentId,version?}→UserVO；跨部门调动在同一事务中清空本人的角色指派 |rbac:user:edit
 |GET /roles |?systemCode必填,keyword,status,page,pageSize→Page<RoleVO> |rbac:role:view
-|POST /roles |{systemCode,code,name,description?,identityRole?}→RoleVO |rbac:role:edit
+|POST /roles |{systemCode,code,name,description?}→RoleVO |rbac:role:edit
 |GET /roles/{id} |RoleVO |rbac:role:view
 |PATCH /roles/{id} |{name?,description?,version?}，禁止status→RoleVO |rbac:role:edit
 |PUT /roles/{id}/status |{status}→RoleVO |rbac:role:status
@@ -126,11 +126,11 @@ PUBLIC GET /.well-known/jwks.json；健康/info仍位于/api/v1/actuator/{health
 . 仅非根叶部门可停用，根部门及有子部门的节点分别返回 `409 ROOT_DEPARTMENT_DISABLE_FORBIDDEN`、`409 DEPARTMENT_HAS_CHILDREN`。停用保留已有成员、账号状态和角色指派，课程目录隐藏该部门。向停用部门新建子部门、新建用户、从其他部门迁入、添加角色指派均返回 `409 DEPARTMENT_DISABLED`。管理端仍可查询、改名、维护准入、迁出成员和撤销指派。重复设置相同状态返回当前部门。实际变更推进授权版本并记录 `DEPARTMENT_STATUS_CHANGED`。
 . 角色启停要求 API 权限 `rbac:role:status`，角色资料修改仍要求 `rbac:role:edit`。按钮保留独立 UI 权限 `rbac:ui:setRoleStatus`。
 . 直接指派必须在目标用户当前部门的DepartmentAllowedRole清单内，即使超级管理员也要满足；引导root的SUPER_ADMIN准入在种子中明确建立。
-. 非超级管理员不能赋予或改出自己在目标系统没有的有效权限及identityRole标记，改继承前按完整新闭包检验提升。中心管理入口资格与目标系统授权上界分开读取。系统级共享定义（系统/角色/权限/继承/UI/API）的写操作还要求操作者所属根部门；部门管理员只管理子树人员、准入和指派，不能借共享角色影响范围外人员。
+. 非超级管理员不能赋予或改出自己在目标系统没有的有效权限及受保护的角色码，改继承前按完整新闭包检验提升。中心管理入口资格与目标系统授权上界分开读取。系统级共享定义（系统/角色/权限/继承/UI/API）的写操作还要求操作者所属根部门；部门管理员只管理子树人员、准入和指派，不能借共享角色影响范围外人员。
 角色直接权限替换、加继承边及重新启用均检查自身与全部受影响上级的最终闭包，操作者上界取保存前事实。特殊SUPER_ADMIN可达性检查不因停用节点切断，避免预埋恢复能力。
-. 普通管理员新增或修改停用系统的角色授权时返回 `403 PRIVILEGE_ESCALATION`。重新启用系统前先核对会恢复生效的角色闭包和身份标记。非超级管理员设置 API 的权限或身份角色条件时，需在目标系统拥有对应授权。目标系统停用时，该类变更返回业务 403。
+. 普通管理员新增或修改停用系统的角色授权时返回 `403 PRIVILEGE_ESCALATION`。重新启用系统前先核对会恢复生效的角色闭包和受保护的角色码。非超级管理员设置 API 的权限或角色码条件时，需在目标系统拥有对应授权。目标系统停用时，该类变更返回业务 403。
 . 替换部门准入独立于查看权限。普通管理员可原样携带停用系统的准入集合，新增或移除其中的角色返回 `403 PRIVILEGE_ESCALATION`。中心超级管理员可维护停用系统的准入。
-. 恢复停用用户前，按当前有效权限和 `identityRole` 校验启用系统中的保留指派。超出操作者上界返回 `403 PRIVILEGE_ESCALATION`，用户仍停用。停用系统的指派暂不生效，系统启用时检查恢复的授权。
+. 恢复停用用户前，按当前有效权限和受保护的角色码 校验启用系统中的保留指派。超出操作者上界返回 `403 PRIVILEGE_ESCALATION`，用户仍停用。停用系统的指派暂不生效，系统启用时检查恢复的授权。
 . RoleHierarchy同系统senior→junior，停用节点切断路径；系统行/授权版本行排他锁串行化所有图写，避免并发成环。版本与授权/状态/映射变更同本地事务提交。
 . 移部门先锁用户并校验原、新部门的管理范围。跨部门调动在同一事务中更新部门并清空本人的角色指派。新部门的角色需要重新指派。提交当前部门时保留现有指派。保护最后有效 SUPER_ADMIN，调动若会使其失效则整笔回滚。
 受保护的最后管理员须同时具备根部门管理资格、SUPER_ADMIN角色准入、活动用户状态和有效超级管理员能力；存在其他合格管理员时允许迁移。
@@ -154,3 +154,9 @@ root初始口令仅由RBAC_BOOTSTRAP_PASSWORD注入，未配置时不能以公�
 
 真实测试库分别rbac1_structured_test、rbac1_ddd_test，位于本机专用13306实例；Redis独立逻辑前缀且只在该专用16379实例。
 重写一期废弃scope/多公司断言必须列需求映射，不得静默删除仍适用的认证/越权/事务/缓存安全预期。
+
+== 课程角色与 API 条件
+
+* 课程系统内置的 teacher、student、admin 直接持有各自的默认权限。给教师分配 teacher 即可取得教师资格及该角色绑定的权限。配置角色继承时，会同时继承有效角色码及权限。
+* 受保护 API 的 requiredRole 按当前系统有效角色码精确匹配。有角色条件和权限条件时两项均须满足。
+* 非超级管理员的授予上界检查权限，以及课程协议角色码和目标系统已登记的受保护 API 所引用的角色码。角色指派、继承、启用和用户恢复使用有效闭包，停用角色切断继承路径。

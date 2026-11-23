@@ -1,8 +1,9 @@
 package com.xmu.rbac.ddd.domain;
 
+import com.xmu.rbac.contract.CourseRoleCodes;
 import java.util.*;
 
-/** 领域授权专家：并集去重、解释来源、受控身份投影及非超级管理员授权上界。 */
+/** 领域授权专家：并集去重、解释来源、有效角色码及非超级管理员授权上界。 */
 public final class AuthorizationPolicy {
     public record Source(
             String permissionCode,
@@ -16,11 +17,14 @@ public final class AuthorizationPolicy {
             List<Role> effectiveRoles,
             List<Permission> permissions,
             List<Source> sources) {
-        public Set<String> identities() {
+        public Set<String> roleCodes() {
             Set<String> result = new TreeSet<>();
-            for (Role r : effectiveRoles)
-                if (r.identityRole() != null) result.add(r.identityRole());
+            effectiveRoles.forEach(role -> result.add(role.code()));
             return Set.copyOf(result);
+        }
+
+        public Set<String> courseRoleCodes() {
+            return CourseRoleCodes.retainFrom(roleCodes());
         }
 
         public boolean has(String code, Permission.Kind kind) {
@@ -77,7 +81,7 @@ public final class AuthorizationPolicy {
                 List.copyOf(sources));
     }
 
-    public void requireWithin(Effective actor, Effective proposed, boolean superAdmin) {
+    public void requireWithin(Effective actor, Effective proposed, boolean superAdmin, Set<String> protectedRoleCodes) {
         if (superAdmin) return;
         DomainException.require(
                 proposed.directRoles().stream().noneMatch(Role::superAdministratorCapability)
@@ -89,7 +93,9 @@ public final class AuthorizationPolicy {
         for (Permission p : actor.permissions()) available.add(p.id());
         DomainException.require(
                 proposed.permissions().stream().allMatch(p -> available.contains(p.id()))
-                        && actor.identities().containsAll(proposed.identities()),
+                        && proposed.roleCodes().stream()
+                                .filter(protectedRoleCodes::contains)
+                                .allMatch(actor.roleCodes()::contains),
                 403,
                 "GRANT_EXCEEDS_ACTOR");
     }
@@ -102,7 +108,7 @@ public final class AuthorizationPolicy {
         return (operation.permissionCode() == null
                         || effective.has(operation.permissionCode(), Permission.Kind.API))
                 && (operation.requiredRole() == null
-                        || effective.identities().contains(operation.requiredRole()))
+                        || effective.roleCodes().contains(operation.requiredRole()))
                 && (operation.permissionCode() != null || operation.requiredRole() != null);
     }
 }

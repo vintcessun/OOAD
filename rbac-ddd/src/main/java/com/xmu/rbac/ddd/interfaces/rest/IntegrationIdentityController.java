@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/** 负责统一身份目录和私有身份投影的 HTTP 适配。 */
+/** 负责统一身份目录和私有能力查询的 HTTP 适配。 */
 @RestController
 @Validated
 public class IntegrationIdentityController {

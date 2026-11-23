@@ -7,6 +7,7 @@ import com.xmu.rbac.structured.dto.Actor;
 import com.xmu.rbac.structured.entity.*;
 import com.xmu.rbac.structured.mapper.Store;
 import java.time.*;
+import com.xmu.rbac.contract.CourseRoleCodes;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -221,14 +222,20 @@ public class AuthorizationService {
             .map(id -> require(Role.class, id))
             .anyMatch(r -> "SUPER_ADMIN".equals(r.code) && Boolean.TRUE.equals(r.builtin));
     }
-    /** 执行identities操作，保持服务到持久化层的单向依赖。 */
-    public Set<String> identities(Snapshot s) {
+    public Set<String> roleCodes(Snapshot snapshot) {
         Set<String> result = new TreeSet<>();
-        for (Long id : s.roles) {
-            String role = require(Role.class, id).identityRole;
-            if (role != null && Set.of("student", "teacher", "admin").contains(role))
-                result.add(role);
-        }
+        snapshot.roles.forEach(id -> result.add(require(Role.class, id).code));
+        return result;
+    }
+
+    public Set<String> courseRoleCodes(Snapshot snapshot) {
+        return CourseRoleCodes.retainFrom(roleCodes(snapshot));
+    }
+
+    private Set<String> protectedRoleCodes(String code) {
+        Set<String> result = new HashSet<>(CourseRoleCodes.ALL);
+        db.where(ApiOperation.class, "e.systemId=?1 and e.accessPolicy=?2 and e.requiredRole is not null",
+                system(code).id, "PROTECTED").forEach(operation -> result.add(operation.requiredRole));
         return result;
     }
     /** 执行permission操作，保持服务到持久化层的单向依赖。 */
@@ -280,12 +287,7 @@ public class AuthorizationService {
         Snapshot s = snapshot(user, code);
         if ("rbac-center".equals(code) && hasSuperAdminRole(s))
             return true;
-        boolean hasRole = op.requiredRole == null
-            || (Set.of("student", "teacher", "admin").contains(op.requiredRole)
-                    ? identities(s).contains(op.requiredRole)
-                    : s.roles.stream()
-                          .map(id -> require(Role.class, id))
-                          .anyMatch(role -> op.requiredRole.equals(role.code)));
+        boolean hasRole = op.requiredRole == null || roleCodes(s).contains(op.requiredRole);
         boolean hasPermission = op.permissionId == null || s.permissions.contains(op.permissionId);
         return hasRole && hasPermission && (op.requiredRole != null || op.permissionId != null);
     }
@@ -320,7 +322,7 @@ public class AuthorizationService {
         if (!"ENABLED".equals(system.status) && !superAdmin(a))
             throw BizException.forbidden("PRIVILEGE_ESCALATION");
     }
-    /** 授权上界同时检查权限和受控身份投影，包含新继承闭包。 */
+    /** 授权上界同时检查权限和受保护的角色码，包含新继承闭包。 */
     public void upper(Actor a, String code, Snapshot proposed) {
         Upper captured = (Upper) TransactionSynchronizationManager.getResource(upperKey);
         if (captured != null && !captured.userId.equals(a.userId()))
@@ -344,8 +346,11 @@ public class AuthorizationService {
             ? snapshot(a.userId(), code)
             : captured.systems.getOrDefault(
                   code, new Snapshot(List.of(), List.of(), List.of(), List.of()));
+        Set<String> ownRoleCodes = roleCodes(own);
+        Set<String> protectedCodes = protectedRoleCodes(code);
         if (!own.permissions.containsAll(proposed.permissions)
-            || !identities(own).containsAll(identities(proposed)))
+            || roleCodes(proposed).stream().filter(protectedCodes::contains)
+                .anyMatch(role -> !ownRoleCodes.contains(role)))
             throw BizException.forbidden("PRIVILEGE_ESCALATION");
     }
     /** 内置超级管理员的定义不能由普通管理员修改。 */

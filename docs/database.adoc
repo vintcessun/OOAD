@@ -15,9 +15,11 @@ link:schema-contract.adoc[冻结物理列合同]规定15张业务表的精确列
 |link:../rbac-contract/src/main/resources/db/migration/V3__role_status_permission.sql[V3 角色启停权限] |登记 `rbac:role:status`，改绑启停 API 并推进授权版本。原有直接授权仍有效的内置管理员延续启停权限，自定义角色需显式授予。
 |link:../rbac-contract/src/main/resources/db/migration/V4__course_identity_directory.sql[V4 课程身份目录与登录] |登记三个统一身份查询及课程 POST /login，移除退役课程操作和关联 UI 映射，并推进授权版本。
 |link:../rbac-contract/src/main/resources/db/migration/V5__department_lifecycle_permissions.sql[V5 部门启停和删除权限] |登记部门启停 API 和按钮，独立绑定删除权限，给内置 SUPER_ADMIN、RBAC_ADMIN 授予新权限并推进授权版本。
+|link:../rbac-contract/src/main/resources/db/migration/V6__use_effective_role_codes.sql[V6 有效角色码] |保留按原编码授权的内置角色，处理旧配置中可能意外取得课程资格的同名角色，并推进授权版本。
+|link:../rbac-contract/src/main/resources/db/migration/V7__drop_role_identity_marker.sql[V7 角色字段] |移除旧角色标记列及其 CHECK 约束。
 |===
 
-RBAC0 的旧 V1–V4 保留在 Git 历史。当前 RBAC1 的 V1/V2 初始化空库，Flyway 按库的现有版本应用 V3–V5。V5 使用已有的 `sys_department.status` 列，现有部门状态保持原值。
+RBAC0 的旧 V1–V4 保留在 Git 历史。当前 RBAC1 的 V1/V2 初始化空库，Flyway 按库的现有版本应用 V3–V7。V5 使用已有的 `sys_department.status` 列，现有部门状态保持原值。
 禁止将新基线连接生产或已有一期库、篡改其Flyway历史/checksum、clean生产、用baseline-on-migrate掩盖冲突。
 已有旧库应继续使用匹配的一期镜像/schema；需要升级时另行制定备份、兼容迁移与恢复方案，本轮不操作旧库。
 打包前clean构建，避免target/classes残留旧脚本进入jar。
@@ -30,7 +32,7 @@ RBAC0 的旧 V1–V4 保留在 Git 历史。当前 RBAC1 的 V1/V2 初始化空�
 |sys_system |code唯一；status与version；系统码rbac-center、course-project-management。
 |sys_department |parent_id自引用、code唯一、path；用户唯一所属部门；总部path=/1/。
 |sys_user |subject和username各自唯一；password_hash、name、no、phone、department_id、status、token_version、must_change_password、failed_login_count、locked_until、version、created_at。用户名不可复用；无company或到期列。
-|sys_role |system_id归属系统，UNIQUE(system_id,code)；description、status、builtin、identity_role、version。identity_role只能为空或student/teacher/admin。
+|sys_role |system_id归属系统，UNIQUE(system_id,code)；description、status、builtin、version。
 |sys_permission |UI/API分种类，UNIQUE(system_id,kind,code)；启停与version。
 |sys_role_permission |角色直接权限，UNIQUE(role_id,permission_id)；继承权限不冗余写回。
 |sys_user_role |直接指派，UNIQUE(user_id,role_id)；assigned_by可空且关联用户，assigned_at。无scope部门。
@@ -66,10 +68,14 @@ root显式id=1、subject=rbac-u1，password_hash为UNINITIALIZED；只有该哨�
 
 == 审计存储及验证边界
 
-外部origin=COURSE，内部origin=INTERNAL；外部actor_roles_json仅受控identityRole投影。requestId唯一性及payload_hash绑定来源系统、主体和规范化内容；唯一冲突回滚后再读，不在rollback-only事务继续查询。
+外部origin=COURSE，内部origin=INTERNAL；外部actor_roles_json仅当前系统有效课程角色码。requestId唯一性及payload_hash绑定来源系统、主体和规范化内容；唯一冲突回滚后再读，不在rollback-only事务继续查询。
 外部插入独立事务提交后返回201；本地SUCCESS审计与敏感业务同事务，拒绝事实另行独立事务。
 审计无业务FK、不随用户/角色删除；索引为(source_system_code,occurred_at,id)、(source_system_code,actor_id,occurred_at,id)、(source_system_code,object_type,object_id,occurred_at,id)。
 只插入的应用约定不是数据库防篡改承诺；跨课程DB与中心DB的HTTP调用不具备分布式原子性。
 
 link:../tools/generate-rbac1-contract.py[生成/静态校验工具]和link:../tools/generate-rbac1-contract-test.py[真实Flyway迁移校验工具]提供独立验证入口；后者只重建专用13306容器内rbac1_schema_contract_test，不碰rbac_test。
 工具存在或曾通过不代表双后端当前所有用例通过；本隔离文档任务不执行迁移，真实事务/并发验收见link:test-plan.adoc[测试计划]。
+
+=== 课程内置角色
+
+课程系统初始化时创建 teacher、student、admin，并将各自的默认权限直接绑定到相应角色。升级沿用原有内置角色的 ID、权限、用户指派和部门准入。V7 删除旧身份字段。原自定义角色的权限、指派和已有继承关系继续保留。曾仅通过旧身份字段取得课程资格的自定义角色，需要管理员按实际权限要求重新配置课程角色。迁移不会自动添加继承边。如果旧角色使用了保留角色码却没有对应的旧身份标记，V6 将它改为 legacy-role-{id} 或带唯一后缀的编码，避免该角色意外取得课程资格。

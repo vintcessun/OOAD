@@ -36,7 +36,7 @@ dependency resolution through credential-free Maven Central.
   The teacher service checks its local student or teacher roster before requesting a central token.
   Other course requests use a verified JWT, current central operation decision, and local course
   object authorization. /api is the browser business prefix.
-- The integration profile loads API capabilities and controlled identity roles from the private
+- The integration profile loads API capabilities and effective course role codes from the private
   center projection. A course leader can copy without CC, while a nonleader must have CC.
 - The six patches apply to the new teacher pin. The native after-commit audit callbacks feed the
   integration confirmation filter, which combines them with scoped snapshots and sends a

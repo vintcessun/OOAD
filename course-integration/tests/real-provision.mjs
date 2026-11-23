@@ -15,7 +15,12 @@ export async function provisionAccounts(center,{bootstrap,serviceKey}) {
  const codes=['course:access','TC','CR','AV','TEC','audit:read','audit:write','CC'];const permissions={};
  for(const code of codes) {const page=await ok('GET','/permissions?'+new URLSearchParams({systemCode:C,kind:'API',keyword:code,pageSize:'100'}));permissions[code]=page.items.find(x=>x.code===code&&x.kind==='API')??await ok('POST','/permissions',{systemCode:C,code,name:code,kind:'API'});}
  const definitions={ADMIN:['admin','TC','CR','AV','TEC','course:access','audit:read','audit:write'],ADMIN_NO_TEC:['admin','course:access'],LEADER:['teacher','TEC','course:access','audit:read','audit:write'],CC_TEACHER:['teacher','CC','course:access','audit:read','audit:write'],NO_CC_TEACHER:['teacher','course:access','audit:read','audit:write'],STUDENT_LEADER:['student','course:access','audit:write'],STUDENT_APPLICANT:['student','course:access']};
- const roles={};for(const [who,[identity,...grants]]of Object.entries(definitions)) {const role=await ok('POST','/roles',{systemCode:C,code:'M6_'+who,name:'Synthetic '+who,identityRole:identity});roles[who]=role;await ok('PUT',`/roles/${role.id}/permissions`,{permissionIds:grants.map(x=>permissions[x].id)});}
+ const {roles:baseRoles}=await ok('GET', `/systems/${C}/role-hierarchy`);
+ // Only the disposable test center is reconfigured to test minimal, disjoint grants.
+ for (const base of baseRoles.filter(r=>['admin','teacher','student'].includes(r.code))) {
+  await ok('PUT','/roles/'+base.id+'/permissions',{permissionIds:[]});
+ }
+ const roles={};for(const [who,[identity,...grants]]of Object.entries(definitions)) {const role=await ok('POST','/roles',{systemCode:C,code:'M6_'+who,name:'Synthetic '+who});roles[who]=role;const base=baseRoles.find(r=>r.code===identity);assert(base);await ok('POST',`/roles/${role.id}/inherits/${base.id}`);await ok('PUT',`/roles/${role.id}/permissions`,{permissionIds:grants.map(x=>permissions[x].id)});}
  await ok('PUT',`/departments/${dep.id}/assignable-roles`,{roleIds:Object.values(roles).map(x=>x.id)});
  const tokens={},subjects={},users={};
  const localAccounts={LEADER:'M6-T1',STUDENT_LEADER:'M6-S1'};

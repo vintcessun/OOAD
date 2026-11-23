@@ -133,6 +133,10 @@ class RendererChecks(unittest.TestCase):
         for table, body in expected_tables.items():
             fields = [line.strip().rstrip(',') for line in body.splitlines()
                       if re.match(r'\s*\w+\s+(?:BIGINT|TINYINT|VARCHAR|CHAR|BOOLEAN|INT|TIMESTAMP|JSON)', line)]
+            if table == 'sys_role':
+                self.assertIn('DROP COLUMN identity_role',
+                              (design.ROOT / design.ROLE_MARKER_MIGRATION).read_text(encoding='utf-8'))
+                fields = [field for field in fields if not field.startswith('identity_role ')]
             rows = ElementTree.fromstring(actual_tables[table]).findall('TR')[1:]
             self.assertEqual([' '.join(''.join(cell.itertext()) for cell in row.findall('TD')[1:])
                               for row in rows], fields, table)

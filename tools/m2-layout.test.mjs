@@ -115,17 +115,18 @@ test('RBAC1: 68项OAS操作唯一且包含鉴权接口、私有投影与部门�
   assert.doesNotMatch(oas, /^  \/api\/v1\/auth\/(?:login|logout|me):/m)
 })
 
-test('RBAC1: V1–V5与15表，禁止恢复一期模型或公开root口令', () => {
+test('RBAC1: V1–V7与15表，禁止恢复一期模型或公开root口令', () => {
   const directory = 'rbac-contract/src/main/resources/db/migration/'
   assert.deepEqual(readdirSync(new URL(directory, root)).filter((name) => /^V.*\.sql$/.test(name)).sort(), [
     'V1__rbac1_schema.sql', 'V2__rbac1_seed.sql', 'V3__role_status_permission.sql', 'V4__course_identity_directory.sql',
-    'V5__department_lifecycle_permissions.sql',
+    'V5__department_lifecycle_permissions.sql', 'V6__use_effective_role_codes.sql',
+    'V7__drop_role_identity_marker.sql',
   ])
   const ddl = text(directory + 'V1__rbac1_schema.sql'), seed = text(directory + 'V2__rbac1_seed.sql')
   const tables = [...ddl.matchAll(/^CREATE TABLE (sys_\w+) \(/gm)].map((match) => match[1]).sort()
   assert.deepEqual(tables, ['sys_system', 'sys_department', 'sys_user', 'sys_role', 'sys_permission', 'sys_role_permission', 'sys_user_role', 'sys_department_allowed_role', 'sys_role_hierarchy', 'sys_ui_resource', 'sys_api_operation', 'sys_ui_api_mapping', 'sys_token_revocation', 'sys_grant_version', 'sys_audit_log'].sort())
   assert.doesNotMatch(ddl, /\b(?:company_id|scope_dept_id|self_only|sys_company|sys_function_module|sys_action|sys_menu)\b/)
-  assert.match(ddl, /identity_role VARCHAR\(16\) NULL/)
+  assert.match(text(directory + 'V7__drop_role_identity_marker.sql'), /DROP COLUMN identity_role/)
   assert.match(ddl, /UNIQUE\(system_id,kind,code\)/)
   assert.match(ddl, /CHECK\(senior_role_id<>junior_role_id\)/)
   assert.match(ddl, /request_id CHAR\(36\) NOT NULL UNIQUE/)

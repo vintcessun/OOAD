@@ -16,7 +16,7 @@ import java.util.TreeSet;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** 课程目录与私有身份投影，按入口验证课程权限和服务来源。 */
+/** 课程目录与私有能力查询，按入口验证课程权限和服务来源。 */
 @Service
 @Transactional(readOnly = true)
 public class IntegrationIdentityService {
@@ -44,7 +44,7 @@ public class IntegrationIdentityService {
                 values.add(permission.code);
             }
         }
-        authorization.identities(snapshot).forEach(identity -> values.add("ROLE_" + identity));
+        authorization.courseRoleCodes(snapshot).forEach(identity -> values.add("ROLE_" + identity));
         return new AuthoritiesVO(java.util.List.copyOf(values));
     }
 
@@ -96,7 +96,7 @@ public class IntegrationIdentityService {
             throw BizException.forbidden("FORBIDDEN");
         }
         AuthorizationService.Snapshot snapshot = authorization.snapshot(actor.userId(), actor.systemCode());
-        if (!authorization.identities(snapshot).contains("admin")
+        if (!authorization.courseRoleCodes(snapshot).contains("admin")
                 || !authorization.permission(actor.userId(), actor.systemCode(), "API", "TEC")) {
             throw BizException.forbidden("FORBIDDEN");
         }

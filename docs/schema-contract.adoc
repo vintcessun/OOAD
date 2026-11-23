@@ -10,7 +10,7 @@
 |sys_system |id,code VARCHAR(64) UNIQUE,name VARCHAR(128),status VARCHAR(16),version BIGINT
 |sys_department |id,parent_id BIGINT NULL FK自身,code VARCHAR(64) UNIQUE,name VARCHAR(128),path VARCHAR(1024),status VARCHAR(16),version BIGINT
 |sys_user |id,subject VARCHAR(128) UNIQUE,username VARCHAR(128) UNIQUE,password_hash VARCHAR(100),name VARCHAR(128),no VARCHAR(64) NULL,phone VARCHAR(32) NULL,department_id BIGINT FK,status VARCHAR(16),token_version BIGINT DEFAULT0,must_change_password BOOLEAN DEFAULT true,failed_login_count INT DEFAULT0,locked_until TIMESTAMP(3) NULL,version BIGINT DEFAULT0,created_at TIMESTAMP(3)
-|sys_role |id,system_id BIGINT FK,code VARCHAR(64),name VARCHAR(128),description VARCHAR(500) NULL,status VARCHAR(16),builtin BOOLEAN DEFAULT false,identity_role VARCHAR(16) NULL,version BIGINT；UNIQUE(system_id,code)
+|sys_role |id,system_id BIGINT FK,code VARCHAR(64),name VARCHAR(128),description VARCHAR(500) NULL,status VARCHAR(16),builtin BOOLEAN DEFAULT false,version BIGINT；UNIQUE(system_id,code)
 |sys_permission |id,system_id BIGINT FK,code VARCHAR(128),name VARCHAR(128),kind VARCHAR(8),status VARCHAR(16),version BIGINT；UNIQUE(system_id,kind,code)
 |sys_role_permission |id,role_id BIGINT FK,permission_id BIGINT FK；UNIQUE(role_id,permission_id)
 |sys_user_role |id,user_id BIGINT FK,role_id BIGINT FK,assigned_by BIGINT NULL,assigned_at TIMESTAMP(3)；UNIQUE(user_id,role_id)
@@ -34,5 +34,5 @@ root password_hash初始为UNINITIALIZED，Boot受控引导只在该值存在时
 根实体version用于HTTP可选version字段冲突检测，不替代全局授权版本或图互斥。
 
 审计不建业务FK，不随角色用户删除；查询索引(source_system_code,occurred_at,id)、(source_system_code,actor_id,occurred_at,id)、(source_system_code,object_type,object_id,occurred_at,id)。
-外部origin=COURSE；中心本地事件origin=INTERNAL。外部actor_roles_json仅受控identityRole枚举投影。
+外部origin=COURSE；中心本地事件origin=INTERNAL。外部actor_roles_json仅当前系统有效课程角色码。
 受控本地SUCCESS审计requestId为新UUID；外部保留调用方UUID。JSON以String/JsonNode装配皆可，但不可直接向客户端输出JSON字符串而非对象。

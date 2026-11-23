@@ -29,9 +29,6 @@ public class RoleEntity {
     @Column(name = "builtin")
     private Boolean builtin;
 
-    @Column(name = "identity_role")
-    private String identityRole;
-
     @Version
     @Column(name = "version")
     private Long version;
@@ -90,14 +87,6 @@ public class RoleEntity {
 
     public void setBuiltin(Boolean value) {
         this.builtin = value;
-    }
-
-    public String getIdentityRole() {
-        return identityRole;
-    }
-
-    public void setIdentityRole(String value) {
-        this.identityRole = value;
     }
 
     public Long getVersion() {

@@ -203,7 +203,7 @@ public class ResourceService {
             AuthorizationService.Snapshot actor = az.snapshot(a.userId(), systemCode);
             if (pid != null && !actor.permissions().contains(pid))
                 throw BizException.forbidden("PRIVILEGE_ESCALATION");
-            if (requiredRole != null && !az.identities(actor).contains(requiredRole))
+            if (requiredRole != null && !az.roleCodes(actor).contains(requiredRole))
                 throw BizException.forbidden("PRIVILEGE_ESCALATION");
         }
         r.systemId = system;

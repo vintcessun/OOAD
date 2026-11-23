@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/** 对课程管理员提供统一身份目录，并承载可信服务身份投影。 */
+/** 对课程管理员提供统一身份目录，并承载可信服务能力查询。 */
 @RestController
 @Validated
 public class IntegrationIdentityController {

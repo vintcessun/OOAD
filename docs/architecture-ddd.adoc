@@ -10,7 +10,7 @@ rbac-ddd已包含真实domain、application、interfaces及infrastructure业务�
 RbacDddApplication扫描自身包；默认8082，部署SERVER_PORT可统一为`${RBAC_PORT:-8081}`；没有全局context-path。
 ImplementationHealthIndicator已替代旧骨架探针，元数据为backend=ddd、stage=M5-RBAC1-verified、businessReady=true；整体仍由真实依赖探针汇总，不能把实现标识当外部部署背书。
 当前112项DDD测试与25场景真HTTP及T21已通过；源码存在不是证明，结果与hash见最终验收报告。旧“业务404/无需数据库/只21骨架测试”均不是现行事实。
-依据为link:implementation-contract.adoc[实施合同]、link:schema-contract.adoc[15表合同]、link:course-integration-contract.adoc[课程私有投影合同]。
+依据为link:implementation-contract.adoc[实施合同]、link:schema-contract.adoc[15表合同]、link:course-integration-contract.adoc[课程私有服务接口合同]。
 
 == 依赖方向与真实职责
 
@@ -40,8 +40,8 @@ BackendIsolationTest、DomainArchitectureTest包括生产类扫描及故意违�
 |场景 |真实职责分配与必须保留的安全期望
 |S01 继承加边 |RoleApplicationService先lockGrants，加载RoleHierarchy；RoleHierarchy.link拒绝自环、跨系统、重复及反向可达；应用保存边、检查上界/最后管理员、递增版本并同事务审计。数据库锁负责并发串行化，必须实际测反向并发。
 |S02 准入与调动 |User.assign 调用 DepartmentEligibility.requireEligible。跨部门调动时，User.transfer 清空本人的角色指派。DirectoryApplicationService 核对原、新部门的管理范围并在同一事务中保存。
-|S03 有效权限 |RoleHierarchy.paths保留有效路径、停用节点切断；AuthorizationPolicy.calculate计算直接/有效角色、去重权限和多条来源，identityRole投影受控。应用加载事实/版本并协调缓存，不从UI映射推导API。
-|S04 课程准入 |ApiOperation/AuthorizationPolicy判定系统级permission/requiredRole；可信课程网关另由固定method/path解析operationId；私有authorities投影真实API能力/ROLE_身份。teacher准入不能伪造CC，教师Service保留对象规则。
+|S03 有效权限 |RoleHierarchy.paths保留有效路径、停用节点切断；AuthorizationPolicy.calculate计算直接/有效角色、去重权限和多条来源，有效角色码来自同一角色闭包。应用加载事实/版本并协调缓存，不从UI映射推导API。
+|S04 课程准入 |ApiOperation/AuthorizationPolicy判定系统级permission/requiredRole；可信课程网关另由固定method/path解析operationId；私有 authorities 返回有效 API 权限和课程角色。teacher准入不能伪造CC，教师Service保留对象规则。
 |S05 幂等审计 |AuditFact.requireReplay绑定来源系统、主体和payload_hash；AuditApplicationService规范化安全JSON并使用独立插入事务，唯一冲突回滚后重读，提交后201；外部查询按aud隔离。
 |S06 敏感业务 |应用事务在同一MySQL提交业务、全局版本与SUCCESS审计；LastAdministratorPolicy保护可用性不变量。拒绝事实独立事务，不以AOP技术日志代替审计。
 |===
@@ -52,7 +52,7 @@ BackendIsolationTest、DomainArchitectureTest包括生产类扫描及故意违�
 
 OpenApiOperationContract 读取中心 68 项 OAS，RouteContractVerifier 核对实际 Controller 及持久注册。管理入口保护固定路由的 API 元数据。
 HttpSecurityConfiguration关闭会话、表单和Basic；Bearer与细粒度授权由接入层/应用统一验证，不能将框架permitAll理解成匿名业务开放。
-根/auth七操作与两个私有投影已有Controller；私有端点即使公开代理阻断仍需有效Bearer和服务密钥，身份查询还需TEC与admin，不能接收客户端subject/system指定目标权限上下文。
+根/auth七操作与两个私有服务接口已有Controller；私有端点即使公开代理阻断仍需有效Bearer和服务密钥，身份查询还需TEC与admin，不能接收客户端subject/system指定目标权限上下文。
 
 AuthorizationApplicationService每次读取MySQL授权版本，写事务内不消费/回填缓存；VersionedEffectiveCache以namespace:authz:system:user:version为键。
 当前DDD适配为Caffeine L1约30秒、Redis L2约60秒，TTL只清理旧键；Redis异常回源，权威数据库失败不能以旧缓存放行。与结构化缓存实现/TTL不同不改变即时撤权合同，跨JVM与延迟回填仍须验收。

@@ -29,8 +29,8 @@ class VersionedEffectiveCacheTest {
         var json = new ObjectMapper();
         var ui = new Permission(11, "course", "shared", "界面", Permission.Kind.UI, true);
         var api = new Permission(12, "course", "shared", "接口", Permission.Kind.API, true);
-        var uiRole = new Role(1, "course", "UI_ROLE", "界面角色", null, true, false, null, 0, Set.of(ui.id()));
-        var apiRole = new Role(2, "course", "API_ROLE", "接口角色", null, true, false, null, 0, Set.of(api.id()));
+        var uiRole = new Role(1, "course", "UI_ROLE", "界面角色", null, true, false, 0, Set.of(ui.id()));
+        var apiRole = new Role(2, "course", "API_ROLE", "接口角色", null, true, false, 0, Set.of(api.id()));
         var graph = new RoleHierarchy(List.of(uiRole, apiRole), List.of());
         var effective = new AuthorizationPolicy().calculate("course", Set.of(1L, 2L), graph, List.of(ui, api));
         var writer = new VersionedEffectiveCache(redis, json, "ddd");

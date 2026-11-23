@@ -35,7 +35,7 @@ class AuthorizationSecurityRegressionTest {
     }
 
     private Role role() {
-        return new Role(2, "s", "viewer", "查看者", null, true, false, null, 0, Set.of(1L));
+        return new Role(2, "s", "viewer", "查看者", null, true, false, 0, Set.of(1L));
     }
 
     private Permission permission() {
@@ -85,7 +85,6 @@ class AuthorizationSecurityRegressionTest {
                         null,
                         true,
                         true,
-                        null,
                         0,
                         Set.of());
         AuthorizationPolicy.Effective proposed =
@@ -97,7 +96,7 @@ class AuthorizationSecurityRegressionTest {
                                 List.of());
         AuthorizationPolicy.Effective actor =
                 new AuthorizationPolicy.Effective(List.of(), List.of(), List.of(), List.of());
-        assertThatThrownBy(() -> new AuthorizationPolicy().requireWithin(actor, proposed, false))
+        assertThatThrownBy(() -> new AuthorizationPolicy().requireWithin(actor, proposed, false, Set.of()))
                 .hasMessageContaining("GRANT_EXCEEDS_ACTOR");
     }
 
@@ -449,12 +448,11 @@ class AuthorizationSecurityRegressionTest {
                         null,
                         true,
                         true,
-                        null,
                         0,
                         Set.of());
         Role ordinary =
                 new Role(
-                        2, "rbac-center", "ordinary", "普通角色", null, true, false, null, 0, Set.of());
+                        2, "rbac-center", "ordinary", "普通角色", null, true, false, 0, Set.of());
         RoleHierarchy graph =
                 new RoleHierarchy(List.of(special, ordinary), Set.of(new RoleHierarchy.Edge(2, 1)));
         AuthorizationPolicy.Effective inherited =
@@ -466,7 +464,8 @@ class AuthorizationSecurityRegressionTest {
                                                 new AuthorizationPolicy.Effective(
                                                         List.of(), List.of(), List.of(), List.of()),
                                                 inherited,
-                                                false))
+                                                false,
+                                                Set.of()))
                 .hasMessageContaining("GRANT_EXCEEDS_ACTOR");
         special.changeStatus(false);
         assertThatThrownBy(() -> graph.requireGrantable(Set.of(2L), false))
@@ -483,7 +482,7 @@ class AuthorizationSecurityRegressionTest {
         var principal = new TokenProvider.Principal("u7", "rbac-center", "jti", 0, null);
         Role administrator =
                 new Role(1, "rbac-center", "SUPER_ADMIN", "超级管理员", null,
-                        true, true, null, 0, Set.of());
+                        true, true, 0, Set.of());
         when(r.identity("u7")).thenReturn(actor);
         when(r.departmentPath(actor.departmentId())).thenReturn("/1/");
         when(r.systemEnabled("rbac-center")).thenReturn(true);
@@ -549,8 +548,8 @@ class AuthorizationSecurityRegressionTest {
         var principal = new TokenProvider.Principal("u7", "rbac-center", "jti", 0, null);
         AuthorizationRepository grants = repository();
         var authorization = managementAuthorization(grants, false);
-        var role = new Role(2L, "s", "viewer", "查看者", null, true, false,
-                "identity".equals(grant) ? "teacher" : null, 0,
+        var role = new Role(2L, "s", "identity".equals(grant) ? "teacher" : "viewer",
+                "查看者", null, true, false, 0,
                 "permission".equals(grant) ? Set.of(1L) : Set.of());
         when(grants.role(2L)).thenReturn(role);
         when(grants.systemEnabled("s")).thenReturn(systemEnabled);
@@ -617,8 +616,8 @@ class AuthorizationSecurityRegressionTest {
         when(directory.system(2L)).thenReturn(
                 new DirectoryRepository.SystemDefinition(2L, "s", "课程", "DISABLED", 1L));
         when(directory.saveSystem(any())).thenAnswer(call -> call.getArgument(0));
-        var role = new Role(2L, "s", "viewer", "查看者", null, true, false,
-                "identity".equals(configuredGrant) ? "teacher" : null, 0,
+        var role = new Role(2L, "s", "identity".equals(configuredGrant) ? "teacher" : "viewer",
+                "查看者", null, true, false, 0,
                 "permission".equals(configuredGrant) ? Set.of(1L) : Set.of());
         when(r.systemEnabled("s")).thenReturn(false);
         when(r.hierarchy("s")).thenReturn(new RoleHierarchy(List.of(role), Set.of()));
@@ -653,7 +652,7 @@ class AuthorizationSecurityRegressionTest {
                 new Permission(31L, "rbac-center", "rbac:system:edit", "编辑系统", Permission.Kind.API, true),
                 new Permission(32L, "rbac-center", "rbac:user:edit", "编辑用户", Permission.Kind.API, true));
         var role = new Role(4L, "rbac-center", superAdmin ? "SUPER_ADMIN" : "RBAC_ADMIN", "管理员",
-                null, true, superAdmin, null, 0, Set.of(30L, 31L, 32L));
+                null, true, superAdmin, 0, Set.of(30L, 31L, 32L));
         when(repository.hierarchy("rbac-center")).thenReturn(new RoleHierarchy(List.of(role), Set.of()));
         when(repository.permissions("rbac-center")).thenReturn(permissions);
         when(repository.assignments(7L, "rbac-center")).thenReturn(Set.of(role.id()));

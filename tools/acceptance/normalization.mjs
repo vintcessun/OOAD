@@ -44,7 +44,7 @@ function entityType(value, hint) {
   if ('operationId' in value && ('method' in value || 'pathTemplate' in value)) return 'apiOperation';
   if (['MENU','BUTTON'].includes(value.type)) return 'uiResource';
   if (['UI','API'].includes(value.kind) && 'code' in value) return 'permission';
-  if (('identityRole' in value || 'builtin' in value) && 'code' in value) return 'role';
+  if ('builtin' in value && 'code' in value) return 'role';
   if ('code' in value && ('parentId' in value || 'path' in value)) return 'department';
   return hint;
 }

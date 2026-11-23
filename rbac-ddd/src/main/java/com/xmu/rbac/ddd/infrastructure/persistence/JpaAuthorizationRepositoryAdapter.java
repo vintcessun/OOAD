@@ -71,7 +71,7 @@ public class JpaAuthorizationRepositoryAdapter implements AuthorizationRepositor
     }
 
     private Role restore(RoleEntity entity, String code) {
-        RoleState state = CloneFactory.copy(new RoleState(null, null, null, null, null, null), entity);
+        RoleState state = CloneFactory.copy(new RoleState(null, null, null, null, null), entity);
         Set<Long> permissions =
                 new HashSet<>(
                         em.createQuery(
@@ -88,7 +88,6 @@ public class JpaAuthorizationRepositoryAdapter implements AuthorizationRepositor
                 state.description(),
                 state.status().equals("ENABLED"),
                 state.builtin(),
-                state.identityRole(),
                 entity.getVersion(),
                 permissions);
     }
@@ -184,7 +183,7 @@ public class JpaAuthorizationRepositoryAdapter implements AuthorizationRepositor
         if (role.id() != 0)
             DomainException.require(entity.getVersion() == role.version(), 409, "VERSION_CONFLICT");
         RoleState state = new RoleState(role.code(), role.name(), role.description(),
-                role.enabled() ? "ENABLED" : "DISABLED", role.builtin(), role.identityRole());
+                role.enabled() ? "ENABLED" : "DISABLED", role.builtin());
         CloneFactory.copy(entity, state);
         entity.setSystemId(system(role.systemCode()).getId());
         roleRecords.saveAndFlush(entity);
@@ -317,6 +316,17 @@ public class JpaAuthorizationRepositoryAdapter implements AuthorizationRepositor
         DepartmentEntity e = em.find(DepartmentEntity.class, department);
         DomainException.require(e != null, 404, "DEPARTMENT_NOT_FOUND");
         return e.getPath();
+    }
+
+    @Override
+    public Set<String> requiredRoleCodes(String code) {
+        return Set.copyOf(em.createQuery(
+                        "select a.requiredRole from ApiOperationEntity a "
+                                + "where a.systemId=:system and a.accessPolicy='PROTECTED' "
+                                + "and a.requiredRole is not null",
+                        String.class)
+                .setParameter("system", system(code).getId())
+                .getResultList());
     }
 
     @Override

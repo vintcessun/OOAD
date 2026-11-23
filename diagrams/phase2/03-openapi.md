@@ -1,13 +1,13 @@
 # OpenAPI 功能解读与完整操作索引
 
-> 阅读基线：2026-11-19；Git HEAD：`560ed0d32aca4765b1a936a711bfdf0a8ad559b7`。本文来自当前源码、固定教师 API 和数据库迁移的静态分析。本次未运行业务测试或部署，接口存在不等于本轮验收通过。
+> 阅读基线：2026-11-19；Git HEAD：`57deb4a1cf91da197f3f30687839afca8bf7b815`。本文来自当前源码、固定教师 API 和数据库迁移的静态分析。本次未运行业务测试或部署，接口存在不等于本轮验收通过。
 
 ## 先理解文件与计数
 
-- 中心：[rbac-contract/src/main/resources/openapi/rbac-api.yaml](../../rbac-contract/src/main/resources/openapi/rbac-api.yaml)，67 个操作、49 个路径、63 个 schema。
+- 中心：[rbac-contract/src/main/resources/openapi/rbac-api.yaml](../../rbac-contract/src/main/resources/openapi/rbac-api.yaml)，68 个操作、50 个路径、63 个 schema。
 - 教师：[rbac-contract/src/main/resources/catalog/course-openapi.source.yaml](../../rbac-contract/src/main/resources/catalog/course-openapi.source.yaml)，90 个操作，其中 80 个课程业务操作与 10 个提供方操作。
-- 提供方操作计入中心目录。两个系统合计 147 个操作标识，课程目录包含一个公开登录。
-- 中心目录包含 54 个 /api/v1 操作（含 health/info）、8 个统一身份鉴权操作、2 个审计操作、2 个私有投影和 1 个 JWKS。
+- 提供方操作计入中心目录。两个系统合计 148 个操作标识，课程目录包含一个公开登录。
+- 中心目录包含 55 个 /api/v1 操作（含 health/info）、8 个统一身份鉴权操作、2 个审计操作、2 个私有服务接口和 1 个 JWKS。
 
 ## 功能分组
 
@@ -17,7 +17,7 @@
 | 集中审计服务 | 2 | 课程后端携带用户令牌与服务密钥写入 / 查询审计；requestId 幂等，操作者从可信身份取得。 |
 | 本人资料、改密与首页 | 3 | 查看本人及有效权限、修改密码、查看用户/角色/系统基础计数。 |
 | 受管系统 | 4 | 登记、重命名、启停系统；不同系统角色和资源隔离。无系统删除接口。 |
-| 部门与角色准入 | 6 | 管理部门树，维护该部门允许指派的角色；替换准入时回收不合资格指派。 |
+| 部门与角色准入 | 7 | 管理部门树，维护该部门允许指派的角色；替换准入时回收不合资格指派。 |
 | 用户管理 | 7 | 分页检索、创建、编辑、启停、逻辑删除和独立部门调动；禁止通过普通 PATCH 偷改部门或状态。 |
 | 角色、直接权限与继承 | 12 | 管理系统角色、启停与退役；配置直接权限；维护同系统多父 DAG；查询继承后的有效权限。 |
 | 用户角色指派与有效权限 | 4 | 指派、撤销用户角色并查看结果；受部门准入、管理范围和操作者授权上界约束。 |
@@ -27,7 +27,7 @@
 | UI 与 API 映射 | 2 | 维护多对多覆盖关系并查询未映射项；映射用于追踪，不自动授予 API 权限。 |
 | 鉴权与解释 | 2 | 查询某用户在某系统的 UI/API 许可，解释角色继承来源；调用资格不足是 403，正常拒绝可为 200 + allowed:false。 |
 | 管理审计查询 | 1 | 查询中心和课程来源的审计事实；筛选、权限隔离和分页在业务/数据层完成。 |
-| 私有服务投影 | 2 | 提供当前系统真实 API 能力与统一用户查询；仅可信后端可用，公开 Nginx 阻断。 |
+| 私有服务接口 | 2 | 提供当前系统真实 API 能力与统一用户查询；仅可信后端可用，公开 Nginx 阻断。 |
 | 公钥与运行状态 | 3 | JWKS 用于签名验证；health/info 用于运行观察，不表示业务验收完成。 |
 
 ## 怎样读一个操作
@@ -39,8 +39,8 @@
 ## 协议与实现核对要点
 
 - `/api/v1` 普通成功响应使用 `{code:"OK", message, data, timestamp}`；Actuator health/info 是框架原生响应，不属于普通业务包装。
-- `/auth/*`、私有投影和 JWKS 使用各自裸响应；退出 204 无响应体。错误采用稳定字符串 `code` 与中文 `message`。
-- `GET /auth/me` 仅投影 student/teacher/admin 身份角色和 UI 权限；管理端 `/api/v1/me` 给出用户与有效授权详情，二者不能混用。
+- `/auth/*`、私有服务接口和 JWKS 使用各自裸响应；退出 204 无响应体。错误采用稳定字符串 `code` 与中文 `message`。
+- `GET /auth/me` 返回有效角色中的 student、teacher、admin 角色码和 UI 权限；管理端 `/api/v1/me` 给出用户与有效授权详情，二者不能混用。
 - UI 权限判断只返回 `{allowed}`；API 资格判断返回 `{operationId,allowed}`；普通无权可返回 200 + false，调用者身份不合法则是 401/403。
 - 审计 POST 提交后返回 201，同 requestId 同体重试返回原记录；同键异体冲突；GET 是裸分页。均要求服务密钥与相应审计权限。
 - `/integration/authorities` 和 `/identity/users/{userId}` 是内网可信服务接口；OpenAPI 写 Bearer 不等于只凭 Bearer 即可调用。
@@ -56,12 +56,12 @@
 | --- | --- | --- | --- | --- |
 | POST | `/auth/login` | `login` | PUBLIC | 登录 |
 | POST | `/auth/logout` | `logout` | @authenticated | 退出登录 |
-| GET | `/auth/me` | `getIdentityCurrentUser` | @authenticated | 当前用户、角色与权限 |
-| GET | `/auth/departments` | `listIdentityDepartments` | TEC | 查询统一身份部门列表（逐层展开） |
-| GET | `/auth/departments/{departmentId}/users` | `listIdentityDepartmentUsers` | TEC | 查询部门下的用户 |
-| GET | `/auth/permissions/{permission}` | `checkIdentityPermission` | @authenticated | 校验当前用户是否具备指定前端权限 |
-| GET | `/auth/api-permissions/{operationId}` | `getApiAuthority` | @authenticated | 判断当前用户能否调用指定 API 接口 |
-| GET | `/auth/users/{userId}` | `lookupIdentityUser` | TEC | 查询统一身份用户 |
+| GET | `/auth/me` | `getIdentityCurrentUser` | @authenticated | 查询当前用户的身份与前端权限 |
+| GET | `/auth/departments` | `listIdentityDepartments` | TEC | 查询统一身份部门列表 |
+| GET | `/auth/departments/{departmentId}/users` | `listIdentityDepartmentUsers` | TEC | 查询统一身份部门成员 |
+| GET | `/auth/permissions/{permission}` | `checkIdentityPermission` | @authenticated | 检查当前用户的 UI 权限 |
+| GET | `/auth/api-permissions/{operationId}` | `getApiAuthority` | @authenticated | 检查当前用户的 API 调用资格 |
+| GET | `/auth/users/{userId}` | `lookupIdentityUser` | TEC | 按统一身份标识查询用户 |
 
 ## 集中审计服务（2）
 
@@ -69,8 +69,8 @@
 
 | 方法 | 路径 | operationId | 入口权限 | 摘要 |
 | --- | --- | --- | --- | --- |
-| GET | `/auth/audit-logs` | `queryIdentityAuditLogs` | audit:read | 查询统一身份审计日志 |
-| POST | `/auth/audit-logs` | `writeIdentityAuditLog` | audit:write | 写入统一身份审计日志 |
+| GET | `/auth/audit-logs` | `queryIdentityAuditLogs` | audit:read | 查询课程审计日志 |
+| POST | `/auth/audit-logs` | `writeIdentityAuditLog` | audit:write | 写入课程审计日志 |
 
 ## 本人资料、改密与首页（3）
 
@@ -78,9 +78,9 @@
 
 | 方法 | 路径 | operationId | 入口权限 | 摘要 |
 | --- | --- | --- | --- | --- |
-| GET | `/api/v1/me` | `getMe` | @authenticated | 本人UserVO及当前系统EffectiveVO组成 `{user,effective}` |
-| POST | `/api/v1/auth/password` | `changePassword` | @authenticated | oldPassword,newPassword；204或包装null，更新tokenVersion |
-| GET | `/api/v1/dashboard` | `getDashboard` | rbac:user:view | 仅基础计数 `{users,roles,systems}`，不做统计/热力图 |
+| GET | `/api/v1/me` | `getMe` | @authenticated | 查询本人资料与有效权限 |
+| POST | `/api/v1/auth/password` | `changePassword` | @authenticated | 修改当前用户密码 |
+| GET | `/api/v1/dashboard` | `getDashboard` | rbac:user:view | 查询仪表盘基础计数 |
 
 ## 受管系统（4）
 
@@ -88,23 +88,24 @@
 
 | 方法 | 路径 | operationId | 入口权限 | 摘要 |
 | --- | --- | --- | --- | --- |
-| GET | `/api/v1/systems` | `listSystems` | rbac:system:view | SystemVO[]（有限注册系统） |
-| POST | `/api/v1/systems` | `createSystem` | rbac:system:edit | {code,name} |
-| PATCH | `/api/v1/systems/{id}` | `updateSystem` | rbac:system:edit | {name} |
-| PUT | `/api/v1/systems/{id}/status` | `setSystemStatus` | rbac:system:edit | {status} |
+| GET | `/api/v1/systems` | `listSystems` | rbac:system:view | 查询受管系统列表 |
+| POST | `/api/v1/systems` | `createSystem` | rbac:system:edit | 注册受管系统 |
+| PATCH | `/api/v1/systems/{id}` | `updateSystem` | rbac:system:edit | 修改系统名称 |
+| PUT | `/api/v1/systems/{id}/status` | `setSystemStatus` | rbac:system:edit | 启用或停用系统 |
 
-## 部门与角色准入（6）
+## 部门与角色准入（7）
 
 管理部门树，维护该部门允许指派的角色；替换准入时回收不合资格指派。
 
 | 方法 | 路径 | operationId | 入口权限 | 摘要 |
 | --- | --- | --- | --- | --- |
-| GET | `/api/v1/departments/tree` | `getDepartmentTree` | rbac:department:view | DepartmentVO[] |
-| POST | `/api/v1/departments` | `createDepartment` | rbac:department:edit | {parentId?,code,name} |
-| PATCH | `/api/v1/departments/{id}` | `updateDepartment` | rbac:department:edit | {name} |
-| DELETE | `/api/v1/departments/{id}` | `deleteDepartment` | rbac:department:edit | 有员工/子部门则409；无数据再删 |
-| GET | `/api/v1/departments/{id}/assignable-roles` | `getDepartmentAssignableRoles` | rbac:department:view | ?systemCode |
-| PUT | `/api/v1/departments/{id}/assignable-roles` | `replaceDepartmentAssignableRoles` | rbac:department:edit | {roleIds:Long[]}原子替换，回收不合资格指派 |
+| GET | `/api/v1/departments/tree` | `getDepartmentTree` | rbac:department:view | 查询部门树 |
+| POST | `/api/v1/departments` | `createDepartment` | rbac:department:edit | 新增子部门 |
+| PATCH | `/api/v1/departments/{id}` | `updateDepartment` | rbac:department:edit | 修改部门名称 |
+| DELETE | `/api/v1/departments/{id}` | `deleteDepartment` | rbac:department:delete | 删除空部门 |
+| PUT | `/api/v1/departments/{id}/status` | `setDepartmentStatus` | rbac:department:status | 启用或停用部门 |
+| GET | `/api/v1/departments/{id}/assignable-roles` | `getDepartmentAssignableRoles` | rbac:department:view | 查询部门可指派角色 |
+| PUT | `/api/v1/departments/{id}/assignable-roles` | `replaceDepartmentAssignableRoles` | rbac:department:edit | 替换部门可指派角色 |
 
 ## 用户管理（7）
 
@@ -112,13 +113,13 @@
 
 | 方法 | 路径 | operationId | 入口权限 | 摘要 |
 | --- | --- | --- | --- | --- |
-| GET | `/api/v1/users` | `listUsers` | rbac:user:view | ?keyword,departmentId,status,page,pageSize |
-| POST | `/api/v1/users` | `createUser` | rbac:user:edit | {username,name,no?,phone?,departmentId,password} |
-| GET | `/api/v1/users/{id}` | `getUser` | rbac:user:view | UserVO |
-| PATCH | `/api/v1/users/{id}` | `updateUser` | rbac:user:edit | {name?,no?,phone?,version?}，禁止department/status |
-| DELETE | `/api/v1/users/{id}` | `deleteUser` | rbac:user:edit | 逻辑删除，清理指派、版本、审计 |
-| PUT | `/api/v1/users/{id}/status` | `setUserStatus` | rbac:user:edit | {status} |
-| PUT | `/api/v1/users/{id}/department` | `changeUserDepartment` | rbac:user:edit | {departmentId,version?} |
+| GET | `/api/v1/users` | `listUsers` | rbac:user:view | 查询用户列表 |
+| POST | `/api/v1/users` | `createUser` | rbac:user:edit | 新增用户 |
+| GET | `/api/v1/users/{id}` | `getUser` | rbac:user:view | 查询用户详情 |
+| PATCH | `/api/v1/users/{id}` | `updateUser` | rbac:user:edit | 修改用户资料 |
+| DELETE | `/api/v1/users/{id}` | `deleteUser` | rbac:user:edit | 逻辑删除用户 |
+| PUT | `/api/v1/users/{id}/status` | `setUserStatus` | rbac:user:edit | 修改用户状态 |
+| PUT | `/api/v1/users/{id}/department` | `changeUserDepartment` | rbac:user:edit | 调整用户所属部门 |
 
 ## 角色、直接权限与继承（12）
 
@@ -126,18 +127,18 @@
 
 | 方法 | 路径 | operationId | 入口权限 | 摘要 |
 | --- | --- | --- | --- | --- |
-| GET | `/api/v1/roles` | `listRoles` | rbac:role:view | ?systemCode必填,keyword,status,page,pageSize |
-| POST | `/api/v1/roles` | `createRole` | rbac:role:edit | {systemCode,code,name,description?,identityRole?} |
-| GET | `/api/v1/roles/{id}` | `getRole` | rbac:role:view | RoleVO |
-| PATCH | `/api/v1/roles/{id}` | `updateRole` | rbac:role:edit | {name?,description?,version?}，禁止status |
-| DELETE | `/api/v1/roles/{id}` | `deleteRole` | rbac:role:edit | 受控退役/清指派、边、权限、准入，保护最后有效超级管理员 |
-| PUT | `/api/v1/roles/{id}/status` | `setRoleStatus` | rbac:role:status | {status} |
-| GET | `/api/v1/roles/{id}/permissions` | `getRolePermissions` | rbac:role:view | PermissionVO[]（直接） |
-| PUT | `/api/v1/roles/{id}/permissions` | `replaceRolePermissions` | rbac:role:edit | {permissionIds:Long[]}原子替换，仅同系统 |
-| GET | `/api/v1/roles/{id}/effective-permissions` | `getRoleEffectivePermissions` | rbac:role:view | EffectiveVO（以该角色为直接角色） |
-| GET | `/api/v1/systems/{code}/role-hierarchy` | `getRoleHierarchy` | rbac:role:view | HierarchyVO |
-| POST | `/api/v1/roles/{seniorId}/inherits/{juniorId}` | `addRoleInheritance` | rbac:role:edit | 同系统有向边，重复409，环409 ROLE_CYCLE |
-| DELETE | `/api/v1/roles/{seniorId}/inherits/{juniorId}` | `deleteRoleInheritance` | rbac:role:edit | 无边404，否则回收并失效 |
+| GET | `/api/v1/roles` | `listRoles` | rbac:role:view | 查询角色列表 |
+| POST | `/api/v1/roles` | `createRole` | rbac:role:edit | 新增角色 |
+| GET | `/api/v1/roles/{id}` | `getRole` | rbac:role:view | 查询角色详情 |
+| PATCH | `/api/v1/roles/{id}` | `updateRole` | rbac:role:edit | 修改角色资料 |
+| DELETE | `/api/v1/roles/{id}` | `deleteRole` | rbac:role:edit | 删除角色 |
+| PUT | `/api/v1/roles/{id}/status` | `setRoleStatus` | rbac:role:status | 启用或停用角色 |
+| GET | `/api/v1/roles/{id}/permissions` | `getRolePermissions` | rbac:role:view | 查询角色直接权限 |
+| PUT | `/api/v1/roles/{id}/permissions` | `replaceRolePermissions` | rbac:role:edit | 替换角色直接权限 |
+| GET | `/api/v1/roles/{id}/effective-permissions` | `getRoleEffectivePermissions` | rbac:role:view | 查询角色有效权限 |
+| GET | `/api/v1/systems/{code}/role-hierarchy` | `getRoleHierarchy` | rbac:role:view | 查询系统角色继承关系 |
+| POST | `/api/v1/roles/{seniorId}/inherits/{juniorId}` | `addRoleInheritance` | rbac:role:edit | 添加角色继承关系 |
+| DELETE | `/api/v1/roles/{seniorId}/inherits/{juniorId}` | `deleteRoleInheritance` | rbac:role:edit | 删除角色继承关系 |
 
 ## 用户角色指派与有效权限（4）
 
@@ -145,10 +146,10 @@
 
 | 方法 | 路径 | operationId | 入口权限 | 摘要 |
 | --- | --- | --- | --- | --- |
-| GET | `/api/v1/users/{id}/role-assignments` | `listUserRoleAssignments` | rbac:user:view | ?systemCode |
-| POST | `/api/v1/users/{id}/role-assignments` | `createUserRoleAssignment` | rbac:assignment:edit | {roleId} |
-| DELETE | `/api/v1/users/{id}/role-assignments/{assignmentId}` | `deleteUserRoleAssignment` | rbac:assignment:edit | 按用户核对指派所属再删 |
-| GET | `/api/v1/users/{id}/systems/{code}/permissions` | `getUserEffectivePermissions` | rbac:user:view | EffectiveVO |
+| GET | `/api/v1/users/{id}/role-assignments` | `listUserRoleAssignments` | rbac:user:view | 查询用户角色指派 |
+| POST | `/api/v1/users/{id}/role-assignments` | `createUserRoleAssignment` | rbac:assignment:edit | 为用户分配角色 |
+| DELETE | `/api/v1/users/{id}/role-assignments/{assignmentId}` | `deleteUserRoleAssignment` | rbac:assignment:edit | 撤销用户角色指派 |
+| GET | `/api/v1/users/{id}/systems/{code}/permissions` | `getUserEffectivePermissions` | rbac:user:view | 查询用户有效权限 |
 
 ## 权限定义（3）
 
@@ -156,9 +157,9 @@
 
 | 方法 | 路径 | operationId | 入口权限 | 摘要 |
 | --- | --- | --- | --- | --- |
-| GET | `/api/v1/permissions` | `listPermissions` | rbac:permission:view | ?systemCode,kind,keyword,page,pageSize |
-| POST | `/api/v1/permissions` | `createPermission` | rbac:permission:edit | {systemCode,code,name,kind} |
-| PUT | `/api/v1/permissions/{id}/status` | `setPermissionStatus` | rbac:permission:edit | {status} |
+| GET | `/api/v1/permissions` | `listPermissions` | rbac:permission:view | 查询权限列表 |
+| POST | `/api/v1/permissions` | `createPermission` | rbac:permission:edit | 新增权限 |
+| PUT | `/api/v1/permissions/{id}/status` | `setPermissionStatus` | rbac:permission:edit | 启用或停用权限 |
 
 ## 菜单与按钮资源（5）
 
@@ -166,11 +167,11 @@
 
 | 方法 | 路径 | operationId | 入口权限 | 摘要 |
 | --- | --- | --- | --- | --- |
-| GET | `/api/v1/systems/{code}/ui-resources` | `getUiResources` | rbac:resource:view | UiResourceVO[]树 |
-| POST | `/api/v1/systems/{code}/ui-resources` | `createUiResource` | rbac:resource:edit | {parentId?,type,code,name,route?,component?,sortOrder?,permissionCode,status?} |
-| PATCH | `/api/v1/ui-resources/{id}` | `updateUiResource` | rbac:resource:edit | 同上可编辑字段，禁止换system |
-| DELETE | `/api/v1/ui-resources/{id}` | `deleteUiResource` | rbac:resource:edit | 有子节点/映射则409，不静默孤儿 |
-| GET | `/api/v1/menus/me` | `getMyMenus` | @authenticated | 当前aud可见UiResourceVO[]树，含按钮 |
+| GET | `/api/v1/systems/{code}/ui-resources` | `getUiResources` | rbac:resource:view | 查询菜单与按钮配置 |
+| POST | `/api/v1/systems/{code}/ui-resources` | `createUiResource` | rbac:resource:edit | 新增菜单或按钮 |
+| PATCH | `/api/v1/ui-resources/{id}` | `updateUiResource` | rbac:resource:edit | 修改菜单或按钮 |
+| DELETE | `/api/v1/ui-resources/{id}` | `deleteUiResource` | rbac:resource:edit | 删除菜单或按钮 |
+| GET | `/api/v1/menus/me` | `getMyMenus` | @authenticated | 查询当前用户可见菜单 |
 
 ## API 操作登记（3）
 
@@ -178,9 +179,9 @@
 
 | 方法 | 路径 | operationId | 入口权限 | 摘要 |
 | --- | --- | --- | --- | --- |
-| GET | `/api/v1/systems/{code}/api-operations` | `listApiOperations` | rbac:resource:view | ?keyword,page,pageSize |
-| POST | `/api/v1/systems/{code}/api-operations` | `createApiOperation` | rbac:resource:edit | {operationId,method,pathTemplate,permissionCode?,requiredRole?,accessPolicy,enabled} |
-| PATCH | `/api/v1/api-operations/{id}` | `updateApiOperation` | rbac:resource:edit | 同上可修改；中心受保护路由不能弱化OAS要求 |
+| GET | `/api/v1/systems/{code}/api-operations` | `listApiOperations` | rbac:resource:view | 查询已登记的 API |
+| POST | `/api/v1/systems/{code}/api-operations` | `createApiOperation` | rbac:resource:edit | 登记 API 操作 |
+| PATCH | `/api/v1/api-operations/{id}` | `updateApiOperation` | rbac:resource:edit | 修改 API 操作配置 |
 
 ## UI 与 API 映射（2）
 
@@ -188,8 +189,8 @@
 
 | 方法 | 路径 | operationId | 入口权限 | 摘要 |
 | --- | --- | --- | --- | --- |
-| GET | `/api/v1/systems/{code}/ui-api-mappings` | `getUiApiMappings` | rbac:resource:view | MappingVO[]及覆盖报告 `{mappings,unmappedUi,unmappedApi}` |
-| PUT | `/api/v1/systems/{code}/ui-api-mappings` | `replaceUiApiMappings` | rbac:resource:edit | {mappings:[{uiResourceId,apiOperationId}]}原子替换 |
+| GET | `/api/v1/systems/{code}/ui-api-mappings` | `getUiApiMappings` | rbac:resource:view | 查询 UI 与 API 映射及覆盖情况 |
+| PUT | `/api/v1/systems/{code}/ui-api-mappings` | `replaceUiApiMappings` | rbac:resource:edit | 替换 UI 与 API 映射 |
 
 ## 鉴权与解释（2）
 
@@ -197,8 +198,8 @@
 
 | 方法 | 路径 | operationId | 入口权限 | 摘要 |
 | --- | --- | --- | --- | --- |
-| POST | `/api/v1/authorization/check` | `checkAuthorization` | rbac:authz:invoke | {systemCode,userId?,kind:UI/API,permission?或operationId?} |
-| POST | `/api/v1/authorization/explain` | `explainAuthorization` | rbac:authz:invoke | 同上 |
+| POST | `/api/v1/authorization/check` | `checkAuthorization` | rbac:authz:invoke | 检查用户授权 |
+| POST | `/api/v1/authorization/explain` | `explainAuthorization` | rbac:authz:invoke | 解释用户授权结果 |
 
 ## 管理审计查询（1）
 
@@ -206,16 +207,16 @@
 
 | 方法 | 路径 | operationId | 入口权限 | 摘要 |
 | --- | --- | --- | --- | --- |
-| GET | `/api/v1/audit-logs` | `queryAuditLogs` | rbac:audit:view | 同外部过滤＋systemCode，Page<AuditVO> |
+| GET | `/api/v1/audit-logs` | `queryAuditLogs` | rbac:audit:view | 查询管理端审计日志 |
 
-## 私有服务投影（2）
+## 私有服务接口（2）
 
 提供当前系统真实 API 能力与统一用户查询；仅可信后端可用，公开 Nginx 阻断。
 
 | 方法 | 路径 | operationId | 入口权限 | 摘要 |
 | --- | --- | --- | --- | --- |
-| GET | `/integration/authorities` | `getIntegrationAuthorities` | @authenticated | getIntegrationAuthorities |
-| GET | `/identity/users/{userId}` | `lookupUnifiedIdentityUser` | @authenticated | lookupUnifiedIdentityUser |
+| GET | `/integration/authorities` | `getIntegrationAuthorities` | @authenticated | 查询当前用户的服务端授权 |
+| GET | `/identity/users/{userId}` | `lookupUnifiedIdentityUser` | @authenticated | 查询用户身份资料 |
 
 ## 公钥与运行状态（3）
 
@@ -223,9 +224,9 @@ JWKS 用于签名验证；health/info 用于运行观察，不表示业务验收
 
 | 方法 | 路径 | operationId | 入口权限 | 摘要 |
 | --- | --- | --- | --- | --- |
-| GET | `/.well-known/jwks.json` | `getJwks` | PUBLIC | getJwks |
-| GET | `/api/v1/actuator/health` | `getHealth` | PUBLIC | getHealth |
-| GET | `/api/v1/actuator/info` | `getInfo` | PUBLIC | getInfo |
+| GET | `/.well-known/jwks.json` | `getJwks` | PUBLIC | 获取 JWT 验签公钥 |
+| GET | `/api/v1/actuator/health` | `getHealth` | PUBLIC | 查询服务健康状态 |
+| GET | `/api/v1/actuator/info` | `getInfo` | PUBLIC | 查询服务信息 |
 
 ## 课程业务目录（80）
 

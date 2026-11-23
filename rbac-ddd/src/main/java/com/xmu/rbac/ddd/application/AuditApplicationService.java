@@ -88,7 +88,7 @@ public class AuditApplicationService {
                                             grants.assignments(actor.id(), system),
                                             grants.hierarchy(system),
                                             grants.permissions(system));
-                    roles = new ArrayList<>(new TreeSet<>(effective.identities()));
+                    roles = new ArrayList<>(new TreeSet<>(effective.courseRoleCodes()));
                 }
             } catch (DomainException error) {
                 if (error.status() != 404) throw error;

@@ -58,14 +58,13 @@
       "  description VARCHAR(500) NULL,",
       "  status VARCHAR(16) NOT NULL,",
       "  builtin BOOLEAN NOT NULL DEFAULT false,",
-      "  identity_role VARCHAR(16) NULL,",
       "  version BIGINT NOT NULL DEFAULT 0,",
       "  FOREIGN KEY(system_id) REFERENCES sys_system(id),",
       "  UNIQUE(system_id,code),",
-      "  CHECK(status IN ('ENABLED','DISABLED')),",
-      "  CHECK(identity_role IS NULL OR identity_role IN ('student','teacher','admin'))"
+      "  CHECK(status IN ('ENABLED','DISABLED'))"
     ],
-    "ddlSha256": "b05195002bfb1bab73fa10e05f3e0977094baa5837c30ab9ac6515afd51ab2b9"
+    "ddlSha256": "b05195002bfb1bab73fa10e05f3e0977094baa5837c30ab9ac6515afd51ab2b9",
+    "migrationSha256": "cc2477c407e065a889a0904901e955d5eb38cf937982f50eca10cb82cdb8be04"
   },
   "sys_permission": {
     "columns": [

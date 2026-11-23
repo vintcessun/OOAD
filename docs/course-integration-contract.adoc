@@ -7,7 +7,7 @@ JWT 仍使用身份与有效期声明，/auth/me.permissions 仅返回 UI 权限
 实际教师Service的AuthorityCodes（尤其非组长CC）不能从“copyCourse允许进入”推导。
 为受控后端补充以下私有提供方接口；它们不是课程业务代理，公开前端Nginx拒绝/integration和/identity根前缀。
 
-* GET /integration/authorities：有效用户Bearer + X-Audit-Service-Key；不接受subject/system参数，取已验证aud；返回裸 `{authorities:string[]}`，只包含当前系统有效API权限码及受控identityRole对应的ROLE_student/ROLE_teacher/ROLE_admin。未知/停用身份、系统、注销令牌拒绝；服务密钥错误403。只有课程后端持有服务密钥，前端不获得完整API清单。
+* GET /integration/authorities：有效用户Bearer + X-Audit-Service-Key；不接受subject/system参数，取已验证aud；返回裸 `{authorities:string[]}`，只包含当前系统有效API权限码及有效角色码 student、teacher、admin 对应的 ROLE_student、ROLE_teacher、ROLE_admin。未知/停用身份、系统、注销令牌拒绝；服务密钥错误403。只有课程后端持有服务密钥，前端不获得完整API清单。
 * GET /identity/users/{userId}：公共稳定身份查询的内网兼容入口；userId是稳定subject字符串。须有效Bearer、服务密钥、当前系统有效TEC API权限及admin身份；返回裸 `{userId:subject,name,no}`。不存在或已删除404 IDENTITY_USER_NOT_FOUND，不返回密码、电话、授权或内部数据库实体。
 
 课程登录的精确 POST /login 经边缘和网关匿名转发，由教师服务校验本地名单、调用统一身份并确认或绑定 subject。

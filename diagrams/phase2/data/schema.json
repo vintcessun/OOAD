@@ -337,14 +337,6 @@
           "definition": "builtin BOOLEAN NOT NULL DEFAULT false"
         },
         {
-          "name": "identity_role",
-          "type": "VARCHAR(16)",
-          "nullable": true,
-          "pk": false,
-          "fk": null,
-          "definition": "identity_role VARCHAR(16) NULL"
-        },
-        {
           "name": "version",
           "type": "BIGINT",
           "nullable": false,
@@ -362,8 +354,7 @@
       ],
       "constraints": [
         "UNIQUE(system_id,code)",
-        "CHECK(status IN ('ENABLED','DISABLED'))",
-        "CHECK(identity_role IS NULL OR identity_role IN ('student','teacher','admin'))"
+        "CHECK(status IN ('ENABLED','DISABLED'))"
       ],
       "line": 48
     },

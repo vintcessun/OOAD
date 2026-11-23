@@ -16,7 +16,7 @@
 | AUD-03/06 | CatalogWorkspace 审计过滤分页详情、UTC 时间 | safety.spec.ts、console.spec.ts |
 | UI-02/05/06 | 原生响应式表单表格、403/404、简洁三计数首页 | desktop/mobile Playwright 项目 |
 
-管理目标系统只是过滤，不更换管理 JWT audience。菜单、路由、按钮只做精确 UI 权限检查；identityRole=admin 不通配。所有 mutation 后刷新身份、本人有效权限和菜单；HTTP 403 显示真实错误，正常 allowed:false 不当作服务故障。
+管理目标系统只是过滤，不更换管理 JWT audience。菜单、路由、按钮只做精确 UI 权限检查；课程角色码 admin 不通配。所有 mutation 后刷新身份、本人有效权限和菜单；HTTP 403 显示真实错误，正常 allowed:false 不当作服务故障。
 
 ## 一期测试替换映射（非静默删安全预期）
 

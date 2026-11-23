@@ -10,7 +10,7 @@ export { normalize } from './normalization.mjs';
 const C='course-project-management', B='rbac-center';
 const fixturePassword='Fixture!NotReal2026a';
 function keys(o, expected) { assert.deepEqual(Object.keys(o).sort(), [...expected].sort()); }
-function identity(roles) {assert.ok(Array.isArray(roles));for(const r of roles) assert.ok(['student','teacher','admin'].includes(r), 'identityRole enum only');}
+function identity(roles) {assert.ok(Array.isArray(roles));for(const r of roles) assert.ok(['student','teacher','admin'].includes(r), 'course role codes only');}
 export async function runSuite(f, record) {
   let root, user, token, department, sibling, role, ui, apiPermission, operation;
   const observations=[];
@@ -61,7 +61,16 @@ export async function runSuite(f, record) {
     try {const result=await fn();await record({scenario:name,status:'pass',durationMs:Date.now()-start,observations:observations.slice(mark),result:normalize(result??null)});}
     catch(e) {await record({scenario:name,status:'fail',classification:e.name==='TransportError'||e.name==='FixtureEnvironmentError'||['ECONNREFUSED','ETIMEDOUT','PROTOCOL_CONNECTION_LOST'].includes(e.code)?'ENVIRONMENT_BLOCKED':e.name==='AssertionError'?'CONTRACT_RED':'EXECUTION_ERROR',durationMs:Date.now()-start,observations:observations.slice(mark),error:['AssertionError','TransportError'].includes(e.name) ? String(e.message).slice(0,500) : 'Scenario execution failed (no secret-bearing exception retained)'});}
   }
-  async function makeRole(code,system=C,identityRole) {return ok('POST','/roles',{systemCode:system,code,name:code,...(identityRole?{identityRole}:{})});}
+  async function makeRole(code, system=C, baseCode) {
+    const role = await ok('POST','/roles',{systemCode:system,code,name:code});
+    if (baseCode) {
+      const graph = await ok('GET', `/systems/${system}/role-hierarchy`);
+      const base = graph.roles.find(item => item.code === baseCode) ??
+        await makeRole(baseCode, system);
+      status(await edge(role, base), 200);
+    }
+    return role;
+  }
   async function makePermission(code,kind='API',system=C) {
     // Audit capabilities are explicit catalog seeds; reuse by exact system/kind/code, not by numeric ID.
     const existing = await ok('GET','/permissions?'+new URLSearchParams({systemCode:system,kind,keyword:code,pageSize:'100'}));
@@ -99,6 +108,9 @@ export async function runSuite(f, record) {
     const [[hq]]=await f.db.query('SELECT id FROM sys_department WHERE parent_id IS NULL ORDER BY id LIMIT 1');assert.ok(hq,'Headquarters seed required');normalizer.register('department',hq.id,['seed','headquarters']);
     department=await ok('POST','/departments',{parentId:hq.id,code:'FX_DEPT',name:'Fixture department'});
     sibling=await ok('POST','/departments',{parentId:hq.id,code:'FX_SIBLING',name:'Fixture sibling'});
+    // The independent acceptance database uses custom permission combinations.
+    const {roles: courseRoles}=await ok('GET','/systems/'+C+'/role-hierarchy');
+    for (const role of courseRoles.filter(r=>['teacher','student'].includes(r.code))) await grant(role,[]);
     role=await makeRole('FX_TEACHER',C,'teacher');ui=await makePermission('fixture:button','UI');apiPermission=await makePermission('fixture:api');
     const ar=await makePermission('audit:read'),aw=await makePermission('audit:write');
     await grant(role,[ui,apiPermission,ar,aw]);await eligible(department,[role]);
@@ -402,10 +414,10 @@ export async function runSuite(f, record) {
     const permissionJunior = await makeRole('FX_RESTORATION_PERMISSION_JUNIOR');
     await grant(permissionJunior, [apiPermission]);
     status(await edge(permissionRole, permissionJunior), 200);
-    const identityRole = await makeRole('FX_RESTORATION_IDENTITY');
+    const identitySenior = await makeRole('FX_RESTORATION_IDENTITY');
     const identityJunior = await makeRole('FX_RESTORATION_IDENTITY_JUNIOR', C, 'student');
-    status(await edge(identityRole, identityJunior), 200);
-    await eligible(home, [operatorRole, permissionRole, identityRole]);
+    status(await edge(identitySenior, identityJunior), 200);
+    await eligible(home, [operatorRole, permissionRole, identitySenior]);
     const operator = await createUser('fixture_restoration_operator', home);
     await assign(operator, operatorRole);
     const operatorToken = await freshLogin(operator.username, fixturePassword, B);
@@ -415,7 +427,7 @@ export async function runSuite(f, record) {
       return row;
     };
     const targets = [];
-    for (const [label, retainedRole] of [['permission', permissionRole], ['identity', identityRole]]) {
+    for (const [label, retainedRole] of [['permission', permissionRole], ['identity', identitySenior]]) {
       const target = await createUser(`fixture_restoration_${label}`, home);
       const assignment = await assign(target, retainedRole);
       const path = `/users/${target.id}/status`;
@@ -446,7 +458,7 @@ export async function runSuite(f, record) {
     }
 
     await assign(operator, permissionRole);
-    await assign(operator, identityRole);
+    await assign(operator, identitySenior);
     for (const {target, path, assignments} of targets) {
       const before = await grantEffects();
       assert.equal((await ok('PUT', path, {status: 'ACTIVE'}, operatorToken)).status, 'ACTIVE');
@@ -526,7 +538,8 @@ export async function runSuite(f, record) {
     const weak=await ok('POST','/roles',{systemCode:C,code:'BOUND_WEAK',name:'BOUND_WEAK'},t),strong=await makeRole('BOUND_STRONG',C,'teacher');await grant(strong,[apiPermission]);
     status(await request('PUT',`/api/v1/roles/${weak.id}/permissions`,{permissionIds:[apiPermission.id]},t),403);
     status(await request('POST',`/api/v1/roles/${weak.id}/inherits/${strong.id}`,undefined,t),403);
-    status(await request('POST','/api/v1/roles',{systemCode:C,code:'BOUND_IDENTITY',name:'fixture',identityRole:'admin'},t),403);
+    const adminOnly = await makeRole('BOUND_IDENTITY', C, 'admin');
+    status(await request('POST',`/api/v1/roles/${weak.id}/inherits/${adminOnly.id}`,undefined,t),403);
     await eligible(hq,[...allow,admin,strong].filter((r,i,a)=>a.findIndex(x=>x.id===r.id)===i));const target=await createUser('fixture_bound_target',hq);status(await request('POST',`/api/v1/users/${target.id}/role-assignments`,{roleId:strong.id},t),403);
     await ok('PUT',`/roles/${strong.id}/status`,{status:'DISABLED'});status(await request('PUT',`/api/v1/roles/${strong.id}/status`,{status:'ENABLED'},t),403);
   });
@@ -604,7 +617,7 @@ export async function runSuite(f, record) {
     for(const i of [0,1]) {const text=await readFile(join(f.dir,`${f.module}-${i}.log`),'utf8');for(const secret of [f.bootstrap,f.serviceKey,f.keys.privateKey,fixturePassword,token,root]) if(secret) assert.ok(!text.includes(secret),'Sensitive value found in owned JVM log');assert.ok(!/eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/.test(text),'JWT found in log');}
   });
   await scenario('NFR-04 final database postconditions and no orphan/cross-system facts',async()=>{
-    const checks={users:'SELECT COUNT(*) n FROM sys_user',bulk:"SELECT COUNT(*) n FROM sys_user WHERE username LIKE 'fixture_bulk_%'",crossEdges:'SELECT COUNT(*) n FROM sys_role_hierarchy h JOIN sys_role a ON a.id=h.senior_role_id JOIN sys_role b ON b.id=h.junior_role_id WHERE a.system_id<>b.system_id',crossPermissions:'SELECT COUNT(*) n FROM sys_role_permission rp JOIN sys_role r ON r.id=rp.role_id JOIN sys_permission p ON p.id=rp.permission_id WHERE r.system_id<>p.system_id',ineligible:'SELECT COUNT(*) n FROM sys_user_role ur JOIN sys_user u ON u.id=ur.user_id LEFT JOIN sys_department_allowed_role d ON d.department_id=u.department_id AND d.role_id=ur.role_id WHERE d.id IS NULL',badIdentity:"SELECT COUNT(*) n FROM sys_role WHERE identity_role IS NOT NULL AND identity_role NOT IN ('student','teacher','admin')"};
-    const result={};for(const [key,sql] of Object.entries(checks)) {const [[r]]=await f.db.query(sql);result[key]=r.n;}assert.equal(result.bulk,10000);for(const k of ['crossEdges','crossPermissions','ineligible','badIdentity']) assert.equal(result[k],0);return result;
+    const checks={users:'SELECT COUNT(*) n FROM sys_user',bulk:"SELECT COUNT(*) n FROM sys_user WHERE username LIKE 'fixture_bulk_%'",crossEdges:'SELECT COUNT(*) n FROM sys_role_hierarchy h JOIN sys_role a ON a.id=h.senior_role_id JOIN sys_role b ON b.id=h.junior_role_id WHERE a.system_id<>b.system_id',crossPermissions:'SELECT COUNT(*) n FROM sys_role_permission rp JOIN sys_role r ON r.id=rp.role_id JOIN sys_permission p ON p.id=rp.permission_id WHERE r.system_id<>p.system_id',ineligible:'SELECT COUNT(*) n FROM sys_user_role ur JOIN sys_user u ON u.id=ur.user_id LEFT JOIN sys_department_allowed_role d ON d.department_id=u.department_id AND d.role_id=ur.role_id WHERE d.id IS NULL',legacyMarker:"SELECT COUNT(*) n FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='sys_role' AND column_name='identity_role'"};
+    const result={};for(const [key,sql] of Object.entries(checks)) {const [[r]]=await f.db.query(sql);result[key]=r.n;}assert.equal(result.bulk,10000);for(const k of ['crossEdges','crossPermissions','ineligible','legacyMarker']) assert.equal(result[k],0);return result;
   });
 }

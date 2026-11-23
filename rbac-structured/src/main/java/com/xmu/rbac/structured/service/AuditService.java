@@ -99,7 +99,7 @@ public class AuditService {
         log.actorName = user == null ? "未知" : user.name;
         log.actorRolesJson = json(a == null
                 ? List.of()
-                : authz.identities(
+                : authz.courseRoleCodes(
                       authz.calculate(authz.direct(a.userId(), authz.system(a.systemCode()).id),
                           authz.system(a.systemCode()).id)));
         log.eventType = type;

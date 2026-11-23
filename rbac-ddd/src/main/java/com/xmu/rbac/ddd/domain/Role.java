@@ -11,7 +11,6 @@ public final class Role {
     private String description;
     private boolean enabled;
     private final boolean builtin;
-    private final String identityRole;
     private final long version;
     private Set<Long> permissionIds;
 
@@ -23,16 +22,10 @@ public final class Role {
             String description,
             boolean enabled,
             boolean builtin,
-            String identityRole,
             long version,
             Set<Long> permissionIds) {
         DomainException.require(
                 systemCode != null && code != null && name != null, 400, "INVALID_ROLE");
-        DomainException.require(
-                identityRole == null
-                        || Set.of("student", "teacher", "admin").contains(identityRole),
-                400,
-                "INVALID_IDENTITY_ROLE");
         this.id = id;
         this.systemCode = systemCode;
         this.code = code;
@@ -40,7 +33,6 @@ public final class Role {
         this.description = description;
         this.enabled = enabled;
         this.builtin = builtin;
-        this.identityRole = identityRole;
         this.version = version;
         this.permissionIds = Set.copyOf(permissionIds);
     }
@@ -93,10 +85,6 @@ public final class Role {
 
     public boolean builtin() {
         return builtin;
-    }
-
-    public String identityRole() {
-        return identityRole;
     }
 
     public long version() {
