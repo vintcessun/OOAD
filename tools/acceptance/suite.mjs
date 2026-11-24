@@ -198,7 +198,11 @@ export async function runSuite(f, record) {
     return {roles:4,permission: p.code};
   });
   await scenario('ROLE-03 concurrent reverse edges serialized with DB invariant',async()=>{
-    const a=await makeRole('RACE_A'),b=await makeRole('RACE_B');const r=await Promise.all([edge(a,b),edge(b,a)]);
+    // Either edge can win. Keep that nondeterministic fact out of later course graph assertions.
+    const raceSystem=await ok('POST','/systems',{code:'fixture-role-race',name:'Fixture role race'});
+    const a=await makeRole('RACE_A',raceSystem.code),b=await makeRole('RACE_B',raceSystem.code);
+    assert.equal(a.systemCode,raceSystem.code);assert.equal(b.systemCode,raceSystem.code);
+    const r=await Promise.all([edge(a,b),edge(b,a)]);
     assert.equal(r.filter(x=>x.status>=200&&x.status<300).length,1);assert.equal(r.filter(x=>x.status===409&&x.body.code==='ROLE_CYCLE').length,1);
     const [[row]]=await f.db.query('SELECT COUNT(*) n FROM sys_role_hierarchy WHERE (senior_role_id=? AND junior_role_id=?) OR (senior_role_id=? AND junior_role_id=?)',[a.id,b.id,b.id,a.id]);assert.equal(row.n,1);
     const [stored]=await f.db.query('SELECT senior_role_id,junior_role_id FROM sys_role_hierarchy WHERE (senior_role_id=? AND junior_role_id=?) OR (senior_role_id=? AND junior_role_id=?)',[a.id,b.id,b.id,a.id]);

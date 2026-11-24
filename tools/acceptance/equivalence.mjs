@@ -14,7 +14,7 @@ export function comparableObservations(row) {
       const alias=JSON.parse(decodeURIComponent(encoded));
       assert.ok(alias.startsWith('@role:'),'Race requires typed role references');
       const key=JSON.parse(alias.slice(6));
-      assert.equal(key[0],'course-project-management');
+      assert.equal(key[0],'fixture-role-race');
       assert.equal(key.length,2);assert.ok(['RACE_A','RACE_B'].includes(key[1]));
       return key[1];
     };
