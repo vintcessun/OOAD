@@ -1,6 +1,6 @@
 # RBAC 统一身份与权限中心
 
-厦门大学 OOAD 课程设计：**结构化 + 独立 DDD 两套 RBAC1 后端**，共用严格契约和同一 Vue3 权限中心。权限中心校验课程操作权限，再转发到老师原版课程后端。
+厦门大学 OOAD 课程设计：**结构化 + 独立 DDD 两套 RBAC1 后端**，共用严格契约和同一 Vue3 权限中心。当前云端部署设计让课程业务直达课程后端，由课程后端按需向权限中心查询身份和权限、读写审计。
 
 > **此前版本的本地交付验收记录**：188项后端JUnit、双后端25+25及T21共51项真库验收、38项前端单测、PC/手机4例、教师原440项与真实课程12例。两轮七服务本地Swarm验证完成，最终DDD。完整范围、hash和未执行的外部事项见[最终验收](docs/final-acceptance.adoc)，不把本地通过冒充外部服务器或GitHub CI成功。
 
@@ -84,7 +84,9 @@ shared HTTP 使用本次唯一新库、私有临时 jar 快照和自有 Redis na
 
 ## 部署与安全
 
-`MODULE=rbac-structured|rbac-ddd` 选择一个中心后端。六服务包括中心前后端、课程前后端、MySQL 和 Redis。课程边缘将 `/api/*` 交给权限中心鉴权转发，课程登录直接交给课程后端。只在两边缘发布 TLS。
+当前云端部署设计使用 DDD 和七项服务，包含中心前后端、课程前后端、MySQL、Redis 和 `course-prometheus`。课程 Nginx 将 `/api/*`（含登录）直接交给课程后端。权限管理台与课程页面的菜单权限、部门查询使用权限中心的公开入口。参见[部署图与验收要点](docs/deployment.adoc)。
+
+本地 Compose 联调通过 `MODULE=rbac-structured|rbac-ddd` 选择活动的中心后端，使用仓库中的内嵌课程代理配置。
 
 本机从 IDEA 运行时，在权限中心的本地配置中设 `course.upstream=http://127.0.0.1:8084`，课程前端代理把业务 `/api/*` 指到权限中心（DDD 示例端口 `8083`）。课程后端的 `IDENTITY_BASE_URL` 指向同一个权限中心。Docker 构建使用 `tools/prepare-course.sh --original --build` 生成未应用接入补丁的课程后端。
 
@@ -92,7 +94,7 @@ shared HTTP 使用本次唯一新库、私有临时 jar 快照和自有 Redis na
 
 服务器单独部署权限中心时，使用 [DDD 服务器 Docker Compose](deploy/ddd-server.compose.yml)，配置和启动步骤见 [服务器部署手册](docs/ddd-server.md)。
 
-在多节点集群部署权限前后端与教师课程中心时，见 [Swarm 部署指南](docs/swarm-deployment.md)。
+已有云端版本使用内嵌课程代理，见[云端上线记录](docs/course-swarm-alignment.md)。[Swarm 代理版复现指南](docs/swarm-deployment.md)记录该路由的配置方式。
 
 - 在课程前端的 IDEA npm 运行配置或 `.env.development.local` 设置 `VITE_RBAC_PROXY_TARGET` 为服务器 DDD 的 HTTPS 入口。默认本机课程登录仍走 `http://127.0.0.1:8084`，可用 `VITE_COURSE_PROXY_TARGET` 覆盖。老师前端如果是新克隆的，需先配置本地 Vite 代理读取这两个变量，将 `/api/login` 改写为 `/login` 发给本地课程后端，其他 `/api/*` 和 `/auth/*` 交给 DDD。OOAD 自带工作台直接使用 `/login`。
 - 老师原版后端在本地运行，将 `IDENTITY_BASE_URL` 设为同一个服务器入口，并继续使用本地课程数据库。服务器权限中心数据库需创建与本地课程名单对应的学生和教师账号，分配课程角色并核对已有的 `subject` 绑定。

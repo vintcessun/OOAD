@@ -1,0 +1,37 @@
+@startuml
+!pragma layout smetana
+skinparam defaultFontName SansSerif
+skinparam linetype polyline
+skinparam shadowing false
+skinparam defaultFontSize 14
+skinparam nodesep 55
+skinparam ranksep 65
+title 当前云端部署 · Swarm 七服务拓扑
+
+actor "浏览器" as browser
+
+node "rbac_default" {
+  component "rbac-web\n权限管理台 · Nginx TLS :443" as rbacWeb
+  component "course-web\n老师的课程前端 · Nginx TLS :443" as courseWeb
+  component "rbac-backend :8081\nDDD · 身份、授权、审计" as center
+  component "course-backend\n业务 :8080 · 管理 :8081\n认证过滤器与权限拦截器" as course
+  component "course-prometheus :9090" as prometheus
+  database "mysql :3306\nMySQL 8 · mysql-data" as mysql
+  database "redis :6379\nRedis 7" as redis
+}
+
+browser --> rbacWeb : HTTPS :8443\n管理台、课程页面查权限与部门
+browser --> courseWeb : HTTPS :9443/course/
+rbacWeb --> center : 管理台 API 与身份接口
+courseWeb --> course : /api/*（含登录）\n去掉 /api 前缀
+course -left-> center : IDENTITY_BASE_URL\n身份、权限和审计
+center --> mysql : rbac_center
+course --> mysql : rbac_course
+center --> redis : 授权版本缓存
+prometheus -left-> course : 抓取 :8081/actuator/prometheus
+
+legend bottom
+  七个服务共用私有 overlay 网络，仅两个前端发布 TLS 端口。
+  两个后端在 MySQL 上分别使用各自的逻辑库。
+endlegend
+@enduml

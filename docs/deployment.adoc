@@ -1,26 +1,26 @@
-= RBAC1 本地双实现部署与边界
+= RBAC1 部署与验收
 :toc:
 
-== 历史七服务验收归档
+== 当前云端部署
 
-安全依赖修复后最终本地标签 `local-final-20261115-035858`：分别选择structured、DDD执行两轮七服务验收，每轮7/7服务、11/11探针通过，最终保留DDD。
-两轮复用相同中心/课程前端镜像；MySQL/Redis容器与数据卷未变。TLS1.3、私有路径403、未认证课程401、内部健康、MySQL healthy、Redis PONG和实际镜像SHA256匹配均有记录。
-完整不可变镜像/容器ID、两轮探针及停写切换证据见link:../deploy/deployment-evidence.json[真实运行证据]。
-这两轮的拓扑见 link:design/swarm-deployment.svg[七服务验收图]。
+image::design/teacher-course-deployment.svg[当前云端部署的 Swarm 七服务拓扑]
 
-这是本机Docker Desktop单manager的授权隔离Swarm，不是外部生产或三服务器高可用验收。TLS证书本地自签，不冒称公共可信CA；未提供的远端条件、容量与整机恢复未验证。
+link:design/teacher-course-deployment.png[PNG] · link:design/teacher-course-deployment.puml[PlantUML 图源]
 
-== 当前六服务拓扑与运行环境
+* `rbac-web`、`rbac-backend`、`course-web`、`course-backend`、`mysql`、`redis` 和 `course-prometheus` 共用私有 overlay 网络 `rbac_default`。仅 `rbac-web:8443` 和 `course-web:9443` 对外提供 HTTPS。云端权限后端采用 DDD。
+* 权限管理台经 `rbac-web` 请求权限后端。课程页面的菜单权限和部门查询走权限中心公开入口。课程 `/api/*`（含登录）由 `course-web` 去掉前缀后转给 `course-backend`，后者通过内网 HTTP 向权限中心查身份、权限及读写审计。
+* 权限后端使用 `rbac_center`，课程后端使用 `rbac_course`。`course-prometheus` 在内网抓取 `course-backend:8081/actuator/prometheus`。
 
-image::design/swarm-deployment-current.svg[当前 Compose 的六服务拓扑]
+切换后的验收应核对 Nginx 的实际转发目标，用教师和学生账号登录并查询课程，用管理员账号新增教师并验证无权操作被拒绝。检查两个服务的数据源和 Prometheus 的 `up{job="course-project-backend"}`。
 
-link:design/swarm-deployment-current.png[PNG] · link:design/swarm-deployment-current.puml[PlantUML 图源]
+以上为当前云端部署设计。仓库现有课程 Nginx 仍把受保护的课程业务转给 DDD 再转发，实际切换时须更新课程 Nginx 并重新验收。参见 link:final-design.adoc#swarm-cloud[部署设计]及 link:course-swarm-alignment.md[已发布版本的验收记录]。
+
+== 本地运行环境
 
 * Java21、中心Spring Boot3.3.5、Maven3.9.9、MySQL8、Redis7、Node22/Vue3。
 * 稳定服务名rbac-backend通过MODULE选择rbac-structured或rbac-ddd，仅一个活动中心；两套业务实现不共用服务代码。
-* 当前 Compose 使用 `rbac-web`、`rbac-backend`、`course-web`、`course-backend`、`mysql` 和 `redis` 六项服务。
 * 默认只公开两个前端的 TLS 入口，中心使用 `https://localhost:8443`，课程使用 `https://localhost:9443/course/`。
-* 中心前端将 `/api`、`/auth`、`/.well-known` 转发给权限后端。课程前端将 `/login` 和 `/api/login` 交给课程后端，将 `/auth`、`/.well-known` 和受保护的 `/api/` 请求交给权限后端。内嵌的 `CourseProxyFilter` 完成鉴权后，经 `COURSE_UPSTREAM` 转发课程业务请求。
+* 本地双实现验收使用 Compose 的内嵌课程代理。路由以 link:../deploy/full-course-nginx.conf[本地课程 Nginx 配置]为准，运行结果见 link:../deploy/deployment-evidence.json[本地运行证据]。
 * 两边缘拒绝/integration和/identity；可信服务key不进入浏览器、镜像环境明文或日志。
 * 生产RSA通过共享文件和Swarm secrets，不使用临时key；configtree提供数据库口令、bootstrap和服务key。角色/权限不放JWT，注销事实存MySQL。
 

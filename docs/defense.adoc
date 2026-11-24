@@ -43,15 +43,17 @@
 * 追问“Redis 宕机就允许吗”：不能。缓存不是权威。具体降级、503 和版本竞态必须展示两版当前源码及真实故障结果；不能笼统声称缓存永远正确。
 * GRASP：领域 Policy 便于纯内存测试，但数据库状态、跨实例撤权仍需要真实 MySQL/Redis 集成测试。
 
-== S04：网关允许，为什么课程 Service 还能拒绝
+== S04：中心允许，为什么课程 Service 还能拒绝
 
-当前 Compose 中，课程 Nginx 把受保护的 `/api/` 交给 `rbac-backend`。`CourseProxyFilter` 以 `RouteRegistry.resolve` 取得可信 `operationId`，调用同进程的授权回调，允许后才读取请求体并执行 `ProxyClient.forward`。独立网关的 `GatewayController → AuthBoundary → IdentityClient` 路径见历史 S04 类图。link:design/index.adoc[当前顺序图与历史类图]
+云端部署设计中，课程 Nginx 直接将业务请求转给课程后端。以新建学期为例，课程后端收到 `POST /terms` 后，用用户令牌单独向中心查询 `GET /auth/api-permissions/TC`。权限中心回答该用户有没有调用资格，课程后端继续检查业务条件并写自己的数据库。课程页面查菜单权限和部门时，浏览器直接请求权限中心。link:final-design.adoc#swarm-cloud[云端七服务拓扑]
+
+仓库现有 Compose 的 S04 代理链用于讲解两版的实现。课程 Nginx 把受保护的 `/api/` 交给 `rbac-backend`，`CourseProxyFilter` 根据服务端方法与路径取得 `operationId`，调用本地授权回调后再转发。link:design/index.adoc[本地代理的类图和时序图]
 
 * 中心结构化路径：`TokenService.verify → AuthorizationService.api`。事务外版本变化时重新读取策略和判定。
 * 中心 DDD 路径：`TokenProvider.verify → AuthorizationApplicationService.validate / api → stableApi`。版本检查覆盖 operation、identity、effective 和最终 allows，尾部版本不等时重试。
 * 追问“未知 aud 是不存在资源，所以 404 吗”：不是。aud 是身份声明，validate 将未知系统的 404 翻成 401 TOKEN_INVALID；真正未知 operation 才是 API_OPERATION_NOT_FOUND。
 * 中心回答“此身份是否具有该全局 API 资格”；课程系统回答“此教师是否为此班/组的合法操作者”。后者的对象级 403 不能由中心越俎代庖。
-* 无映射、无效令牌、鉴权拒绝或不可用时，请求在转发前结束。中心未登记的操作由代理映射为 `403 IDENTITY_OPERATION_NOT_FOUND`。
+* 在本地代理路径中，无映射、无效令牌、鉴权拒绝或不可用时，请求在转发前结束。中心未登记的操作由代理映射为 `403 IDENTITY_OPERATION_NOT_FOUND`。
 * 本套图不画未核对的课程领域类/方法，也不把权限中心两后端算成两个业务系统。部署负责人必须证实课程服务不能从另一个端口绕过边界。
 
 == S05：先查不存在再插入，为什么还不够

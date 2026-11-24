@@ -66,7 +66,7 @@ image::ddd-packages.svg[DDD 包图]
 `domain.port.AuthorizationRepository` 等是面向领域/用例的端口，不是 JpaRepository；`infrastructure.persistence.Jpa*RepositoryAdapter` 实现这些接口并操作 `*Entity`。
 应用服务不应依赖具体 JpaAdapter。图中的实现关系为 Adapter → Repository，不画反。
 
-两张图沿用课程项目原始 SVG 的系统字体栈、浅灰底、分区色条、文件夹包框与图例。灰色虚线空心箭头表示主要依赖，蓝色虚线搭配空心三角表示包内类型实现了目标包中的端口。箭头均指向被依赖或被实现的一方。绘图范围是 `rbac-structured` 与 `rbac-ddd` 各自的主要 Java 子包。课程代理与各后端的关系见 <<s04-current,S04 当前类图>>，运行服务之间的连接见 <<swarm-current,当前六服务拓扑>>。图的 SVG 保留原项目的 MIT 许可说明。布局参照 link:https://gitee.com/mingqcn/course-project-mgt/blob/990cea2cc3686599ef5068945706a13e7e0afc5b/docs/backend-design.md[课程项目后端设计第 17.1、17.2 节]。
+两张图沿用课程项目原始 SVG 的系统字体栈、浅灰底、分区色条、文件夹包框与图例。灰色虚线空心箭头表示主要依赖，蓝色虚线搭配空心三角表示包内类型实现了目标包中的端口。箭头均指向被依赖或被实现的一方。绘图范围是 `rbac-structured` 与 `rbac-ddd` 各自的主要 Java 子包。课程代理与各后端的关系见 <<s04-current,S04 当前类图>>，运行服务之间的连接见 <<swarm-cloud,当前云端部署>>。图的 SVG 保留原项目的 MIT 许可说明。布局参照 link:https://gitee.com/mingqcn/course-project-mgt/blob/990cea2cc3686599ef5068945706a13e7e0afc5b/docs/backend-design.md[课程项目后端设计第 17.1、17.2 节]。
 
 结构化图保留 `service → mapper` 和 `service → entity` 两条依赖，分别对应事务脚本使用 `Store` 和直接处理数据实体。`dto → entity` 表示将请求输入映射到实体，角色、部门和用户的响应字段由 `service.Views` 组装。`config → controller` 对应 `WebConfig` 注册 `PermissionInterceptor`。
 
@@ -256,26 +256,18 @@ image::LOGIN-ddd-sequence.svg[持久登录锁事务]
 
 真实链为 IdentityApplicationService.login → LoginAttemptApplicationService.attempt。attempt 在事务内 `lockLogin` 串行化账号行，LoginAttemptPolicy.locked/evaluate 判断；仅 ACTIVE 且未锁才做密码匹配。第 5 次错误锁 900 秒；锁定中不继续累加，过期重新计数，正确凭据清零。`saveLoginState` 与 LOGIN_DENIED 同事务，失败时返回 null，事务正常提交后外层 login 才抛 401，避免安全计数被同一个异常回滚。不存在账号返回 null；系统停用/审计持久化异常仍使 attempt 事务回滚，不能笼统说“任何登录失败都已提交计数”。
 
-[[swarm-current]]
-== 当前 Swarm 六服务拓扑
+[[swarm-cloud]]
+== 当前云端部署
 
-image::swarm-deployment-current.svg[当前 Compose 的六服务拓扑]
+image::teacher-course-deployment.svg[当前云端部署的 Swarm 七服务拓扑]
 
-`mysql`、`redis`、`rbac-backend`、`rbac-web`、`course-backend` 和 `course-web` 共用私有 overlay 网络。默认只发布两个前端的 TLS 端口 8443 和 9443。`MODULE` 选择一个活动的权限中心实现。
+`mysql`、`redis`、`rbac-backend`、`rbac-web`、`course-backend`、`course-web` 和 `course-prometheus` 共用私有 overlay 网络 `rbac_default`。只有 `rbac-web` 和 `course-web` 分别发布 TLS 端口 8443 和 9443。云端的 `rbac-backend` 使用 DDD 镜像。
 
-课程登录由 `course-web` 直接转发至 `course-backend`，受保护的课程 `/api/` 请求经 `rbac-backend` 内嵌的 `CourseProxyFilter` 鉴权后转发。此图依据 link:../docker-compose.yml[默认 Compose] 和 link:../deploy/full-course-nginx.conf[课程 Nginx 路由] 绘制。
+课程前端的 Nginx 将课程 `/api/*`（含登录）去掉前缀后直接转给 `course-backend`。课程后端按需通过 HTTP 调用 `rbac-backend`，获取身份、查询 API 权限或读写审计。课程页面发起的菜单权限和部门查询经权限中心的公开入口访问。权限后端和课程后端分别连接 MySQL 中的 `rbac_center` 和 `rbac_course`。
 
-== 历史本地 Swarm 七服务验收归档
+`course-prometheus` 在私有网络内抓取课程后端的 `:8081/actuator/prometheus`。老师仓库中的对应服务名为 `prometheus`。本项目使用 `course-prometheus`，端口 9090 留在私有网络。参见 link:../deploy/course-prometheus.yml[课程指标抓取配置]及 link:https://gitee.com/mingqcn/course-project-mgt/blob/24a4d7d303ca082a43369658b6d2067489590c37/deploy/stack.yml[老师仓库的 Stack 配置]。
 
-image::swarm-deployment.svg[最终本地双实现 Swarm 归档与范围]
-
-这两轮验收时，独立的 `rbac-gateway` 负责鉴权转发，是当时的第七项服务。
-
-link:design/deployment-snapshot.json[最终本地双轮部署快照] 按 deployment-evidence.json 的 `rounds.rbac-structured` / `rounds.rbac-ddd` 分别保存 services、nodes、probes，而非读取已不存在的顶层 candidate.services。归档状态 local-final-dual-runtime-passed，时间 2026-11-14T20:01:59Z，tag=local-final-20261115-035858；structured→DDD 各 7 服务与 11/11 探针，实际镜像 ID 均匹配本地构建；前端镜像、MySQL/Redis 资源与已有持久卷保持不变，最终活动实现 DDD。
-
-顶层 `localFinalDeploymentAccepted=true` 是本地部署验收通过；每轮 `finalAcceptance=false` 和 verificationScope 明确该轮只证明 runtime 健康/TLS/隔离/镜像身份，不单独宣称整个项目业务完成，不能误读为“最终本地部署尚未验收”。业务、课程和浏览器另有归档：link:final-acceptance.adoc[最终本地交付验收]、link:acceptance/local-results.json[机器可读结果]。绘图器只读取已真实执行的证据，不再次探测运行态，不声明外部服务器、公共 CA、多节点 HA 或外部 CI 通过。
-
-归档生成时，`current` 模式核对了当时的四个 canonical JAR。旧图中的 `artifactsMatchCurrentBuild=true` 对应该次构建。CI 的新构建显式使用 `archived` 模式验证历史证据，保留原有 SHA 和验收状态。
+本节定义当前部署采用的路由。课程转发以 link:https://gitee.com/mingqcn/course-project-mgt/blob/24a4d7d303ca082a43369658b6d2067489590c37/web/nginx/default.conf[老师仓库的 Nginx 配置]为准。现有发布脚本的路由见 link:course-swarm-alignment.md[上线记录]。
 
 == 当前 canonical 本地验收结果
 

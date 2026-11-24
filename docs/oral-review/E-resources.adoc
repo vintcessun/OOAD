@@ -25,11 +25,12 @@ ID-01、RES-01–06、EXT-03–07、UI-01–06与NFR-05/07；只全面审查我�
 |link:../../rbac-ddd/src/main/java/com/xmu/rbac/ddd/infrastructure/config/RouteContractVerifier.java[RouteContractVerifier.java] |实际Controller路由与持久目录对齐
 |link:../../rbac-structured/src/main/java/com/xmu/rbac/structured/service/IntegrationIdentityService.java[IntegrationIdentityService.java] |authorities/lookup：Bearer之外服务密钥、API-only及TEC/admin最小投影
 |link:../../rbac-ddd/src/main/java/com/xmu/rbac/ddd/application/IntegrationIdentityApplicationService.java[IntegrationIdentityApplicationService.java] |相同私有契约的独立实现
-|link:../../rbac-gateway/src/main/java/com/xmu/rbac/gateway/RouteRegistry.java[RouteRegistry.java] |辅助：method/path到唯一operationId，静态段优先和歧义拒绝
+|link:../../rbac-course-proxy/src/main/java/com/xmu/rbac/gateway/RouteRegistry.java[RouteRegistry.java] |本地代理：method/path到唯一operationId，静态段优先和歧义拒绝
 |link:../../rbac-gateway/src/main/java/com/xmu/rbac/gateway/AuthBoundary.java[AuthBoundary.java] |辅助：仅契约200且allowed真实有效才转发
-|link:../../rbac-gateway/src/main/java/com/xmu/rbac/gateway/ProxyClient.java[ProxyClient.java] |辅助：固定上游、头白名单、不跟随重定向及课程对象级响应
+|link:../../rbac-course-proxy/src/main/java/com/xmu/rbac/gateway/ProxyClient.java[ProxyClient.java] |本地代理：固定上游、头白名单、不跟随重定向及课程对象级响应
 |link:../../course-integration/README.md[README.md] |只理解全局/对象权限、真实CC和审计窗口，不接管教学业务
-|link:../../docker-compose.yml[docker-compose.yml] |七服务、单活动后端、只发布边缘端口
+|link:../../deploy/cloud-stack.yml[cloud-stack.yml] |云端七服务、私有网络、只发布前端端口
+|link:../../docker-compose.yml[docker-compose.yml] |本地双实现联调时选择一个活动后端
 |link:../../deploy/full-stack.sh[full-stack.sh] |受控停写切换与资源保留；不实际部署
 |link:../../tools/generate-rbac1-contract.py[generate-rbac1-contract.py] |OAS/DDL/种子/课程目录与UI覆盖生成关系，不随意手改生成物
 |===
@@ -53,7 +54,7 @@ ID-01、RES-01–06、EXT-03–07、UI-01–06与NFR-05/07；只全面审查我�
 * [ ] 私有authorities不是把auth/me变成完整API能力清单；服务密钥和Bearer缺一不可，最小身份字段不泄露凭据。
 * [ ] copyCourse全局teacher与本课程组长/非组长CC分别负责什么；课程对象级403保留原职责。
 * [ ] 辅助检查前端各页/按钮符合需求，隐藏后直接HTTP仍拒绝；不深挖样式实现。
-* [ ] 同前端MODULE切换、七服务、网络/secrets、镜像/报告身份、本地与外部证据分界；不执行部署。
+* [ ] 云端七服务的请求走向、网络、端口与监控；本地双实现通过 MODULE 切换。分别核对镜像和相应环境的验收证据。
 
 == 数据与职责
 
@@ -84,11 +85,11 @@ E汇总API、页面和部署证据，不代替其他成员读自己接口或页�
 
 == 对照图与口试题
 
-* link:../design/S04-structured-current-class.svg[Structured 当前 S04 类图] / link:../design/S04-structured-current-class.png[PNG]，对应当前默认部署的课程过滤器。
+* link:../design/teacher-course-deployment.svg[当前云端七服务拓扑] / link:../design/teacher-course-deployment.png[PNG]。答辩用这张图讲课程业务直达课程后端，以及浏览器和课程后端分别如何调用权限中心。
+* link:../design/S04-structured-current-class.svg[Structured S04 类图] / link:../design/S04-structured-current-class.png[PNG]，对应本地 Compose 的课程代理。
 * link:../design/S04-structured-sequence.svg[S04-structured-sequence SVG] / link:../design/S04-structured-sequence.png[PNG]；核对图源和当前实际方法。
-* link:../design/S04-ddd-current-class.svg[DDD 当前 S04 类图] / link:../design/S04-ddd-current-class.png[PNG]，对应当前默认部署的课程过滤器。
+* link:../design/S04-ddd-current-class.svg[DDD S04 类图] / link:../design/S04-ddd-current-class.png[PNG]，对应本地 Compose 的课程代理。
 * link:../design/S04-ddd-sequence.svg[S04-ddd-sequence SVG] / link:../design/S04-ddd-sequence.png[PNG]；核对图源和当前实际方法。
-* link:../design/swarm-deployment-current.svg[当前六服务 Swarm 图] / link:../design/swarm-deployment-current.png[PNG]；历史七服务运行证据见 link:../design/swarm-deployment.svg[旧验收图]。
 
 . 菜单与API既然关联，为何不能根据有菜单就允许API？
 . 如何证明新增Controller没有漏登记，反方向又怎么检查？
