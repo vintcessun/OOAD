@@ -81,9 +81,9 @@ class ContractMigrationTest {
    stmt.executeUpdate("INSERT INTO sys_user_role(user_id,role_id) SELECT u.id,r.id FROM sys_user u JOIN sys_role r ON r.code='LEGACY_LAB' WHERE u.username='legacy-lab'");
   }
   Flyway f=config.target("latest").load();
-  if(f.migrate().migrationsExecuted!=2) throw new AssertionError("Expected V6/V7 upgrade");
+  if(f.migrate().migrationsExecuted!=3) throw new AssertionError("Expected V6 through V8 upgrade");
   f.validate();var second=f.migrate();if(second.migrationsExecuted!=0)throw new AssertionError("Repeat migration not idempotent");
-  System.out.println("Flyway migrate V1/V2, upgrade V3 through V7, validate, repeat migrate PASS");
+  System.out.println("Flyway migrate V1/V2, upgrade V3 through V8, validate, repeat migrate PASS");
  }
 }'''
     with tempfile.TemporaryDirectory(prefix='rbac1-contract-') as temp:
@@ -96,7 +96,8 @@ class ContractMigrationTest {
     assert sql("SELECT COUNT(*) FROM sys_department_allowed_role ar JOIN sys_role r ON r.id=ar.role_id WHERE ar.department_id=1 AND r.code='LEGACY_LAB';")=='1'
     assert sql("SELECT p.code FROM sys_role r JOIN sys_role_permission rp ON rp.role_id=r.id JOIN sys_permission p ON p.id=rp.permission_id WHERE r.code='LEGACY_LAB';")=='course:access'
     assert sql("SELECT COUNT(*) FROM sys_role_hierarchy;")=='0'
-    assert sql("SELECT CONCAT(r.id,' ',r.code,' ',COUNT(rp.id)) FROM sys_role r JOIN sys_role_permission rp ON rp.role_id=r.id WHERE r.system_id=2 AND r.id IN (4,5,6) GROUP BY r.id,r.code ORDER BY r.id;")=='4 teacher 53\n5 student 21\n6 admin 79'
+    assert sql("SELECT CONCAT(r.id,' ',r.code,' ',COUNT(rp.id)) FROM sys_role r JOIN sys_role_permission rp ON rp.role_id=r.id WHERE r.system_id=2 AND r.id IN (4,5) GROUP BY r.id,r.code ORDER BY r.id;")=='4 teacher 53\n5 student 21'
+    assert sql("SELECT COUNT(*) FROM sys_role_permission rp JOIN sys_role r ON r.id=rp.role_id JOIN sys_permission p ON p.id=rp.permission_id WHERE r.system_id=2 AND r.code='admin' AND p.kind='UI' AND p.code IN ('MCO','MTR','MTE','MLG','MCOR','MCOE','MCOD','MCOT','MTRC','MTRE','MTRD','MTRM','MTEC','MTEE','MTED','MTEL');")=='16'
     assert sql("SELECT COUNT(*) FROM sys_role WHERE system_id=1 AND name='Same code, no qualification' AND code LIKE 'legacy-role-%';")=='1'
     assert sql("SELECT p.code FROM sys_api_operation a JOIN sys_permission p ON p.id=a.permission_id WHERE a.system_id=1 AND a.operation_id='setRoleStatus';")=='rbac:role:status'
     assert sql("SELECT p.code FROM sys_api_operation a JOIN sys_permission p ON p.id=a.permission_id WHERE a.system_id=1 AND a.operation_id='updateRole';")=='rbac:role:edit'
@@ -111,7 +112,7 @@ class ContractMigrationTest {
         'deleteDepartment rbac:ui:deleteDepartment rbac:ui:departments:view',
         'setDepartmentStatus rbac:ui:setDepartmentStatus rbac:ui:departments:view',
     ])
-    assert sql('SELECT version FROM sys_grant_version WHERE id=1;')=='4'
+    assert sql('SELECT version FROM sys_grant_version WHERE id=1;')=='5'
     assert sql('SELECT COUNT(*) FROM sys_api_operation WHERE system_id=2;')=='80'
     assert sql("SELECT required_role FROM sys_api_operation WHERE system_id=2 AND operation_id='copyCourse';")=='teacher'
     assert sql("SELECT COUNT(*) FROM sys_api_operation WHERE system_id=1;")=='68'
@@ -147,6 +148,6 @@ class ContractMigrationTest {
     for query in invalid:sql(query,expect_failure=True)
     sql('START TRANSACTION; INSERT INTO sys_user(subject,username,password_hash,name,department_id,status) VALUES(\'test-reservation\',\'test-reservation\',\'UNINITIALIZED\',\'Test\',1,\'ACTIVE\'); SELECT LAST_INSERT_ID(); ROLLBACK;')
     assert int(sql("SELECT AUTO_INCREMENT FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='sys_user';"))>=10000
-    assert sql('SELECT COUNT(*) FROM flyway_schema_history WHERE success=1;')=='7'
+    assert sql('SELECT COUNT(*) FROM flyway_schema_history WHERE success=1;')=='8'
     print(f'MySQL {DATABASE}: 15 exact-column tables, all catalogs/grants/mappings, root placeholder, ID reservation and {len(invalid)} negative constraint tests PASS')
 if __name__=='__main__':main()

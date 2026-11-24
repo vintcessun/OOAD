@@ -29,7 +29,7 @@ server为根URL（本地默认http://localhost:8081）；内部路径显式带`/
 |POST /auth/logout |Bearer，无body；持久撤销jti后204且无响应体；旧令牌立即拒绝，未认证401。
 |GET /auth/me |200 `{subject,roles,permissions,name,no}`；roles仅当前aud有效角色中的 student、teacher、admin 角色码，permissions仅UI；401/503。
 |GET /auth/permissions/{permission} |200 `{allowed:boolean}`；未知/无权false；400/401。不把UI许可推导成API资格。
-|GET /auth/api-permissions/{operationId} |200 `{operationId,allowed}`；已登记无权false，未知404 API_OPERATION_NOT_FOUND；401/503。只判系统级资格，不代替课程对象检查。
+|GET /auth/api-permissions/{operationId} |200 `{operationId,allowed}`；已登记无权false，未知404 API_OPERATION_NOT_FOUND；401/503。DDD 对课程系统先按操作 ID 查找，再接受教师声明的 API 权限码。响应回显请求标识。课程业务仍通过操作级和对象级授权。
 |GET /auth/departments |课程管理员和有效 TEC API 权限。按 parentId 展开直属子部门，无 parentId 时查询根部门，支持名称或编码搜索与分页；只返回 id、code、name、parentId、hasChildren。
 |GET /auth/departments/{departmentId}/users |同一课程授权。按姓名、工号或学号搜索该部门的活跃直属成员。返回 userId、no、name、departmentId、departmentName。
 |GET /auth/users/{userId} |同一课程授权。按稳定 subject 查询活跃用户，返回 userId、name、no。

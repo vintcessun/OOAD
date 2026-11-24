@@ -17,9 +17,10 @@ link:schema-contract.adoc[冻结物理列合同]规定15张业务表的精确列
 |link:../rbac-contract/src/main/resources/db/migration/V5__department_lifecycle_permissions.sql[V5 部门启停和删除权限] |登记部门启停 API 和按钮，独立绑定删除权限，给内置 SUPER_ADMIN、RBAC_ADMIN 授予新权限并推进授权版本。
 |link:../rbac-contract/src/main/resources/db/migration/V6__use_effective_role_codes.sql[V6 有效角色码] |保留按原编码授权的内置角色，处理旧配置中可能意外取得课程资格的同名角色，并推进授权版本。
 |link:../rbac-contract/src/main/resources/db/migration/V7__drop_role_identity_marker.sql[V7 角色字段] |移除旧角色标记列及其 CHECK 约束。
+|link:../rbac-contract/src/main/resources/db/migration/V8__teacher_console_permissions.sql[V8 教师管理权限] |登记课程菜单、按钮和 API 权限，更新课程操作的授权映射。
 |===
 
-RBAC0 的旧 V1–V4 保留在 Git 历史。当前 RBAC1 的 V1/V2 初始化空库，Flyway 按库的现有版本应用 V3–V7。V5 使用已有的 `sys_department.status` 列，现有部门状态保持原值。
+RBAC0 的旧 V1–V4 保留在 Git 历史。当前 RBAC1 的 V1/V2 初始化空库，Flyway 按库的现有版本应用 V3–V8。V5 使用已有的 `sys_department.status` 列。
 禁止将新基线连接生产或已有一期库、篡改其Flyway历史/checksum、clean生产、用baseline-on-migrate掩盖冲突。
 已有旧库应继续使用匹配的一期镜像/schema；需要升级时另行制定备份、兼容迁移与恢复方案，本轮不操作旧库。
 打包前clean构建，避免target/classes残留旧脚本进入jar。

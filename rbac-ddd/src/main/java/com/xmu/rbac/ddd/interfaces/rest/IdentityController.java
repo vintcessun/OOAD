@@ -135,7 +135,7 @@ public class IdentityController {
                 "operationId",
                 operationId,
                 "allowed",
-                authorization.api(
+                authorization.identityApi(
                         authorization.validate(principal).id(),
                         principal.systemCode(),
                         operationId));

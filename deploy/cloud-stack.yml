@@ -80,6 +80,8 @@ services:
     image: "${CLOUD_COURSE_BACKEND_IMAGE:?Set the teacher backend image digest}"
     environment:
       SERVER_PORT: '8080'
+      SPRING_PROFILES_ACTIVE: swarm
+      APP_BACKEND_STRATEGY: ddd
       JAVA_OPTS: -Xms96m -Xmx384m -XX:ActiveProcessorCount=2
       IDENTITY_BASE_URL: http://rbac-backend:8081
       SPRING_CONFIG_IMPORT: configtree:/run/secrets/
@@ -89,11 +91,26 @@ services:
       DB_PORT: '3306'
       DB_NAME: rbac_course
       DB_USER: rbac_course
+      LOGGING_LEVEL_CN_EDU_XMU_PROJECTMGT_API: INFO
+      LOGGING_LEVEL_CN_EDU_XMU_PROJECTMGT_SERVICE: INFO
+      LOGGING_LEVEL_CN_EDU_XMU_PROJECTMGT_INFRASTRUCTURE: INFO
     secrets:
       - {source: course-db-password, target: spring.datasource.password}
       - {source: course-db-password, target: DB_PASSWORD}
+      - {source: audit-service-key, target: app.identity.authorities-service-key}
+    healthcheck:
+      test: [CMD, curl, -fsS, 'http://127.0.0.1:8081/actuator/health']
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    logging: &course_logging
+      driver: json-file
+      options: {max-size: 20m, max-file: '5'}
     networks: [private]
-    deploy: *java_deploy
+    deploy:
+      <<: *java_deploy
+      update_config: {order: stop-first, failure_action: rollback, monitor: 150s}
 
   rbac-web:
     image: "${CLOUD_RBAC_WEB_IMAGE:?Set the RBAC web image digest}"
@@ -124,8 +141,38 @@ services:
       - {source: course-nginx, target: /etc/nginx/templates/default.conf.template}
     secrets: *tls_secrets
     ports: ['9443:443']
+    healthcheck:
+      test: [CMD-SHELL, 'test "$(curl -kfsS https://127.0.0.1/healthz)" = ok']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    logging: *course_logging
     networks: [private]
-    deploy: *web_deploy
+    deploy:
+      <<: *web_deploy
+      update_config: {order: start-first, failure_action: rollback, monitor: 120s}
+
+  course-prometheus:
+    image: "swr.cn-north-4.myhuaweicloud.com/oomall-javaee/prom/prometheus@sha256:6573196e5dbe834779ac4d34cb053113cc502a69e9e20ba3be96d37f33e81545"
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+    configs:
+      - {source: course-prometheus, target: /etc/prometheus/prometheus.yml}
+    volumes:
+      - course-prometheus-data:/prometheus
+    networks: [private]
+    logging: *course_logging
+    deploy:
+      replicas: 1
+      placement:
+        constraints: [node.hostname == monitor]
+      update_config: {order: stop-first, failure_action: rollback}
+      resources:
+        reservations: {memory: 128M}
+        limits: {memory: 512M}
 
 networks:
   private:
@@ -133,6 +180,7 @@ networks:
     name: rbac_default
 volumes:
   mysql-data:
+  course-prometheus-data:
 secrets:
   mysql-root-password: {file: "${CLOUD_RUNTIME_DIR:?Set the absolute secrets directory}/mysql-root-password"}
   center-db-password: {file: "${CLOUD_RUNTIME_DIR}/center-db-password"}
@@ -147,3 +195,4 @@ configs:
   mysql-init: {file: "${CLOUD_SOURCE_DIR:?Set the absolute source directory}/deploy/full-mysql-init.sh"}
   rbac-nginx: {file: "${CLOUD_SOURCE_DIR}/rbac-web/nginx.conf"}
   course-nginx: {file: "${CLOUD_SOURCE_DIR}/deploy/full-course-nginx.conf"}
+  course-prometheus: {file: "${CLOUD_SOURCE_DIR}/deploy/course-prometheus.yml"}

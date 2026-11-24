@@ -61,6 +61,27 @@ class AuthorizationSecurityRegressionTest {
                         List.of(permission()));
     }
 
+    @Test
+    void courseIdentityCodeFallbackDoesNotChangeOperationAuthorization() {
+        String system = "course-project-management";
+        AuthorizationRepository store = repository();
+        EffectiveCache cache = mock(EffectiveCache.class);
+        AuthorizationApplicationService service = new AuthorizationApplicationService(store, cache);
+        when(store.systemEnabled(system)).thenReturn(true);
+        var coursePermission = new Permission(8, system, "CV", "查看课程", Permission.Kind.API, true);
+        when(cache.get(system, 7, 0)).thenReturn(
+                new AuthorizationPolicy.Effective(List.of(), List.of(), List.of(coursePermission), List.of()));
+
+        assertThat(service.identityApi(7, system, "CV")).isTrue();
+        assertThat(service.identityApi(7, system, "TV")).isFalse();
+        assertThatThrownBy(() -> service.api(7, system, "CV")).hasMessage("API_OPERATION_NOT_FOUND");
+        assertThatThrownBy(() -> service.identityApi(7, "s", "CV")).hasMessage("API_OPERATION_NOT_FOUND");
+
+        when(store.operation(system, "CV")).thenReturn(new ApiOperation(
+                1, system, "CV", "GET", "/courses", "CV", null, ApiOperation.Policy.PROTECTED, false));
+        assertThat(service.identityApi(7, system, "CV")).isFalse();
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"permission", "operationId"})
     void suppliedAuthorizationSelectorHasLengthBetweenOneAnd128(String field) {

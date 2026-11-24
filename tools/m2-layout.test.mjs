@@ -115,12 +115,12 @@ test('RBAC1: 68项OAS操作唯一且包含鉴权接口、私有投影与部门�
   assert.doesNotMatch(oas, /^  \/api\/v1\/auth\/(?:login|logout|me):/m)
 })
 
-test('RBAC1: V1–V7与15表，禁止恢复一期模型或公开root口令', () => {
+test('RBAC1: V1–V8与15表，禁止恢复一期模型或公开root口令', () => {
   const directory = 'rbac-contract/src/main/resources/db/migration/'
   assert.deepEqual(readdirSync(new URL(directory, root)).filter((name) => /^V.*\.sql$/.test(name)).sort(), [
     'V1__rbac1_schema.sql', 'V2__rbac1_seed.sql', 'V3__role_status_permission.sql', 'V4__course_identity_directory.sql',
     'V5__department_lifecycle_permissions.sql', 'V6__use_effective_role_codes.sql',
-    'V7__drop_role_identity_marker.sql',
+    'V7__drop_role_identity_marker.sql', 'V8__teacher_console_permissions.sql',
   ])
   const ddl = text(directory + 'V1__rbac1_schema.sql'), seed = text(directory + 'V2__rbac1_seed.sql')
   const tables = [...ddl.matchAll(/^CREATE TABLE (sys_\w+) \(/gm)].map((match) => match[1]).sort()

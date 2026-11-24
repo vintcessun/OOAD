@@ -11,6 +11,11 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 /** 用例协调器，每次命中缓存前读取权威版本和当前用户/系统状态。 */
 @Service
 public class AuthorizationApplicationService {
+    private static final String COURSE_SYSTEM = "course-project-management";
+    // AuthorityCodes from the teacher backend. A code lookup is separate from route authorization.
+    private static final java.util.Set<String> COURSE_API_CODES = java.util.Set.of(
+            "TC", "TE", "TD", "TCM", "CV", "CR", "CRS", "CE", "CD",
+            "CC", "CTM", "TV", "TEC", "TEE", "TED", "AV", "UL");
     private final AuthorizationRepository repository;
     private final EffectiveCache cache;
     private final AuthorizationReadTransaction reads;
@@ -137,21 +142,37 @@ public class AuthorizationApplicationService {
 
     /** 操作策略、目标身份和有效权限共同受同一个版本括号保护。 */
     public boolean api(long user, String system, String operation) {
+        return api(user, system, operation, false);
+    }
+
+    /** The teacher identity client can send an AuthorityCodes value in the operation ID field. */
+    public boolean identityApi(long user, String system, String identifier) {
+        return api(user, system, identifier, COURSE_SYSTEM.equals(system) && COURSE_API_CODES.contains(identifier));
+    }
+
+    private boolean api(long user, String system, String operation, boolean allowCode) {
         if (reads != null
                 && TransactionSynchronizationManager.isActualTransactionActive()
                 && TransactionSynchronizationManager.isCurrentTransactionReadOnly())
-            return reads.fresh(() -> stableApi(user, system, operation));
-        return stableApi(user, system, operation);
+            return reads.fresh(() -> stableApi(user, system, operation, allowCode));
+        return stableApi(user, system, operation, allowCode);
     }
 
     private boolean stableApi(long user, String system, String operation) {
+        return stableApi(user, system, operation, false);
+    }
+
+    private boolean stableApi(long user, String system, String operation, boolean allowCode) {
         for (int attempt = 0; attempt < 3; attempt++) {
             if (TransactionSynchronizationManager.isActualTransactionActive()
                     && TransactionSynchronizationManager.isCurrentTransactionReadOnly())
                 repository.freshenRead();
             long version = repository.version();
             ApiOperation registered = repository.operation(system, operation);
-            DomainException.require(registered != null, 404, "API_OPERATION_NOT_FOUND");
+            if (registered == null && !allowCode) {
+                if (version != repository.version()) continue;
+                throw new DomainException(404, "API_OPERATION_NOT_FOUND");
+            }
             AuthorizationRepository.Identity target = repository.identity(user);
             boolean allowed = false;
             if (target != null && target.status() == User.Status.ACTIVE) {
@@ -160,7 +181,9 @@ public class AuthorizationApplicationService {
                 allowed =
                         target != null
                                 && target.status() == User.Status.ACTIVE
-                                && (DashboardAccess.matches(system, operation)
+                                && (registered == null
+                                        ? effective.has(operation, Permission.Kind.API)
+                                        : DashboardAccess.matches(system, operation)
                                         ? registered.enabled() && DashboardAccess.REQUIRED_PERMISSIONS.stream()
                                                 .allMatch(code -> effective.has(code, Permission.Kind.API))
                                         : policy.allows(registered, effective));
