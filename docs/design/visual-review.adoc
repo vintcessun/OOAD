@@ -66,6 +66,15 @@ S04 补齐当前默认部署的两张类图。两版以 `CourseProxyFilter` 为�
 
 已打开 PNG 检查版面，并用 SVG 坐标核对第 1–11 步的箭头与接收执行条顶边同高、循环内短执行条的位置，以及片段文字和执行条的间距。绘图器现有 23 项测试通过。全量源码索引记录先前生成批次，此处记录本次单图复核。link:S04-ddd-policy-sequence.puml[PlantUML] · link:S04-ddd-policy-sequence.svg[SVG] · link:S04-ddd-policy-sequence.png[PNG]
 
+[[audit-visual-review]]
+== S05、S06 审计图稿复核
+
+用 `python tools/render-rbac1-design.py --audit-only` 定向生成两版 S05、S06 的类图和时序图，同步输出 DOT 或 PlantUML、SVG 和 PNG。类图核对字段可见性、末行对齐、关联与依赖的空心箭头、实现关系的空心三角和关联标签。
+
+S05 两版按实际执行位置画服务密钥与 `audit:write` 检查。插入事务回滚后开启独立事务重读，按是否查到原记录分支，成功回复在事务结束后发出。S06 展示启用角色时的检查、成功审计与业务同事务、持久化失败以及提交后才返回 `200`。
+
+逐张打开八张 PNG。SVG 坐标复核四张时序图的同步箭头与接收执行条顶边同高、虚线空心回复连接执行条边缘，以及控制片段的条件文字与执行条保持间距。绘图器现有 23 项回归通过。link:index.adoc[图源和图稿索引]
+
 == 自动与人工证明的边界
 
 自动通过的项目是类/方法及实现关系存在、类框/穿框几何、执行条平衡、PlantUML 语法、25 组指定方法体的调用点词法顺序、源码/class 哈希稳定；不证明全程序调用图、所有异常分支或业务等价性。运行结果见 link:verification.adoc[本轮核验]。

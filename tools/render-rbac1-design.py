@@ -117,7 +117,7 @@ def java_body(source, name):
     if depth:raise ValueError('Unbalanced method body: '+name)
     return source[start:end-1]
 
-def verify_call_chains():
+def verify_call_chains(audit_only=False):
     global CURRENT_FIGURE
     CURRENT_FIGURE='call-chain-review'
     # Ordered lexical callsites plus manual branch review. Not a Java call-graph or behavioral test.
@@ -139,8 +139,8 @@ def verify_call_chains():
       ('S03','ddd','AuthorizationApplicationService','stableEffective',['repository.freshenRead()','repository.version()','DomainException.require(repository.systemEnabled(system),401,"SYSTEM_DISABLED")','repository.identity(userId)','cache.get(','policy.calculate(','repository.version()','cache.put(','repository.version()']),
       ('S04','ddd','AuthorizationApplicationService','stableApi',['repository.freshenRead()','repository.version()','repository.operation(','repository.identity(user)','effective(user,system)','repository.identity(user)','policy.allows(','repository.version()']),
       ('S01/S02','ddd','AuthorizationApplicationService','upperBound',['effective(actor.id(),"rbac-center")','repository.hierarchy(system).requireGrantable(','policy.requireWithin(']),
-      ('S06','ddd','RoleApplicationService','status',['repository.lockGrants()','authorization.require(','repository.role(id)','authorization.requireRoleManagement(','role.changeStatus(','requireAffectedGrants(','repository.saveRole(','complete(']),
-      ('S05','ddd','AuditApplicationService','external',['canonical(before)','canonical(after)','newAuditFact(','fresh.execute(','repository.find(requestId)','existing.requireReplay(fact)','repository.append(fact)','catch(DataIntegrityViolationException','fresh.execute(','repository.find(requestId)','existing.requireReplay(fact)']),
+      ('S06','ddd','RoleApplicationService','status',['repository.lockGrants()','authorization.require(','repository.role(id)','authorization.requireRoleManagement(','if (enabled) authorization.requireRoleGrantSystem(','role.changeStatus(','requireAffectedGrants(','repository.saveRole(','complete(']),
+      ('S05','ddd','AuditApplicationService','external',['canonical(before)','canonical(after)','newAuditFact(','fresh.execute(','repository.find(requestId)','existing.requireReplay(fact)','repository.append(fact)','catch(DataIntegrityViolationException','fresh.execute(','repository.find(requestId)','if (existing == null) throw conflict','existing.requireReplay(fact)']),
       ('S06','ddd','AuditApplicationService','local',['grants.systemEnabled(','grants.assignments(','grants.hierarchy(','grants.permissions(','newAuditFact(','repository.append(fact)']),
       ('LOGIN','ddd','IdentityApplicationService','login',['loginAttempts.attempt(','DomainException.require(token!=null','returntoken']),
       ('LOGIN','ddd','LoginAttemptApplicationService','attempt',['repository.lockLogin(','policy.locked(','encoder.matches(','policy.evaluate(','repository.saveLoginState(','if(!result.accepted())','audits.local(','returnnull','repository.systemEnabled(','tokens.issue(','audits.local(']),
@@ -152,13 +152,14 @@ def verify_call_chains():
       ('S03','structured','ManagementService','effectiveUser',['az.center(a,"rbac:user:view")','az.system(system)','az.require(User.class,user)','az.scope(','targetSystem.status','return az.effective(new AuthorizationService.Snapshot(','return az.effective(az.snapshot(user,system),system)']),
       ('S03','structured','AuthorizationService','snapshot',['TransactionSynchronizationManager.isActualTransactionActive()','activeSystem(userId,code)','calculate(direct(','for(intattempt=0','version()','activeSystem(userId,code)','namespace+":authz:"','l1.get(','redis.opsForValue().get(','calculate(','if(version!=version())','l1.put(','redis.opsForValue().set(','if(version==version())','returnresult']),
       ('S03','structured','AuthorizationService','activeSystem',['require(User.class,userId)','system(code)','active(u,s)']),
-      ('S06','structured','ManagementService','roleStatus',['begin(','az.protectRole(','r.status=status','changedUpper(','finish(']),
-      ('S05','structured','AuditService','external',['trusted(','authz.permission(','safe(input.before()','safe(input.after()','isolated.execute(','db.one(','same(existing,payload)','db.save(log)','db.flush()','catch(DataIntegrityViolationException','isolated.execute(','db.one(','same(log,payload)']),
+      ('S06','structured','ManagementService','roleStatus',['begin(','az.protectRole(','if ("ENABLED".equals(status)) az.requireRoleGrantSystem(','r.status=status','changedUpper(','finish(']),
+      ('S05','structured','AuditService','external',['trusted(','authz.permission(','safe(input.before()','safe(input.after()','isolated.execute(','db.one(','same(existing,payload)','db.save(log)','db.flush()','catch(DataIntegrityViolationException','isolated.execute(','db.one(','if (log == null) throw duplicate','same(log,payload)']),
       ('S04 legacy','gateway','GatewayController','forward',['routes.resolve(','auth.authorize(','BoundedBody.read(','proxy.forward(']),
       ('S04 legacy','gateway','AuthBoundary','authorize',['identity.check(','response.getStatusCode().value()!=200','response.getBody()','operationId.equals(decision.operationId())','if(!decision.allowed())']),
       ('S04','gateway','CourseProxyFilter','doFilter',['chain.doFilter(','routes.resolve(','request.getHeaders("Authorization")','authorize.require(','BoundedBody.read(','proxy.forward('])
     ]
     for scenario,mode,short,name,tokens in specs:
+        if audit_only and not re.search(r'\bS0[56]\b',scenario):continue
         k=key(short,mode);entry=INDEX[k];method(k,name)
         body=java_body(entry['source'],name);normalized=re.sub(r'\s+','',body);position=0;positions=[]
         if short=='JpaDirectoryRepositoryAdapter' and name=='saveUser' and normalized.count('e.setSubject(')!=1:
@@ -168,7 +169,8 @@ def verify_call_chains():
             if found<0:raise ValueError(f'Call-chain drift: {scenario} {k}.{name}: missing/out-of-order {token}')
             positions.append(found);position=found+len(token)
         CALL_CHAINS.append({'scenario':scenario,'class':k,'method':name,'path':entry['path'],'sourceSha256':entry['sha256'],'bodySha256':hashlib.sha256(normalized_text_bytes(body.encode('utf-8'))).hexdigest(),'orderedTokens':tokens,'normalizedOffsets':positions,'status':'ORDERED_SOURCE_CHECKED','limit':'Lexical callsite order + manual branch review; not runtime/behavior proof'})
-    write('call-chain-review','json',json.dumps(CALL_CHAINS,ensure_ascii=False,indent=2))
+    if not audit_only:
+        write('call-chain-review','json',json.dumps(CALL_CHAINS,ensure_ascii=False,indent=2))
 
 def write(name,ext,content):
     path=OUT/(name+'.'+ext); path.write_text(content,encoding='utf-8'); return path
@@ -221,7 +223,8 @@ def class_diagram(name,mode,nodes,edges,*,node_modes=None):
     # Fixed compass layout; Service center. Bounding checks use actual Graphviz plain geometry.
     positions={'C':(0,0),'L':(-1000,0),'R':(1000,0),'T':(0,360),'B':(0,-360),'LB':(-1000,-360),'RB':(1000,-360),'RT':(1000,360),'LT':(-1000,360),'LTC':(-870,180)}
     current_s04=name.startswith('S04-') and name.endswith('-current-class')
-    aligned_style=name=='SIM-ddd-class' or current_s04
+    audit_class=name.startswith(('S05-','S06-'))
+    aligned_style=name=='SIM-ddd-class' or current_s04 or audit_class
     align_multiline=aligned_style or name.startswith('S02-')
     node_modes=node_modes or {}
     symbols={alias:diagram_class(short,node_modes.get(alias,mode)) for alias,(short,_,_) in nodes.items()}
@@ -240,8 +243,9 @@ def class_diagram(name,mode,nodes,edges,*,node_modes=None):
             if not field: raise ValueError(f'Missing field {k}.{role}')
             field_lines.append('- '+role+': '+field.group(1))
         # Show actual scalar state, never fabricate fields for a conceptual model.
-        for typ,field in re.findall(r'(?:public|private|protected)\s+(?:final\s+)?(String|long|Long|boolean|Boolean|int|Integer|Instant|Set<Long>)\s+(\w+)\s*[;=]',src):
-            field_lines.append('- '+field+': '+typ)
+        for visibility,typ,field in re.findall(r'(public|private|protected)\s+(?:final\s+)?(String|long|Long|boolean|Boolean|int|Integer|Instant|Set<Long>)\s+(\w+)\s*[;=]',src):
+            marker={'public':'+','private':'-','protected':'#'}[visibility] if audit_class else '-'
+            field_lines.append(marker+' '+field+': '+typ)
             if len(field_lines)>=6:break
         if not field_lines:
             record=re.search(r'public\s+record\s+'+re.escape(short)+r'\(([^)]*)\)',src)
@@ -268,12 +272,13 @@ def class_diagram(name,mode,nodes,edges,*,node_modes=None):
         if kind=='dependency' and nodes[b][0] not in source:
             raise ValueError(f'Dependency target not referenced in source: {name}:{a}->{b}')
         opts={'association':'style=solid,arrowhead=vee','dependency':'style=dashed,arrowhead=vee','implementation':'style=dashed,arrowhead=empty'}[kind]
-        if current_s04 and kind=='dependency':opts='style=dashed,arrowhead=none'
+        if (current_s04 or audit_class) and kind=='dependency':opts='style=dashed,arrowhead=none'
         if kind=='association':
             if aligned_style:
                 opts='style=solid,arrowhead=none'
                 if positions[nodes[a][1]][0]==positions[nodes[b][1]][0]:role+='   '
-                if current_s04 and role=='authorize':role+=r'\n '
+                if (current_s04 and role=='authorize') or (name=='S06-ddd-class' and role=='audits'):
+                    role+=r'\n '
             opts+=',label="'+role+'",fontsize=14'
         rows.append(f'"{a}" -> "{b}" [{opts}];')
     rows.extend(['"_top" [pos="0,480!",shape=point,width=0,height=0,style=invis,label=""];','"_bottom" [pos="0,-480!",shape=point,width=0,height=0,style=invis,label=""];'])
@@ -301,7 +306,7 @@ def class_diagram(name,mode,nodes,edges,*,node_modes=None):
                 px=x+(xx-x)*i/1000;py=y+(yy-y)*i/1000
                 if abs(px-cx)<cw/2 and abs(py-cy)<ch/2: raise ValueError(f'Edge crosses {name}: {a}->{b} through {c}')
     if aligned_style:
-        kinds={'association','dependency'} if current_s04 else {'association'}
+        kinds={'association','dependency'} if current_s04 or audit_class else {'association'}
         heads=open_class_arrowheads(positions,boxes,nodes,edges,kinds)
         dot_render(name,body[:-1]+'\n'.join(heads)+'\n}','neato')
 
@@ -393,23 +398,62 @@ def classes():
     class_diagram('S01-ddd-class',d,{'svc':('RoleApplicationService','C',['link','complete']),'repo':('AuthorizationRepository','L',['lockGrants','hierarchy','saveEdges']),'model':('RoleHierarchy','R',['link','unlink','requireGrantable']),'adapter':('JpaAuthorizationRepositoryAdapter','LB',['hierarchy','saveEdges']),'ctl':('RoleController','T',['link']),'auth':('AuthorizationApplicationService','B',['requireRoleManagement','requireGraphGrant','upperBound']),'role':('Role','RB',['superAdministratorCapability','requireManageable'])},[('ctl','svc','association','roles'),('svc','repo','association','repository'),('svc','model','dependency',''),('adapter','repo','implementation',''),('svc','auth','association','authorization'),('model','role','association','roles')])
     class_diagram('S02-ddd-class',d,{'svc':('DirectoryApplicationService','C',['assign','transfer','statusUser','departmentStatus']),'repo':('DirectoryRepository','L',['assign','user','departmentHasChildren']),'model':('User','R',['assign','transfer','changeStatus']),'adapter':('JpaDirectoryRepositoryAdapter','LB',['assign']),'elig':('DepartmentEligibility','RB',['requireEligible']),'auth':('AuthorizationApplicationService','B',['upperBound']),'organization':('OrganizationPolicy','T',['requireManaged','requireAccepting','requireDisableable'])},[('svc','repo','association','directory'),('svc','model','dependency',''),('model','elig','dependency',''),('adapter','repo','implementation',''),('svc','auth','association','authorization'),('svc','organization','association','policy')])
     class_diagram('S03-ddd-class',d,{'svc':('AuthorizationApplicationService','C',['effective','stableEffective','api','stableApi']),'repo':('AuthorizationRepository','L',['version','freshenRead','hierarchy']),'model':('AuthorizationPolicy','R',['calculate','allows','requireWithin']),'adapter':('JpaAuthorizationRepositoryAdapter','LB',['freshenRead','version','hierarchy']),'graph':('RoleHierarchy','RB',['paths']),'reads':('AuthorizationReadTransaction','T',['fresh']),'cache':('EffectiveCache','B',['get','put'])},[('svc','repo','association','repository'),('svc','model','association','policy'),('model','graph','dependency',''),('adapter','repo','implementation',''),('svc','reads','association','reads'),('svc','cache','association','cache')])
-    class_diagram('S06-ddd-class',d,{'svc':('RoleApplicationService','C',['status','complete']),'repo':('AuthorizationRepository','L',['lockGrants','saveRole','advanceVersion']),'role':('Role','R',['changeStatus','requireManageable']),'ctl':('RoleController','T',['status']),'adapter':('JpaAuthorizationRepositoryAdapter','LB',['saveRole','advanceVersion']),'integrity':('GrantIntegrityService','B',['requireAdministrator']),'audit':('AuditApplicationService','RB',['local','denied'])},[('ctl','svc','association','roles'),('svc','repo','association','repository'),('adapter','repo','implementation',''),('svc','role','dependency',''),('svc','integrity','association','integrity'),('svc','audit','association','audits')])
     class_diagram('SIM-ddd-class',d,{'svc':('AuthorizationApplicationService','C',['simulate','stableSimulation','unavailableReason','stableEffective','stableApi']),'repo':('AuthorizationRepository','L',['version','systemEnabled','identity']),'policy':('AuthorizationPolicy','R',['calculate','allows']),'ctl':('AuthorizationController','T',['explain','check']),'adapter':('JpaAuthorizationRepositoryAdapter','LB',['version','systemEnabled','identity'])},[('ctl','svc','association','authorization'),('svc','repo','association','repository'),('svc','policy','association','policy'),('adapter','repo','implementation','')])
     class_diagram('LOGIN-ddd-class',d,{'svc':('LoginAttemptApplicationService','C',['attempt']),'repo':('AuthorizationRepository','L',['lockLogin','saveLoginState']),'policy':('LoginAttemptPolicy','R',['locked','evaluate']),'ctl':('IdentityApplicationService','T',['login']),'adapter':('JpaAuthorizationRepositoryAdapter','LB',['lockLogin','saveLoginState']),'audit':('AuditApplicationService','B',['local'])},[('ctl','svc','association','loginAttempts'),('svc','repo','association','repository'),('adapter','repo','implementation',''),('svc','policy','association','policy'),('svc','audit','association','audits')])
-    for n in ['S05']:
-        class_diagram(n+'-ddd-class',d,{'svc':('AuditApplicationService','C',['external','local','denied']),'repo':('AuditRepository','L',['find','append']),'model':('AuditFact','R',['requireReplay']),'adapter':('JpaAuditRepositoryAdapter','LB',['find','append']),'ctl':(('IdentityController' if n=='S05' else 'RoleApplicationService'),'T',(['audit'] if n=='S05' else ['status','complete']))},[('svc','repo','association','repository'),('svc','model','dependency',''),('adapter','repo','implementation',''),('ctl','svc','association','audits')])
-    for n,methods,model,modelmethods in [('S01',['inherit','reachable'],'RoleHierarchy',[]),('S02',['assign','moveUser','userStatus','departmentStatus'],'UserRole',[]),('S06',['roleStatus','finish'],'Role',[])]:
-        class_diagram(n+'-structured-class',s,{'svc':('ManagementService','C',methods),'repo':('Store','L',['save','where','lock']),'model':(model,'R',modelmethods),'ctl':('ManagementController','T',([handler(s,'inherit')] if n=='S01' else [handler(s,'assign')] if n=='S02' else [handler(s,'roleStatus')])),'audit':('AuditService','B',['success','denied'])},[('ctl','svc','association','management'),('svc','repo','association','db'),('svc','model','dependency',''),('svc','audit','association','audit')])
+    for n,methods,model in [('S01',['inherit','reachable'],'RoleHierarchy'),('S02',['assign','moveUser','userStatus','departmentStatus'],'UserRole')]:
+        class_diagram(n+'-structured-class',s,{'svc':('ManagementService','C',methods),'repo':('Store','L',['save','where','lock']),'model':(model,'R',[]),'ctl':('ManagementController','T',[handler(s,methods[0])]),'audit':('AuditService','B',['success','denied'])},[('ctl','svc','association','management'),('svc','repo','association','db'),('svc','model','dependency',''),('svc','audit','association','audit')])
     class_diagram('S03-structured-class',s,{'svc':('AuthorizationService','C',['snapshot','calculate','walk']),'repo':('Store','L',['where','all']),'model':('Role','R',[]),'ctl':('ManagementService','T',['effectiveUser'])},[('svc','repo','association','db'),('svc','model','dependency',''),('ctl','svc','association','az')])
-    class_diagram('S05-structured-class',s,{'svc':('AuditService','C',['external','same','success','denied']),'repo':('Store','L',['one','save','flush']),'model':('AuditLog','R',[]),'ctl':('AuthController','T',['write'])},[('svc','repo','association','db'),('svc','model','dependency',''),('ctl','svc','association','audit')])
+    audit_classes()
     for mode in [d,s]:
         class_diagram('S04-'+mode+'-class','gateway',{'svc':('AuthBoundary','C',['authorize']),'repo':('IdentityClient','L',['check']),'ctl':('GatewayController','T',['forward']),'route':('RouteRegistry','R',['resolve'])},[('svc','repo','association','identity'),('ctl','svc','association','auth'),('ctl','route','association','routes')])
     s04_current_classes()
 
-def sequences():
+def audit_classes():
+    class_diagram('S05-structured-class', 'structured', {
+        'svc': ('AuditService', 'C', ['external', 'trusted', 'same']),
+        'repo': ('Store', 'L', ['one', 'save', 'flush']),
+        'model': ('AuditLog', 'R', []),
+        'ctl': ('AuthController', 'T', ['write']),
+    }, [('ctl','svc','association','audit'), ('svc','repo','association','db'),
+        ('svc','model','dependency','')])
+    class_diagram('S05-ddd-class', 'ddd', {
+        'svc': ('AuditApplicationService', 'C', ['external']),
+        'repo': ('AuditRepository', 'L', ['find', 'append']),
+        'model': ('AuditFact', 'R', ['requireReplay']),
+        'adapter': ('JpaAuditRepositoryAdapter', 'LB', ['find', 'append']),
+        'ctl': ('IdentityController', 'T', ['audit', 'auditActor']),
+    }, [('ctl','svc','association','audits'), ('svc','repo','association','repository'),
+        ('svc','model','dependency',''), ('adapter','repo','implementation','')])
+    class_diagram('S06-structured-class', 'structured', {
+        'svc': ('ManagementService', 'C', ['roleStatus', 'finish']),
+        'repo': ('Store', 'L', ['flush', 'save', 'lock']),
+        'model': ('Role', 'R', []),
+        'ctl': ('ManagementController', 'T', [handler('structured', 'roleStatus')]),
+        'audit': ('AuditService', 'B', ['success', 'denied']),
+    }, [('ctl','svc','association','management'), ('svc','repo','association','db'),
+        ('svc','model','dependency',''), ('svc','audit','association','audit')])
+    class_diagram('S06-ddd-class', 'ddd', {
+        'svc': ('RoleApplicationService', 'C', ['status', 'complete']),
+        'repo': ('AuthorizationRepository', 'L', ['lockGrants', 'saveRole', 'advanceVersion']),
+        'role': ('Role', 'R', ['changeStatus', 'requireManageable']),
+        'ctl': ('RoleController', 'T', ['status']),
+        'adapter': ('JpaAuthorizationRepositoryAdapter', 'LB', ['saveRole', 'advanceVersion']),
+        'integrity': ('GrantIntegrityService', 'B', ['requireAdministrator']),
+        'audit': ('AuditApplicationService', 'RB', ['local', 'denied']),
+    }, [('ctl','svc','association','roles'), ('svc','repo','association','repository'),
+        ('adapter','repo','implementation',''), ('svc','role','dependency',''),
+        ('svc','integrity','association','integrity'), ('svc','audit','association','audits')])
+
+
+def sequences(audit_only=False):
     path=ROOT/'tools/render-rbac1-design.scenarios.py'
     exec(compile(INPUTS[path.relative_to(ROOT).as_posix()]['source'],str(path),'exec'),globals())
-    build_sequences()
+    if audit_only:
+        for mode in ('structured', 'ddd'):
+            build_external_audit_sequence(mode)
+            build_role_audit_sequence(mode)
+    else:
+        build_sequences()
 
 def packages():
     layout = runpy.run_path(str(ROOT / PACKAGE_LAYOUT))
@@ -754,17 +798,21 @@ RUNTIME_EVIDENCE_NOTE
 end note
 @enduml'''.replace('TIMESTAMP',timestamp).replace('EVIDENCE_STATUS',str(evidence.get('status','UNVERIFIED'))).replace('EVIDENCE_TAG',str(evidence.get('tag','UNVERIFIED'))).replace('RUNTIME_EVIDENCE_NOTE',runtime_evidence_note(snapshot)).replace('EVIDENCE_MODE',runtime_evidence).replace('EVIDENCE_TITLE','Historical LOCAL dual Swarm' if runtime_evidence=='archived' else 'Verified LOCAL archive with matching current JARs'))
 
-def plantuml():
-    jar=Path(tempfile.gettempdir())/f'rbac1-plantuml-{VERSION}.jar'
-    if not jar.exists():urllib.request.urlretrieve(f'https://repo.maven.apache.org/maven2/net/sourceforge/plantuml/plantuml/{VERSION}/plantuml-{VERSION}.jar',jar)
+def plantuml(sources=None):
+    configured_jar=os.environ.get('PLANTUML_JAR')
+    jar=Path(configured_jar) if configured_jar else Path(tempfile.gettempdir())/f'rbac1-plantuml-{VERSION}.jar'
+    if not configured_jar and not jar.exists():urllib.request.urlretrieve(f'https://repo.maven.apache.org/maven2/net/sourceforge/plantuml/plantuml/{VERSION}/plantuml-{VERSION}.jar',jar)
+    sources=sorted(OUT.glob('*.puml') if sources is None else sources)
     for fmt in ['svg','png']:
-        run([find_java('java'),'-Dfile.encoding=UTF-8','-jar',jar,'-charset','UTF-8','-t'+fmt,*sorted(OUT.glob('*.puml'))])
-    for p in sorted(OUT.glob('*.puml')): FIGURES.append(p.stem)
+        run([find_java('java'),'-Dfile.encoding=UTF-8','-jar',jar,'-charset','UTF-8','-t'+fmt,*sources])
+    for p in sources: FIGURES.append(p.stem)
     return {'plantumlVersion':VERSION,'jarSha256':sha(jar),'java':str(find_java('java'))}
 
 def main():
     parser=argparse.ArgumentParser();parser.add_argument('--runtime-evidence',choices=['current','archived'],default='current',help='current (default) requires exact current JAR SHA match; archived validates historical local evidence only, never current runtime/build acceptance');parser.add_argument('--strict-compiled',action='store_true');parser.add_argument('--check',action='store_true',help='check saved source hashes without rendering')
-    parser.add_argument('--packages-only', action='store_true', help='validate and render the two package views from Java sources')
+    partial=parser.add_mutually_exclusive_group()
+    partial.add_argument('--packages-only', action='store_true', help='validate and render the two package views from Java sources')
+    partial.add_argument('--audit-only', action='store_true', help='validate and render the eight S05/S06 audit views')
     args=parser.parse_args();OUT.mkdir(parents=True,exist_ok=True)
     if args.packages_only:
         if args.strict_compiled or args.check:
@@ -774,6 +822,16 @@ def main():
             packages()
         except (OSError, RuntimeError, ValueError) as error:
             parser.exit(1, str(error) + '\n')
+        return
+    if args.audit_only:
+        if args.strict_compiled or args.check:
+            parser.error('--audit-only checks the current source and cannot be combined with --strict-compiled or --check')
+        collect()
+        verify_call_chains(audit_only=True)
+        audit_classes()
+        sequences(audit_only=True)
+        plantuml(OUT/f'{scenario}-{mode}-sequence.puml'
+                 for scenario in ('S05', 'S06') for mode in ('structured', 'ddd'))
         return
     if args.check:
         data=json.loads((OUT/'source-index.json').read_text(encoding='utf-8'))

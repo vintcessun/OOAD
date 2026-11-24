@@ -23,6 +23,8 @@
 python tools/render-rbac1-design.py
 # 按 Java 源码局部重画两张包图，先在 rbac-web 安装项目依赖和 Playwright Chromium
 python tools/render-rbac1-design.py --packages-only
+# 按当前源码定向重画 S05、S06 的八张图
+python tools/render-rbac1-design.py --audit-only
 # 业务代码稳定并编译三模块之后，要求编译产物不旧于源码
 python tools/render-rbac1-design.py --strict-compiled --runtime-evidence archived
 # 发布前检测源码/DDL/部署定义与图快照是否一致
@@ -32,6 +34,7 @@ python tools/render-rbac1-design.test.py
 ----
 
 全量生成依赖 Python 标准库、Graphviz `dot`、JDK 与 `rbac-web` 现有的 Playwright Chromium。包图生成使用 Python 输出 SVG，由 Chromium 导出同尺寸 PNG。首次准备浏览器时，在 `rbac-web` 运行 `npm ci` 和 `npx playwright install chromium`。PlantUML 固定为 1.2025.2，首次从 Maven Central 下载到系统临时目录，实际 jar SHA-256 写入索引。
+定向生成审计图时，可用 `GRAPHVIZ_DOT` 指定 Graphviz 可执行文件，用 `PLANTUML_JAR` 指定本地 PlantUML 1.2025.2 JAR。图稿复核见 link:design/visual-review.adoc#audit-visual-review[审计图稿复核]。
 `--strict-compiled` 缺类或源码新于 class 时写出 `PENDING_COMPILE` 并失败，不伪造生成成功；普通模式只允许源码快照，显式记录待编译。生成时检查类、字段 role 和方法声明，编译产物当前时再检查 javap；源码在生成期间改变则失败。
 
 顺序图的维护源集中在 `tools/render-rbac1-design.scenarios.py`，与渲染引擎一起纳入失效检查；不要只改生成后的 puml。`--check` 同时检查新增 Java 文件、class 字节哈希、图文件哈希及部署输入变化。重载方法在索引保留全部 javap 候选签名，实际接收者与参数类型还要回到调用方法体核对。
@@ -63,7 +66,7 @@ image::ddd-packages.svg[DDD 包图]
 `domain.port.AuthorizationRepository` 等是面向领域/用例的端口，不是 JpaRepository；`infrastructure.persistence.Jpa*RepositoryAdapter` 实现这些接口并操作 `*Entity`。
 应用服务不应依赖具体 JpaAdapter。图中的实现关系为 Adapter → Repository，不画反。
 
-两张图沿用课程项目原始 SVG 的系统字体栈、浅灰底、分区色条、文件夹包框与图例。灰色虚线空心箭头表示主要依赖，蓝色虚线搭配空心三角表示包内类型实现了目标包中的端口。箭头均指向被依赖或被实现的一方。绘图范围是 `rbac-structured` 与 `rbac-ddd` 各自的主要 Java 子包，跨模块关系见 link:../diagrams/phase2/src/architecture-modules.mmd[模块架构图源]。图的 SVG 保留原项目的 MIT 许可说明。布局参照 link:https://gitee.com/mingqcn/course-project-mgt/blob/990cea2cc3686599ef5068945706a13e7e0afc5b/docs/backend-design.md[课程项目后端设计第 17.1、17.2 节]。
+两张图沿用课程项目原始 SVG 的系统字体栈、浅灰底、分区色条、文件夹包框与图例。灰色虚线空心箭头表示主要依赖，蓝色虚线搭配空心三角表示包内类型实现了目标包中的端口。箭头均指向被依赖或被实现的一方。绘图范围是 `rbac-structured` 与 `rbac-ddd` 各自的主要 Java 子包。课程代理与各后端的关系见 <<s04-current,S04 当前类图>>，运行服务之间的连接见 <<swarm-current,当前六服务拓扑>>。图的 SVG 保留原项目的 MIT 许可说明。布局参照 link:https://gitee.com/mingqcn/course-project-mgt/blob/990cea2cc3686599ef5068945706a13e7e0afc5b/docs/backend-design.md[课程项目后端设计第 17.1、17.2 节]。
 
 结构化图保留 `service → mapper` 和 `service → entity` 两条依赖，分别对应事务脚本使用 `Store` 和直接处理数据实体。`dto → entity` 表示将请求输入映射到实体，角色、部门和用户的响应字段由 `service.Views` 组装。`config → controller` 对应 `WebConfig` 注册 `PermissionInterceptor`。
 
@@ -120,7 +123,7 @@ A→B 表示 A 继承 B，权限沿 senior 到 junior 合并；多父、菱形�
 |本地业务、版本与 SUCCESS 审计共享调用者事务；独立 DENIED 事务不冒充业务成功。当前没有 RoleStatusChangedEvent，不为术语补画领域事件。
 |===
 
-每个 S 编号在图索引中有两版 `*-class` / `*-sequence`。S04 两张类图保留独立网关的历史结构，主顺序图分别展示当前 Compose 两版的中心内嵌代理与授权调用。
+每个 S 编号在图索引中有两个实现的类图和时序图。S04 的当前类图和主时序图都对应 Compose 默认的中心内嵌代理。
 
 === S01：并发、锁与失败
 
@@ -140,7 +143,7 @@ DDD JpaDirectoryRepositoryAdapter.saveUser 在首次 INSERT 之前直接生成�
 
 image::department-state.svg[部门状态与新接纳]
 
-指派流程先检查部门是否接受新指派。停用的非根叶部门保留已有成员及授权，关停新接纳，并从课程目录隐藏。用户恢复检查的是保留角色实际恢复的权限及身份标记。跨部门调动会清空该用户全部直接指派。
+指派流程先检查部门是否接受新指派。停用的非根叶部门保留已有成员及授权，关停新接纳，并从课程目录隐藏。用户恢复时检查保留角色实际恢复的权限及有效角色码。跨部门调动会清空该用户全部直接指派。
 
 === S03：查询也有规则
 
@@ -164,14 +167,18 @@ image::SIM-ddd-sequence.svg[管理端模拟判定和解释]
 
 `AuthorizationController` 的 `check` 和 `explain` 都通过私有 `check` 校验调用者。代查他人时还会检查目标部门范围。两种入口的 UI 和 API 模拟都调用 `simulate`。每轮读取授权版本、目标状态、权限快照和判定，再复查版本。UI 判定匹配快照中的权限码，API 判定检查登记的操作策略。版本变化时重做整轮，稳定的未知目标返回 404。停用用户或系统的模拟返回 `allowed=false` 及 `USER_DISABLED` 或 `SYSTEM_DISABLED`，`explain` 同时带上空权限和对应的解释轨迹。共享验收场景使用 SIM 图，UML-S06 顺序图展示同步成功审计。
 
+[[s04-current]]
 === S04：可信 operationId 与双层鉴权
+
+image::S04-structured-current-class.svg[Structured 当前课程代理类图]
+image::S04-ddd-current-class.svg[DDD 当前课程代理类图]
 
 image::S04-structured-sequence.svg[Structured 中心内嵌课程代理]
 image::S04-ddd-sequence.svg[DDD 中心内嵌课程代理]
 
 当前 Compose 由课程前端的 Nginx 将受保护的 `/api/` 路由交给 `rbac-backend`。`course.upstream` 启用 `CourseProxyFilter`，它以方法与路径匹配可信 `operationId`，通过后端本地回调校验令牌、课程 audience 和 API 权限。允许后才限量读取请求体，再由 `ProxyClient` 发往课程后端。课程后端的对象级 403 由代理保留。外部审计另走课程后端向中心的同步 HTTP 调用。link:../deploy/full-course-nginx.conf[课程 Nginx] · link:../docker-compose.yml[默认 Compose] · link:../rbac-course-proxy/src/main/java/com/xmu/rbac/gateway/CourseProxyFilter.java[代理入口]
 
-历史独立网关使用 `GatewayController → AuthBoundary → IdentityClient` 跨服务调用中心 API 判定，再由 `ProxyClient` 转发。这个结构保留在 S04 两张历史类图中，相关接口边界仍可单独阅读。
+历史独立网关使用 `GatewayController → AuthBoundary → IdentityClient` 跨服务调用中心 API 判定，再由 `ProxyClient` 转发。link:design/S04-structured-class.svg[Structured 网关归档] · link:design/S04-ddd-class.svg[DDD 网关归档]
 
 image::S04-ddd-policy-sequence.svg[DDD 版本一致的 API 决策]
 
@@ -179,12 +186,16 @@ image::S04-ddd-policy-sequence.svg[DDD 版本一致的 API 决策]
 
 === S05：幂等并不等于先查后插
 
+link:design/S05-structured-class.svg[Structured 审计类图] · link:design/S05-ddd-class.svg[DDD 审计类图]
+
 image::S05-structured-sequence.svg[结构化审计]
 image::S05-ddd-sequence.svg[DDD 审计]
 
 Actor 由已验证 token 与服务端状态派生，外部还要服务密钥与 audit:write。先白名单 JSON、规范化再算摘要；DB request_id 唯一。DDD AuditFact 的紧凑构造器将 at 截到 MILLIS，结构化 AuditService.record 也截毫秒，确保 POST 返回、TIMESTAMP(3) 持久化、重放响应与闭区间 [at,at] 查询一致。结构化 AuditLog.requestId 显式 columnDefinition=char(36)，GrantVersion.id 的 Java Long 显式映射 tinyint；不能因为 Java 类型是 Long 就画成物理 BIGINT。已提交但网络超时只能重试原 requestId。中心接收方幂等不保证课程调用方自动可靠重试；若调用方丢失原 requestId 或不重试，不能宣称两系统审计强可靠。没有分布式原子事务，也不增加 Outbox、MQ、异步消费者。
 
 === S06：成功与拒绝是不同事实
+
+link:design/S06-structured-class.svg[Structured 同事务审计类图] · link:design/S06-ddd-class.svg[DDD 同事务审计类图]
 
 image::S06-structured-sequence.svg[结构化同事务]
 image::S06-ddd-sequence.svg[DDD 同事务]
@@ -245,6 +256,7 @@ image::LOGIN-ddd-sequence.svg[持久登录锁事务]
 
 真实链为 IdentityApplicationService.login → LoginAttemptApplicationService.attempt。attempt 在事务内 `lockLogin` 串行化账号行，LoginAttemptPolicy.locked/evaluate 判断；仅 ACTIVE 且未锁才做密码匹配。第 5 次错误锁 900 秒；锁定中不继续累加，过期重新计数，正确凭据清零。`saveLoginState` 与 LOGIN_DENIED 同事务，失败时返回 null，事务正常提交后外层 login 才抛 401，避免安全计数被同一个异常回滚。不存在账号返回 null；系统停用/审计持久化异常仍使 attempt 事务回滚，不能笼统说“任何登录失败都已提交计数”。
 
+[[swarm-current]]
 == 当前 Swarm 六服务拓扑
 
 image::swarm-deployment-current.svg[当前 Compose 的六服务拓扑]
