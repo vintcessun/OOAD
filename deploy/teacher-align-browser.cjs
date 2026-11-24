@@ -2,7 +2,19 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const path = require('node:path')
 const origin = process.argv[2]
-const accounts = JSON.parse(fs.readFileSync(process.argv[3], 'utf8'))
+const accountData = fs.readFileSync(process.argv[3], 'utf8')
+let accounts
+if (process.argv.includes('--legacy')) {
+  const passwords = new Map(accountData.trim().split(/\r?\n/).map(row => row.split('\t')))
+  accounts = Object.fromEntries([
+    ['teacher', 'CLOUD-T1'],
+    ['student', 'CLOUD-S1'],
+  ].map(([role, username]) => [
+    role, { username, password: passwords.get(username), course: 619001, term: '619001' },
+  ]))
+} else {
+  accounts = JSON.parse(accountData)
+}
 const { chromium } = require(path.resolve(process.env.PLAYWRIGHT_MODULE || 'rbac-web/node_modules/playwright'))
 
 async function statusFor(page, pathname, action, method = 'GET') {
@@ -27,7 +39,20 @@ async function login(page, role, account) {
 async function verifyCourse(page, role, account) {
   const endpoint = role === 'teacher' ? '/api/teacher/courses' : '/api/me/courses'
   await login(page, role, account)
-  const response = await statusFor(page, endpoint, () => page.reload())
+  let response
+  if (account.term) {
+    const select = page.locator('select').filter({ has: page.locator('option[value="' + account.term + '"]') })
+    const [termResponse] = await Promise.all([
+      page.waitForResponse(res => {
+        const url = new URL(res.url())
+        return url.pathname === endpoint && url.searchParams.get('termId') === account.term
+      }),
+      select.selectOption(account.term),
+    ])
+    response = termResponse
+  } else {
+    response = await statusFor(page, endpoint, () => page.reload())
+  }
   assert.equal(response.status(), 200)
   const data = await response.json()
   const course = data.items.find(item => Number(item.id ?? item.courseId) === account.course)
