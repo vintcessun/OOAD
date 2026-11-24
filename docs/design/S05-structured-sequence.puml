@@ -1,74 +1,100 @@
 @startuml
+!pragma teoz true
 hide footbox
 skinparam defaultFontName Microsoft YaHei
 skinparam defaultFontSize 14
-skinparam ParticipantPadding 24
+skinparam ParticipantPadding 124
 skinparam BoxPadding 12
 skinparam sequenceMessageAlign left
-skinparam maxMessageSize 100
+skinparam maxMessageSize 200
 title S05-structured-sequence — source snapshot (not a runtime trace)
 participant "obj: 调用者" as obj
 participant "ctl: AuthController" as ctl
 participant "svc: AuditService" as svc
 participant "repo: Store" as repo
-participant "fact: AuditLog" as fact
 activate obj
 obj -> ctl: 1. write(actor, key, input)
 activate ctl
-note over ctl
-authenticated actor + service key + audit:write; no client-supplied actor
+note right of ctl
+PermissionInterceptor has already resolved actor from the user token.
 end note
 ctl -> svc: 2. external(actor, input, key)
 activate svc
-note over svc,fact
-whitelist → canonical JSON → payload hash;
-record truncates occurredAt to MILLIS; requestId maps CHAR(36).
-POST time, persisted TIMESTAMP(3), replay and [at,at] query agree.
-end note
-group REQUIRES_NEW first attempt
-svc -> repo: 3. one(AuditLog.class, requestId predicate)
-activate repo
-deactivate repo
-alt existing requestId
-svc -> svc: 4. same(existing, payload)
+svc -> svc: 3. trusted(key)
 activate svc
 deactivate svc
-note over svc
-same content → old id; different content → 400 conflict
+note right of svc
+Check whether the actor has the API permission audit:write.
 end note
-else new requestId
-svc -> repo: 5. save(log)
-activate repo
-deactivate repo
-svc -> repo: 6. flush()
-activate repo
-deactivate repo
-end
-end
-alt concurrent unique-key violation
-note over svc
-failed insert transaction rolled back BEFORE catch re-read
+note right of svc
+Validate payload fields and hash canonical JSON.
+The digest binds the source system and authenticated actor to the content.
 end note
-group separate REQUIRES_NEW
-svc -> repo: 7. one(AuditLog.class, requestId predicate)
+group First audit transaction (REQUIRES_NEW)
+svc -> repo: 4. one(AuditLog.class, requestId predicate)
 activate repo
+repo -->> svc: existing audit or null
 deactivate repo
-svc -> svc: 8. same(existing, payload)
+alt Known ID
+svc -> svc: 5. same(existing, payload)
 activate svc
-deactivate svc
-note over svc
-missing existing → rethrow DB exception; existing content rechecked
-end note
+break Conflict
+svc -->> obj: 400 AUDIT_DUPLICATE_CONFLICT
+||16||
 end
-else committed first attempt
-note over svc
-canonical record is durable
+deactivate svc
+note right of svc
+Keep the original audit record and ID.
 end note
+else New requestId
+note right of svc
+Build the AuditLog and truncate occurredAt to milliseconds.
+end note
+svc -> repo: 6. save(log)
+activate repo
+deactivate repo
+svc -> repo: 7. flush()
+activate repo
+deactivate repo
+||16||
+end
+end
+opt Retry
+note right of svc
+Catch DataIntegrityViolationException after the first transaction rolls back.
+Concurrent insertion of the same requestId is one cause.
+end note
+group Read again (separate REQUIRES_NEW transaction)
+svc -> repo: 8. one(AuditLog.class, requestId predicate)
+activate repo
+repo -->> svc: existing audit or null
+deactivate repo
+alt Record found
+svc -> svc: 9. same(existing, payload)
+activate svc
+break Conflict
+svc -->> obj: 400 AUDIT_DUPLICATE_CONFLICT
+||16||
+end
+deactivate svc
+note right of svc
+Keep the original audit record and ID.
+end note
+else Record absent
+break Missing
+svc -->> obj: Rethrow the original database exception
+||16||
+end
+end
+end
 end
 note over svc,ctl
-201 only after commit. Timeout retry uses original requestId; SQL failure is not 201.
+Complete the audit transaction before replying.
+After a timeout, retry with the original requestId.
 end note
+svc -->> ctl: audit record
 deactivate svc
+ctl -->> obj: 201 audit result
 deactivate ctl
 deactivate obj
 @enduml

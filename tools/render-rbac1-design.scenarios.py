@@ -200,59 +200,162 @@ def build_sequences():
         q.raw('else invalid token or audience\nfilter --> obj: 401 / 403\nend\nend\nalt authorization accepted');q.call('filter','body','read','request input, max request bytes, 413','bytes')
         q.raw('alt body read succeeds');q.call('filter','proxy','forward','request, coursePath, bytes, traceId, false','course response')
         q.raw('note over proxy: HTTP to course-backend; relay its response.\nCourse object-level 403 is preserved.\nfilter --> obj: course response\nelse body error\nfilter --> obj: 400 / 413\nend\nelse denied or unavailable\nfilter --> obj: 403 / 503\nend\nelse invalid route or Bearer header\nfilter --> obj: 400 / 404 / 401\nend');q.finish()
-        # S05: canonical audit fact matches TIMESTAMP(3), including replay/query boundaries.
-        p={'ctl':'IdentityController' if d else 'AuthController','svc':'AuditApplicationService' if d else 'AuditService',
-           'repo':'AuditRepository' if d else 'Store','fact':'AuditFact' if d else 'AuditLog'}
-        q=Sequence('S05-'+mode+'-sequence',mode,p,'ctl','audit' if d else 'write','bearer, key, input' if d else 'actor, key, input')
-        q.raw('note over ctl: authenticated actor + service key + audit:write; no client-supplied actor')
-        q.open('ctl','svc','external','actor, system, roles, requestId, type, objectType, objectId, target, before, after' if d else 'actor, input, key')
-        q.raw('note over svc,fact: whitelist → canonical JSON → payload hash;\n'+('AuditFact compact constructor truncates at to MILLIS.' if d else 'record truncates occurredAt to MILLIS; requestId maps CHAR(36).')+'\nPOST time, persisted TIMESTAMP(3), replay and [at,at] query agree.\ngroup REQUIRES_NEW first attempt')
-        q.call('svc','repo','find' if d else 'one','requestId' if d else 'AuditLog.class, requestId predicate')
-        q.raw('alt existing requestId')
-        if d:q.call('svc','fact','requireReplay','proposed')
-        else:q.call('svc','svc','same','existing, payload')
-        q.raw('note over svc: same content → old id; different content → 400 conflict\nelse new requestId');q.call('svc','repo','append' if d else 'save','fact' if d else 'log')
-        if not d:q.call('svc','repo','flush')
-        q.raw('end\nend\nalt concurrent unique-key violation\nnote over svc: failed insert transaction rolled back BEFORE catch re-read\ngroup separate REQUIRES_NEW')
-        q.call('svc','repo','find' if d else 'one','requestId' if d else 'AuditLog.class, requestId predicate')
-        if d:q.call('svc','fact','requireReplay','proposed')
-        else:q.call('svc','svc','same','existing, payload')
-        q.raw('note over svc: missing existing → rethrow DB exception; existing content rechecked\nend\nelse committed first attempt\nnote over svc: canonical record is durable\nend\nnote over svc,ctl: 201 only after commit. Timeout retry uses original requestId; SQL failure is not 201.')
-        end_use_case(q)
-        # S06: current last-administrator policy is part of the same transaction.
-        p={'ctl':'RoleController' if d else 'ManagementController','svc':'RoleApplicationService' if d else 'ManagementService',
-           'auth':'AuthorizationApplicationService' if d else 'AuthorizationService','role':'Role',
-           'repo':'AuthorizationRepository' if d else 'Store','audit':'AuditApplicationService' if d else 'AuditService'}
-        if d:p.update({'integrity':'GrantIntegrityService','auditRepo':'AuditRepository'})
-        if d:p['graph']='RoleHierarchy'
-        q=Sequence('S06-'+mode+'-sequence',mode,p,'ctl','status' if d else handler(mode,'roleStatus'),'bearer, id, input' if d else 'actor, id, input')
-        q.open('ctl','svc','status' if d else 'roleStatus','principal, id, enabled' if d else 'actor, id, status')
-        q.raw('group same local transaction: business + integrity + version + SUCCESS audit')
-        q.call('svc','repo' if d else 'auth','lockGrants' if d else 'lock')
-        if d:
-            q.call('svc','auth','require','principal, rbac:role:status, true');q.call('svc','repo','role','id')
-            q.call('svc','auth','requireRoleManagement','actor, role');q.call('svc','role','changeStatus','enabled')
-            q.raw('opt enabling');affected_grants(q);q.raw('end')
-            q.call('svc','repo','saveRole','role');q.call('svc','integrity','requireAdministrator')
-            q.raw('note over integrity: active identities + root department + role eligibility\n+ current graph/permissions → LastAdministratorPolicy.\nNo qualified effective SUPER_ADMIN → 409; outer transaction rolls back.')
-            q.call('svc','repo','advanceVersion')
-        else:
-            q.raw('note over svc,auth: begin: rbac:role:status + root department\n→ captureUpper before mutation')
-            q.call('svc','auth','protectRole','actor, role')
-            q.raw('note over svc,role: managed Role.status = status; enable → changedUpper\nupper checks latent capability paths even across disabled nodes.\nfinish flushes → preserveAdministrator → increments GrantVersion\nGrantVersion Java Long id maps physical TINYINT, not BIGINT.')
-        q.raw('alt audit persistence throws')
-        q.open('svc','audit','local' if d else 'success','actor, system, ROLE_STATUS_CHANGED, target, SUCCESS, null' if d else 'actor, ROLE_STATUS, target')
-        q.open('audit','auditRepo' if d else 'repo','append' if d else 'save','fact' if d else 'log')
-        q.raw(('auditRepo' if d else 'repo')+' --> obj: persistence failure; rollback, no business success')
-        q.close('auditRepo' if d else 'repo','audit');q.close('audit','svc')
-        q.raw('else persisted in caller transaction')
-        q.open('svc','audit','local' if d else 'success','actor, system, ROLE_STATUS_CHANGED, target, SUCCESS, null' if d else 'actor, ROLE_STATUS, target')
-        q.call('audit','auditRepo' if d else 'repo','append' if d else 'save','fact' if d else 'log');q.close('audit','svc')
-        q.raw('note over audit: DDD local derives actual actor identity-role snapshot before append.\nNo independent SUCCESS commit; timestamps have millisecond precision.\nend\nend\nnote over svc: Spring interceptor COMMIT after normal method return; failure blocks success response.\nnote over audit: denied is a separate REQUIRES_NEW DENIED event, not business SUCCESS.\nAOP method/log timing is neither audit_log nor proof of DB commit.')
-        end_use_case(q)
+        build_external_audit_sequence(mode)
+        build_role_audit_sequence(mode)
     build_policy_detail()
     build_login_detail()
     build_simulation_detail()
+
+def audit_sequence(name, mode, participants, entry, args):
+    q = Sequence(f'{name}-{mode}-sequence', mode, participants, 'ctl', entry, args,
+                 reply_arrow='-->>')
+    q.lines.insert(1, '!pragma teoz true')
+    q.lines[q.lines.index('skinparam ParticipantPadding 24')] = 'skinparam ParticipantPadding 124'
+    q.lines[q.lines.index('skinparam maxMessageSize 100')] = 'skinparam maxMessageSize 200'
+    return q
+
+
+def audit_replay(q, ddd):
+    target = 'fact' if ddd else 'svc'
+    q.open('svc', target, 'requireReplay' if ddd else 'same',
+           'proposed' if ddd else 'existing, payload')
+    q.raw('break Conflict')
+    q.reply(target, 'obj', '400 AUDIT_DUPLICATE_CONFLICT')
+    q.raw('||16||\nend')
+    q.close(target, 'svc')
+    q.raw('note right of svc: Keep the original audit record and ID.')
+
+
+def build_external_audit_sequence(mode):
+    ddd = mode == 'ddd'
+    participants = {
+        'ctl': 'IdentityController' if ddd else 'AuthController',
+        'svc': 'AuditApplicationService' if ddd else 'AuditService',
+        'repo': 'AuditRepository' if ddd else 'Store',
+    }
+    if ddd:
+        participants['fact'] = 'AuditFact'
+    q = audit_sequence('S05', mode, participants, 'audit' if ddd else 'write',
+                       'bearer, key, input' if ddd else 'actor, key, input')
+    if ddd:
+        q.raw('note right of ctl: Resolve principal from Bearer. The caller does not set the actor.')
+        q.open('ctl', 'ctl', 'auditActor', 'principal, key, audit:write')
+        q.raw('note right of ctl: Check the service key and audit:write to obtain the actor.')
+        q.close('ctl', 'ctl')
+        q.raw('note right of ctl: Read the effective course role codes for the audit snapshot.')
+        q.open('ctl', 'svc', 'external',
+               'actor, system, roles, requestId, type, objectType, objectId, target, before, after')
+    else:
+        q.raw('note right of ctl: PermissionInterceptor has already resolved actor from the user token.')
+        q.open('ctl', 'svc', 'external', 'actor, input, key')
+        q.call('svc', 'svc', 'trusted', 'key')
+        q.raw('note right of svc: Check whether the actor has the API permission audit:write.')
+    q.raw('note right of svc: Validate payload fields and hash canonical JSON.\n'
+          'The digest binds the source system and authenticated actor to the content.')
+    if ddd:
+        q.raw('note right of svc: Build the proposed AuditFact with millisecond precision.')
+    lookup = 'find' if ddd else 'one'
+    arguments = 'requestId' if ddd else 'AuditLog.class, requestId predicate'
+    q.raw('group First audit transaction (REQUIRES_NEW)')
+    q.call('svc', 'repo', lookup, arguments, 'existing audit or null')
+    q.raw('alt Known ID')
+    audit_replay(q, ddd)
+    q.raw('else New requestId')
+    if not ddd:
+        q.raw('note right of svc: Build the AuditLog and truncate occurredAt to milliseconds.')
+    q.call('svc', 'repo', 'append' if ddd else 'save', 'fact' if ddd else 'log')
+    if not ddd:
+        q.call('svc', 'repo', 'flush')
+    q.raw('||16||\nend\nend')
+    q.raw('opt Retry')
+    q.raw('note right of svc: Catch DataIntegrityViolationException after the first transaction rolls back.\nConcurrent insertion of the same requestId is one cause.')
+    q.raw('group Read again (separate REQUIRES_NEW transaction)')
+    q.call('svc', 'repo', lookup, arguments, 'existing audit or null')
+    q.raw('alt Record found')
+    audit_replay(q, ddd)
+    q.raw('else Record absent')
+    q.raw('break Missing')
+    q.reply('svc', 'obj', 'Rethrow the original database exception')
+    q.raw('||16||\nend\nend\nend\nend')
+    q.raw('note over svc,ctl: Complete the audit transaction before replying.\nAfter a timeout, retry with the original requestId.')
+    q.close('svc', 'ctl', 'audit record')
+    q.reply('ctl', 'obj', '201 audit result')
+    q.finish()
+
+
+def build_role_audit_sequence(mode):
+    ddd = mode == 'ddd'
+    participants = {
+        'ctl': 'RoleController' if ddd else 'ManagementController',
+        'svc': 'RoleApplicationService' if ddd else 'ManagementService',
+        'auth': 'AuthorizationApplicationService' if ddd else 'AuthorizationService',
+        'repo': 'AuthorizationRepository' if ddd else 'Store',
+        'audit': 'AuditApplicationService' if ddd else 'AuditService',
+    }
+    if ddd:
+        participants.update(role='Role', graph='RoleHierarchy',
+                            integrity='GrantIntegrityService', auditRepo='AuditRepository')
+    q = audit_sequence('S06', mode, participants, 'status' if ddd else handler(mode, 'roleStatus'),
+                       'bearer, id, input' if ddd else 'actor, id, input')
+    q.open('ctl', 'svc', 'status' if ddd else 'roleStatus',
+           'principal, id, enabled' if ddd else 'actor, id, status')
+    q.raw('group Same transaction: role status, grant version and success audit')
+    if ddd:
+        q.call('svc', 'repo', 'lockGrants')
+        q.call('svc', 'auth', 'require', 'principal, rbac:role:status, true')
+        q.call('svc', 'repo', 'role', 'id')
+        q.call('svc', 'auth', 'requireRoleManagement', 'actor, role')
+        q.raw('||12||\nopt Enable')
+        q.call('svc', 'auth', 'requireRoleGrantSystem', 'actor, role.systemCode()')
+        q.raw('||16||\nend')
+        q.call('svc', 'role', 'changeStatus', 'enabled')
+        q.raw('||12||\nopt Enable')
+        q.open('svc', 'svc', 'requireAffectedGrants', 'actor, proposed graph, role, permissions')
+        q.call('svc', 'graph', 'affectedBy', 'role.id()')
+        q.raw('||12||\nloop Affected')
+        q.call('svc', 'auth', 'requireGraphGrant', 'actor, proposed graph, affectedId')
+        q.call('svc', 'auth', 'upperBound', 'actor, systemCode, proposed permissions')
+        q.raw('||16||\nend')
+        q.close('svc', 'svc')
+        q.raw('||16||\nend')
+        q.call('svc', 'repo', 'saveRole', 'role')
+        q.call('svc', 'integrity', 'requireAdministrator')
+        q.raw('note over svc,repo: Check that an effective SUPER_ADMIN remains.\nA failure rolls back the transaction before the version or audit is written.')
+        q.call('svc', 'repo', 'advanceVersion')
+    else:
+        q.call('svc', 'auth', 'lock')
+        q.raw('note over svc,auth: begin checks rbac:role:status and root department,\nthen captures the grant limit for this actor before mutation.')
+        q.call('svc', 'auth', 'require', 'Role.class, id', 'role')
+        q.call('svc', 'auth', 'protectRole', 'actor, role')
+        q.raw('||12||\nopt Enable')
+        q.call('svc', 'auth', 'requireRoleGrantSystem', 'actor, roleSystem')
+        q.raw('||16||\nend')
+        q.raw('note over svc: Set the managed Role.status. If enabled, check the proposed grants.')
+        q.call('svc', 'repo', 'flush')
+        q.call('svc', 'auth', 'preserveAdministrator')
+        q.raw('note over svc: finish increments the grant version after the integrity check.')
+    q.open('svc', 'audit', 'local' if ddd else 'success',
+           'actor, system, ROLE_STATUS_CHANGED, target, SUCCESS, null' if ddd
+           else 'actor, ROLE_STATUS, target')
+    q.raw('note over audit: Capture the current roles for this actor and build the success record.')
+    audit_repo = 'auditRepo' if ddd else 'repo'
+    q.open('audit', audit_repo, 'append' if ddd else 'save', 'fact' if ddd else 'log')
+    q.raw('break Failure')
+    q.reply(audit_repo, 'obj', 'Persistence error, transaction rolls back')
+    q.raw('||16||\nend')
+    q.close(audit_repo, 'audit')
+    q.close('audit', 'svc')
+    q.raw('||16||\nend')
+    q.raw('note over ctl,svc: Spring commits after the service method finishes, before returning to the controller.')
+    q.raw('alt Committed')
+    q.reply('svc', 'ctl', 'role result')
+    q.reply('ctl', 'obj', '200 role status updated')
+    q.raw('else Commit throws')
+    q.reply('svc', 'obj', 'Commit error, success response withheld')
+    q.raw('||16||\nend')
+    q.raw('note over audit: Denied audit events use a separate transaction.')
+    end_use_case(q)
+
 
 def build_simulation_detail():
     p={'ctl':'AuthorizationController','rest':'RestSupport','directory':'DirectoryApplicationService',

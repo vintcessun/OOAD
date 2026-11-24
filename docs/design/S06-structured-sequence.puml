@@ -1,17 +1,17 @@
 @startuml
+!pragma teoz true
 hide footbox
 skinparam defaultFontName Microsoft YaHei
 skinparam defaultFontSize 14
-skinparam ParticipantPadding 24
+skinparam ParticipantPadding 124
 skinparam BoxPadding 12
 skinparam sequenceMessageAlign left
-skinparam maxMessageSize 100
+skinparam maxMessageSize 200
 title S06-structured-sequence — source snapshot (not a runtime trace)
 participant "obj: 调用者" as obj
 participant "ctl: ManagementController" as ctl
 participant "svc: ManagementService" as svc
 participant "auth: AuthorizationService" as auth
-participant "role: Role" as role
 participant "repo: Store" as repo
 participant "audit: AuditService" as audit
 activate obj
@@ -19,50 +19,67 @@ obj -> ctl: 1. setRoleStatus(actor, id, input)
 activate ctl
 ctl -> svc: 2. roleStatus(actor, id, status)
 activate svc
-group same local transaction: business + integrity + version + SUCCESS audit
+group Same transaction: role status, grant version and success audit
 svc -> auth: 3. lock()
 activate auth
 deactivate auth
 note over svc,auth
-begin: rbac:role:status + root department
-→ captureUpper before mutation
+begin checks rbac:role:status and root department,
+then captures the grant limit for this actor before mutation.
 end note
-svc -> auth: 4. protectRole(actor, role)
+svc -> auth: 4. require(Role.class, id)
+activate auth
+auth -->> svc: role
+deactivate auth
+svc -> auth: 5. protectRole(actor, role)
 activate auth
 deactivate auth
-note over svc,role
-managed Role.status = status; enable → changedUpper
-upper checks latent capability paths even across disabled nodes.
-finish flushes → preserveAdministrator → increments GrantVersion
-GrantVersion Java Long id maps physical TINYINT, not BIGINT.
-end note
-alt audit persistence throws
-svc -> audit: 5. success(actor, ROLE_STATUS, target)
-activate audit
-audit -> repo: 6. save(log)
-activate repo
-repo --> obj: persistence failure; rollback, no business success
-deactivate repo
-deactivate audit
-else persisted in caller transaction
-svc -> audit: 7. success(actor, ROLE_STATUS, target)
-activate audit
-audit -> repo: 8. save(log)
-activate repo
-deactivate repo
-deactivate audit
-note over audit
-DDD local derives actual actor identity-role snapshot before append.
-No independent SUCCESS commit; timestamps have millisecond precision.
-end note
-end
+||12||
+opt Enable
+svc -> auth: 6. requireRoleGrantSystem(actor, roleSystem)
+activate auth
+deactivate auth
+||16||
 end
 note over svc
-Spring interceptor COMMIT after normal method return; failure blocks success response.
+Set the managed Role.status. If enabled, check the proposed grants.
 end note
+svc -> repo: 7. flush()
+activate repo
+deactivate repo
+svc -> auth: 8. preserveAdministrator()
+activate auth
+deactivate auth
+note over svc
+finish increments the grant version after the integrity check.
+end note
+svc -> audit: 9. success(actor, ROLE_STATUS, target)
+activate audit
 note over audit
-denied is a separate REQUIRES_NEW DENIED event, not business SUCCESS.
-AOP method/log timing is neither audit_log nor proof of DB commit.
+Capture the current roles for this actor and build the success record.
+end note
+audit -> repo: 10. save(log)
+activate repo
+break Failure
+repo -->> obj: Persistence error, transaction rolls back
+||16||
+end
+deactivate repo
+deactivate audit
+||16||
+end
+note over ctl,svc
+Spring commits after the service method finishes, before returning to the controller.
+end note
+alt Committed
+svc -->> ctl: role result
+ctl -->> obj: 200 role status updated
+else Commit throws
+svc -->> obj: Commit error, success response withheld
+||16||
+end
+note over audit
+Denied audit events use a separate transaction.
 end note
 deactivate svc
 deactivate ctl
